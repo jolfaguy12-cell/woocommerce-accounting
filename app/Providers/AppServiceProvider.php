@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Expenses\Models\Expense;
+use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\WebhookEvent;
@@ -30,6 +32,8 @@ class AppServiceProvider extends ServiceProvider
             'raw_order' => RawOrder::class,
             'review_item' => ReviewItem::class,
             'journal_entry' => JournalEntry::class,
+            'purchase_invoice' => PurchaseInvoice::class,
+            'product_mirror' => ProductMirror::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.
