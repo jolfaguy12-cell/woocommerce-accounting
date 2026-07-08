@@ -1,0 +1,198 @@
+<?php
+
+use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Accounting\Models\Setting;
+use App\Domain\Costing\Models\CostHistory;
+use App\Domain\Costing\Models\CostItem;
+use App\Domain\Costing\Models\ProductCostMapping;
+use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Models\OrderProfit;
+use App\Domain\Orders\Services\OrderIngestPipeline;
+use App\Domain\Orders\Services\ProfitEngine;
+use App\Domain\Orders\Services\RefundRecorder;
+use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Sync\Models\ReviewItem;
+use Database\Seeders\ChannelSeeder;
+use Database\Seeders\ChartOfAccountsSeeder;
+
+beforeEach(function () {
+    $this->seed(ChartOfAccountsSeeder::class);
+    $this->seed(ChannelSeeder::class);
+
+    $this->mirror = ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
+    $this->item = CostItem::create(['name' => 'اسپری']);
+    CostHistory::create([
+        'cost_item_id' => $this->item->id, 'unit_cost' => 400_000, 'landed_unit_cost' => 400_000,
+        'source' => 'manual', 'effective_at' => '2026-07-01',
+    ]);
+    ProductCostMapping::create([
+        'product_mirror_id' => $this->mirror->id, 'cost_item_id' => $this->item->id, 'status' => 'mapped',
+    ]);
+});
+
+function hubOrder(int $id, array $overrides = []): array
+{
+    return array_merge([
+        'id' => $id,
+        'status' => 'completed',
+        'currency' => 'IRT',
+        'total' => 771000,
+        'discount_total' => 10000,
+        'shipping_total' => 90000,
+        'created_via' => 'checkout',
+        'order_source' => null, 'source_channel' => null, 'external_marketplace' => null,
+        'payment_method' => 'WC_Zibal',
+        'date_created' => '2026-07-08T16:04:29',
+        'date_modified' => '2026-07-08T16:04:29',
+        'meta' => [],
+        'line_items' => [[
+            'id' => 91, 'name' => 'اسپری', 'quantity' => 1,
+            'subtotal' => 691000, 'total' => 681000, 'product_id' => 5732, 'variation_id' => null,
+        ]],
+    ], $overrides);
+}
+
+it('posts an explainable, balanced profit entry for a completed mapped order', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1001, hubOrder(1001), 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($order->refresh()->financial_state)->toBe('valid')
+        ->and($order->profit_status)->toBe('ok')
+        ->and($profit->status)->toBe('final')
+        ->and($profit->gross_sale)->toBe(691_000)
+        ->and($profit->discounts)->toBe(10_000)
+        ->and($profit->net_sale)->toBe(681_000)
+        ->and($profit->product_cost)->toBe(400_000)
+        ->and($profit->shipping_charged)->toBe(90_000)
+        ->and($profit->shipping_real)->toBe(90_000) // customer-paid fallback
+        ->and($profit->shipping_basis)->toBe('customer_paid')
+        ->and($profit->gross_profit)->toBe(281_000)
+        ->and($profit->operational_profit)->toBe(281_000) // charged == real, fee 0
+        ->and($profit->cost_breakdown)->toHaveCount(1);
+
+    $entry = $profit->journalEntry;
+    expect($entry)->not->toBeNull()
+        ->and($entry->lines->sum('debit'))->toBe($entry->lines->sum('credit'));
+});
+
+it('excludes pending-payment orders from profit', function () {
+    app(OrderIngestPipeline::class)->ingest(1002, hubOrder(1002, ['status' => 'pending']), 'manual');
+
+    $order = Order::firstWhere('hub_order_id', 1002);
+    expect($order->financial_state)->toBe('pending')
+        ->and(OrderProfit::count())->toBe(0)
+        ->and(JournalEntry::count())->toBe(0);
+});
+
+it('blocks profit on missing cost — never zero — and opens a review item', function () {
+    $orderData = hubOrder(1003);
+    $orderData['line_items'][0]['product_id'] = 9999; // no mirror, no mapping
+
+    app(OrderIngestPipeline::class)->ingest(1003, $orderData, 'manual');
+
+    $order = Order::firstWhere('hub_order_id', 1003);
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($order->profit_status)->toBe('blocked_missing_cost')
+        ->and($profit->status)->toBe('blocked')
+        ->and($profit->journal_entry_id)->toBeNull()
+        ->and(JournalEntry::count())->toBe(0)
+        ->and(ReviewItem::where('type', 'missing_cost')->count())->toBe(1);
+});
+
+it('uses the default shipping setting when no real cost and customer shipping is zero', function () {
+    Setting::set('default_shipping_cost', 65_000);
+
+    app(OrderIngestPipeline::class)->ingest(1004, hubOrder(1004, ['shipping_total' => 0, 'total' => 681000]), 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1004)->id);
+
+    expect($profit->shipping_real)->toBe(65_000)
+        ->and($profit->shipping_basis)->toBe('default')
+        ->and($profit->operational_profit)->toBe(281_000 - 65_000);
+});
+
+it('reads basalam commission from order metadata', function () {
+    $order = hubOrder(1005, [
+        'order_source' => 'basalam', 'status' => 'bslm-sent',
+        'meta' => ['_sync_basalam_hash_id' => 'X', '_basalam_fee_amount' => '-81720'],
+    ]);
+
+    app(OrderIngestPipeline::class)->ingest(1005, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1005)->id);
+
+    expect($profit->channel_fee)->toBe(81_720)
+        ->and($profit->status)->toBe('final')
+        ->and($profit->operational_profit)->toBe(281_000 - 81_720);
+});
+
+it('warns (not crashes) when a commission channel order lacks commission metadata', function () {
+    $order = hubOrder(1006, ['order_source' => 'basalam', 'status' => 'bslm-sent', 'meta' => []]);
+
+    app(OrderIngestPipeline::class)->ingest(1006, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1006)->id);
+
+    expect($profit->status)->toBe('provisional')
+        ->and($profit->channel_fee)->toBe(0)
+        ->and($profit->journal_entry_id)->not->toBeNull() // still posts, flagged for review
+        ->and(ReviewItem::where('type', 'missing_commission')->count())->toBe(1);
+});
+
+it('reverses posted profit when a completed order regresses to a non-valid status', function () {
+    app(OrderIngestPipeline::class)->ingest(1007, hubOrder(1007), 'manual');
+    $entryId = OrderProfit::first()->journal_entry_id;
+
+    app(OrderIngestPipeline::class)->ingest(1007, hubOrder(1007, ['status' => 'cancelled', 'date_modified' => '2026-07-09T10:00:00']), 'manual');
+
+    $order = Order::firstWhere('hub_order_id', 1007);
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($order->financial_state)->toBe('cancelled')
+        ->and(JournalEntry::find($entryId)->status)->toBe('reversed')
+        ->and($profit->status)->toBe('reversed');
+});
+
+it('recalculates with a new version after costs change (reverse + repost)', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1008, hubOrder(1008), 'manual');
+    $v1 = OrderProfit::firstWhere('order_id', $order->id);
+    $v1EntryId = $v1->journal_entry_id;
+
+    CostHistory::create([
+        'cost_item_id' => $this->item->id, 'unit_cost' => 450_000, 'landed_unit_cost' => 450_000,
+        'source' => 'manual', 'effective_at' => '2026-07-08',
+    ]);
+
+    app(ProfitEngine::class)->recalculate($order->refresh());
+
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+    expect($profit->version)->toBe(2)
+        ->and($profit->product_cost)->toBe(450_000)
+        ->and(JournalEntry::find($v1EntryId)->status)->toBe('reversed');
+});
+
+it('recalculation with unchanged inputs does not bump the version', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1009, hubOrder(1009), 'manual');
+
+    app(ProfitEngine::class)->recalculate($order->refresh());
+    app(ProfitEngine::class)->recalculate($order->refresh());
+
+    expect(OrderProfit::firstWhere('order_id', $order->id)->version)->toBe(1)
+        ->and(JournalEntry::where('status', 'posted')->count())->toBe(1);
+});
+
+it('posts a proportional reversal for a partial refund', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1010, hubOrder(1010), 'manual');
+
+    app(RefundRecorder::class)->record($order->refresh(), 340_500, 'مرجوعی نصف سفارش'); // 50% of net sale
+
+    $order->refresh();
+    $refundEntry = JournalEntry::where('idempotency_key', 'like', 'order:1010:refund:%')->first();
+
+    expect($order->financial_state)->toBe('partially_refunded')
+        ->and($refundEntry)->not->toBeNull()
+        ->and($refundEntry->lines->sum('debit'))->toBe($refundEntry->lines->sum('credit'))
+        ->and($refundEntry->lines->sum('debit'))->toBeGreaterThan(0);
+});

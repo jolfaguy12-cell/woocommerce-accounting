@@ -8,6 +8,7 @@ use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -39,5 +40,20 @@ class Order extends Model
     public function channelSource(): BelongsTo
     {
         return $this->belongsTo(ChannelSource::class);
+    }
+
+    public function profit(): HasOne
+    {
+        return $this->hasOne(OrderProfit::class);
+    }
+
+    public function shippingCost(): HasOne
+    {
+        return $this->hasOne(OrderShippingCost::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(OrderRefund::class);
     }
 }
