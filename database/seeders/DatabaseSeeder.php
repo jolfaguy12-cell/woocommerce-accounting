@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             ChartOfAccountsSeeder::class,
             CostCenterSeeder::class,
             ExpenseCategorySeeder::class,
+            ChannelSeeder::class,
         ]);
     }
 }

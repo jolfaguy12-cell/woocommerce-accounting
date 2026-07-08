@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Sync\Models\SyncRun;
 use App\Domain\Sync\Services\HubClient;
-use App\Domain\Sync\Services\RawOrderUpserter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Throwable;
@@ -15,7 +15,7 @@ class PollOrdersCommand extends Command
 
     protected $description = 'Reconciliation fallback: poll the hub for changed orders since the last cursor';
 
-    public function handle(HubClient $hub, RawOrderUpserter $orders): int
+    public function handle(HubClient $hub, OrderIngestPipeline $pipeline): int
     {
         $since = SyncRun::where('type', 'poll_orders')->where('status', 'done')
             ->latest('finished_at')->value('since_cursor');
@@ -38,7 +38,7 @@ class PollOrdersCommand extends Command
                 }
 
                 $payload = (is_array($row) && isset($row['status'])) ? $row : $hub->order($id);
-                $orders->upsert($id, $payload, 'poll');
+                $pipeline->ingest($id, $payload, 'poll');
                 $stats['upserted']++;
             }
 

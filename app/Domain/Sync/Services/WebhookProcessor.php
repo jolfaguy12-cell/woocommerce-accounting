@@ -2,6 +2,7 @@
 
 namespace App\Domain\Sync\Services;
 
+use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Products\Services\ProductSyncer;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\WebhookEvent;
@@ -77,7 +78,7 @@ class WebhookProcessor
         // Thin payloads only reference the order; pull the full row from the hub.
         $order ??= $this->hub->order((int) $orderId);
 
-        $this->orders->upsert((int) $orderId, $order, 'webhook');
+        app(OrderIngestPipeline::class)->ingest((int) $orderId, $order, 'webhook');
     }
 
     private function handleProduct(WebhookEvent $event): void

@@ -3,9 +3,12 @@
 namespace App\Providers;
 
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Channels\Models\Channel;
+use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Expenses\Models\Expense;
+use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
@@ -34,6 +37,9 @@ class AppServiceProvider extends ServiceProvider
             'journal_entry' => JournalEntry::class,
             'purchase_invoice' => PurchaseInvoice::class,
             'product_mirror' => ProductMirror::class,
+            'order' => Order::class,
+            'channel' => Channel::class,
+            'channel_source' => ChannelSource::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.
