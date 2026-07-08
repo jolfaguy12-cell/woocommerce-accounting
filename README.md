@@ -1,103 +1,68 @@
 # Internal WooCommerce Accounting System — AI Planning README
 
-This README defines the required behavior, boundaries, and planning rules for building the internal accounting system. Claude/Fable must read this before planning or implementing.
+This README is the compact project guide for Claude/Fable. Read it before planning or implementing.
 
-## 1. Project Purpose
+## 1. Purpose
 
-Build a strong internal accounting and financial dashboard system for a WooCommerce-based business.
+Build an internal accounting and management system for a WooCommerce-based business. The system must calculate real order profit, track purchase costs, manage internal financial records, generate partner/monthly reports, and provide a modern live dashboard.
 
-This is not only an order-profit dashboard. It must become an internal accounting, profit-discovery, reporting, cost-tracking, and management system for:
+This is an internal business accounting/reporting system, not a formal tax accounting system at this stage.
 
-- WooCommerce mirrored orders
-- Product cost and profit calculation
-- Purchase cost tracking
-- Partner/monthly reports
-- Bank/cash tracking
-- Expenses
-- Payroll
-- Loans
-- Cheques
-- Credit customers
-- Basalam, Torob, Google and other sales channels
-- Live responsive dashboard
-- Future API/mobile use
+## 2. Data Sources
 
-The system is for internal business accounting and management reporting, not formal tax accounting at this stage.
-
-## 2. Data Sources and Environments
-
-### Main data source
-
-The accounting system must not connect directly to the production WooCommerce website.
-
-The main source of real business data is the existing mirrored hub project:
+Real production data must come from the mirrored hub:
 
 ```txt
 behdashtik-hub-main/
 ```
 
-The hub already mirrors website/order/product data and exposes data through webhook/API mechanisms.
+The accounting system must not query the production WooCommerce site directly.
 
-### Development site
-
-The development WooCommerce site may be used only for discovery, sampling, mapping analysis, and testing structure:
+The development WooCommerce site may be used only for discovery, mapping analysis, and safe tests:
 
 ```txt
 dev.behdashtik.ir
 ```
 
-Rules:
+Dev data must never create real accounting records or real reports.
 
-- Do not generate real accounting records from dev data.
-- Do not include dev orders in real financial reports.
-- Use dev only to inspect order metadata, product/variation structure, source fields, webhook behavior, and mapping requirements.
-- Any tests against dev must run in sandbox/test mode.
+## 3. Hard Rules
 
-## 3. Non-Negotiable Rules
-
-- Currency is **Toman everywhere**, including the website, imports, reports, and dashboard.
+- Currency is **Toman everywhere**.
 - Business timezone is `Asia/Tehran`.
 - User-facing dates must be Jalali/Shamsi.
-- Internal timestamps may be stored in UTC, but reports must use Tehran/Jalali period boundaries.
-- The application name must not be tied to the store name; store/business name must be configurable.
-- Production accounting data comes from the hub, not from dev WooCommerce.
-- The accounting system must not send prices, stock, wholesale prices, or orders to WooCommerce in the current phase.
-- Wholesale data is internal only and must not be pushed to the website.
-- Profit, purchase cost, margins, partner reports, payroll, bank data, cheques, loans, and sensitive financial data must not leak outside the accounting system.
-- Public APIs, outgoing webhooks, public logs, public exports, Telegram/SMS messages, or WooCommerce updates must not expose sensitive financial data.
-- General app logs must not contain sensitive financial numbers. Sensitive audit data may exist only in protected internal audit logs.
+- Store/business display name must be configurable.
+- The app name must not be tied to the store name.
+- Current phase must not send prices, stock, wholesale prices, or orders to WooCommerce.
+- Wholesale prices are internal only.
+- Sensitive financial data must not leak outside the accounting system.
+- Public APIs, outgoing webhooks, public logs, public exports, Telegram/SMS, or WooCommerce updates must not expose purchase cost, profit, margins, payroll, banks, loans, cheques, or partner reports.
+- General logs must not include sensitive financial values. Use protected audit logs when needed.
 
-## 4. How Claude/Fable Must Work
+## 4. Claude/Fable Workflow
 
-Claude/Fable must start in Plan Mode.
-
-Before implementation, inspect the repository structure and existing hub capabilities. Then produce an implementation plan.
-
-Use Interview Mode only for major business or architectural decisions. Do not interrupt for small details that can be safely inferred or implemented with configuration.
-
-Ask questions only when a wrong choice could damage accounting accuracy, security, reporting, or future extensibility.
-
-When useful, research existing open-source systems, dashboard patterns, accounting/reporting UI, chart libraries, and admin components for inspiration. Respect licenses. Do not copy code or UI blindly.
+- Start in Plan Mode.
+- Inspect the repo and hub structure before assuming data shapes.
+- Prefer configurable mappings over hard-coded business rules.
+- Use Interview Mode only for heavy decisions.
+- Do not ask the user about minor UI/naming/layout details unless they affect business meaning or financial correctness.
+- Every financial number must be explainable, traceable, and auditable.
 
 ## 5. Accounting Core
 
-The system must include a real internal accounting foundation, not only calculated fields.
-
-Support:
+Implement a real internal accounting foundation, including:
 
 - Chart of accounts
-- Double-entry journal entries
+- Double-entry journal logic
 - Bank/cash accounts
-- Receivables
-- Payables
 - Parties
+- Receivables/payables
 - Sales revenue
 - Cost of goods sold
 - Shipping income/expense
 - Platform/channel fees
-- Expense categories
-- Cost centers
-- Payroll expenses
+- Expense categories and cost centers
+- Payroll basics
 - Loans
 - Cheques
 - Manual adjustments
@@ -106,281 +71,136 @@ Support:
 - Audit trail
 - Reversal/voiding instead of unsafe deletion
 
-Every important number in reports must be traceable to source records.
-
 ## 6. Order Profit Rules
 
-Profit is recognized when the order becomes financially valid:
-
-- Normal WooCommerce order: when status is completed.
-- Basalam-related order: when Basalam status indicates the order has been sent/shipped to the customer.
-- Pending-payment orders must not produce final profit.
+- Normal WooCommerce orders become financially valid when completed.
+- Platform-specific orders become financially valid based on configurable status mapping, such as shipped/sent to customer.
+- Pending-payment orders must not create final profit.
 - Cancelled, failed, refunded, partially refunded, returned, and adjusted orders must be handled explicitly.
+- Missing purchase cost or missing Cost Mapping must never be treated as zero.
+- Incomplete orders must go to review queues.
 
-Profit must be explainable per order and per item:
-
-- Gross sale
-- Discounts
-- Net sale
-- Product cost
-- Cost source
-- Shipping charged to customer
-- Real shipping cost
-- Basalam commission
-- Payment gateway fee if available
-- Other direct order costs
-- Gross profit
-- Operational profit
-- Net profit impact
-- Profit status: final, incomplete, estimated, adjusted
-
-If purchase cost or product cost mapping is missing, do not silently treat cost as zero. Mark the order as incomplete and show it in review queues.
+Profit must be explainable per order and per item: gross sale, discounts, net sale, product cost, cost source, shipping charged, real/default shipping cost, platform/channel fees, payment gateway fee if available, gross profit, operational profit, final impact, and profit status.
 
 ## 7. Product Cost Mapping
 
-WooCommerce inventory remains the main operational inventory for sales.
+WooCommerce remains the operational sales inventory system.
 
-The accounting system does not become the main sales inventory manager. It only reads and displays stock from the hub and uses product/cost mapping for profit discovery.
+The accounting system reads product price/stock from the hub but does not manage sales inventory.
 
-Use a cost-mapping model:
+Use Cost Mapping for profit discovery:
 
-- WooCommerce product or variation
-- Cost Item
-- Cost Group
-- Purchase cost
-- Cost multiplier
-- Optional cost formula for complex cost calculation only
-- Cost mapping status
+- WooCommerce product/variation → Cost Item
+- Cost Group for shared costs
+- Latest purchase cost by default
+- Cost multiplier for packs or multi-unit products
+- Optional cost formula only when needed for cost calculation
+- Mapping status
 
-WooCommerce simple vs variable products must not break accounting. Each product or variation must map to a Cost Item.
+Simple vs variable WooCommerce products must not break accounting. Each product or variation must map to a Cost Item.
 
-Examples:
-
-- Single item sale: multiplier `1`
-- Pack of 12 sold as one product: multiplier `12`
-- Product variants/colors can share the same cost through a Cost Group.
-- Variant-specific cost override is optional, not required by default.
-
-Do not model this as a bundle feature in the current scope. Bundle management is out of current scope.
+Do not implement bundle management in the current scope.
 
 ## 8. Purchase Costs
 
+Support purchase invoices, suppliers, purchase date, quantity, received quantity, partial delivery, supplier cancellation/non-delivery, notes, purchase shipping cost, landed unit cost, purchase-cost history, Excel import for historical costs, and manual cost entry.
+
 Default cost basis is latest purchase price.
-
-The system must support:
-
-- Purchase invoices
-- Supplier
-- Purchase date
-- Purchased quantity
-- Received quantity
-- Partial delivery
-- Supplier cancellation/non-delivery
-- Notes
-- Purchase shipping cost
-- Landed unit cost
-- Purchase-cost history
-- Excel import for historical purchase costs
-- Manual cost entry when needed
 
 Purchase shipping allocation:
 
 - Default: allocate by quantity.
-- Allow manual allocation override.
+- Allow manual override.
 
 If purchase cost is corrected later, do not silently rewrite old reports. Provide controlled recalculation options with audit logs.
 
 ## 9. Wholesale Price
 
-Wholesale price is part of the current implementation scope.
+Wholesale price is in current scope.
 
-For each product/Cost Item, support:
+For each product/Cost Item, support latest purchase cost, retail/site sale price, internal wholesale price, retail profit/margin, wholesale profit/margin, and wholesale status.
 
-- Latest purchase cost
-- Retail/site sale price
-- Internal wholesale price
-- Retail profit
-- Retail margin
-- Wholesale profit
-- Wholesale margin
-- Wholesale status: missing, ok, low-margin, loss-making
+For variable products, a shared wholesale price for the product/group is enough by default. Per-color/per-number wholesale prices are not required unless explicitly configured.
 
-For variable products:
+Wholesale rules may state that a wholesale buyer must buy at least one unit from each required number/color/model.
 
-- A single wholesale price for the product/group is enough by default.
-- No need to define separate wholesale price for every color/number unless manually overridden.
-- Wholesale rule can state that the wholesale buyer must buy at least one unit from each required number/color/model.
-- Wholesale pricing and rules are internal only and must not be sent to WooCommerce.
+Wholesale data must remain internal and must not be sent to WooCommerce.
 
-## 10. Product Display Page
+## 10. Product Page
 
-The accounting product page must show, for internal users:
+The internal product page should show product name, WooCommerce ID/variation ID, SKU, GTIN/UPC/EAN/ISBN, simple/variable type, current site stock from hub, current sale price, retail price, wholesale price, latest purchase cost, retail profit/margin, wholesale profit/margin, Cost Mapping status, price history, stock sync history, last sale, and last purchase.
 
-- Product name
-- WooCommerce ID / variation ID
-- SKU
-- GTIN / UPC / EAN / ISBN when available
-- Simple/variable type
-- Current site stock from hub
-- Current site sale price
-- Retail price
-- Wholesale price
-- Latest purchase cost
-- Retail profit/margin
-- Wholesale profit/margin
-- Cost mapping status
-- Price history
-- Stock sync history
-- Last sale details
-- Last purchase details
+Keep access control simple, but prevent sensitive data leakage outside the accounting system.
 
-Keep access control simple, but prevent data leakage outside the accounting system.
+## 11. Dynamic Sales Channels
 
-## 11. Sales Channels and Attribution
+Sales channels must be **dynamic and data-driven**.
 
-Sales channels must be discovered from real order metadata by inspecting hub/dev data.
+Do not hard-code a fixed channel list.
 
-Do not hard-code all raw source values in this README. Fable must analyze orders and create configurable mappings.
+Fable must inspect real hub/dev order metadata and discover available source fields, source values, referrers, campaign fields, platform markers, and related metadata.
 
-Required normalized channels include at least:
+The system must include a configurable channel registry and source-mapping layer:
 
-- Direct/WooCommerce
-- Torob
-- Google
-- Basalam
-- Manual/internal sale
-- Credit sale
-- Unknown
-- Other
+- Store raw source data from each order.
+- Normalize raw values through configurable mappings.
+- Auto-detect new/unmapped source values.
+- Never fail or lose an order because a new source appears.
+- Queue unknown/new sources for review.
+- Allow admins to map a raw source to an existing channel or create a new channel.
+- Allow authorized recalculation/reporting after mapping changes.
+- Keep channel reports generic so future sources work without code changes.
 
-Keep raw source values for audit/debugging, and store normalized channel mapping.
+Example: if a future order source appears as `gemini`, `gemeni`, or any other new value, the system must store it, classify it safely as unknown/new until mapped, show it in review, and include it in reports with a fallback label.
 
-Unknown/unmapped sources must appear in a review queue.
+## 12. Channel Costs and Enrichment
 
-## 12. Torob
+Channel behavior must be configuration-driven.
 
-Torob is a sales acquisition channel, not an independent order source.
+Supported cost/enrichment models should include:
 
-- Torob orders come through WooCommerce/hub.
-- Torob source mapping must be discovered from order metadata.
-- Torob is charged through wallet/top-up payments.
-- Users manually register Torob top-ups in the system.
-- Monthly Torob cost = sum of Torob top-ups in that Jalali period.
-- Torob report must show sales, profit, shipping, costs, top-ups, and final channel profit.
+- Manual period costs
+- Wallet/top-up costs
+- Per-order commission from order metadata
+- API enrichment for settlement, installment, debt, or status data when configured
+- No direct cost
 
-## 13. Google
+For wallet/top-up channels, period cost equals the sum of top-ups in that Jalali period.
 
-Google orders must be reported as a sales channel when detectable from order metadata.
+For metadata-commission channels, commission should be read from order metadata when available. Missing commission should create a warning, not a crash.
 
-Google reports should show:
+For API-enriched channels, API data may enrich debt, settlement, installment, or status data, but the hub remains the primary order source unless explicitly changed later.
 
-- Order count
-- Sales
-- Cost of goods
-- Shipping
-- Profit
-- Registered Google-related costs if any
-- Final channel profitability
-
-Fable should discover exact Google source fields from available order data.
-
-## 14. Basalam
-
-Basalam order commission is available in WooCommerce order metadata and should be used for order profit calculation.
-
-Basalam API may be used as enrichment/reconciliation, not as the primary order source.
-
-Use Basalam API when useful for:
-
-- Installment/credit state
-- Remaining customer debt
-- Paid amount
-- Settlement state
-- Shipment/sent status
-- Reconciliation against local hub data
-
-## 15. Shipping Cost
+## 13. Shipping
 
 Current implementation:
 
 - Real shipping cost is manually editable per order.
 - A default shipping cost setting must exist.
-- If real shipping cost is not entered and customer shipping charge is not zero, use the customer-paid shipping amount as the temporary/default cost basis.
-- Later enhancement: import postal PDFs, extract tracking/cost data, SMS tracking codes, complete orders, and update accounting shipping costs automatically.
+- If real shipping cost is missing and customer shipping charge is not zero, use customer-paid shipping as temporary/default cost basis.
+- Future enhancement may import postal PDFs, extract tracking/cost data, SMS tracking codes, complete orders, and update accounting shipping costs automatically.
 
-Reports must separate:
+Reports must separate shipping charged to customer, real/default shipping cost, shipping difference, and shipping impact on profit.
 
-- Shipping charged to customer
-- Real/default shipping cost
-- Shipping difference
-- Shipping cost impact on profit
+## 14. Credit Customers and Receivables
 
-## 16. Credit Customers and Receivables
+Support internal credit orders where a customer takes goods now and pays later.
 
-Support internal credit orders:
+Track debt by order, partial payments, remaining balance, payment account, receivable aging/overdue state, and customer credit balance if they overpay.
 
-- Customer takes goods now and pays later.
-- Track debt by order.
-- Allow partial payments.
-- Track remaining balance.
-- Track payment account.
-- Show receivables by customer and aging/overdue status.
-- Allow customer credit balance if they overpay.
+## 15. Expenses, Payroll, Loans, Cheques
 
-## 17. Expenses, Cost Centers, Payroll, Loans, Cheques
+Support expenses, categories, cost centers, payment account, receipts/attachments, whether an expense affects partner profit, current vs capital/asset expense, employees, payroll, employee advances/debts, loans, installments, cheques receivable/payable, due dates, and alerts.
 
-Support:
+Suggested cost centers include warehouse, logistics, programming/development, AI tools, marketing, management, finance/accounting, HR, and purchasing.
 
-- Expense registration
-- Expense category
-- Cost center
-- Payment account
-- Attachments/receipts
-- Whether expense affects partner profit report
-- Current expense vs capital/asset expense
-- Employee profiles
-- Payroll payments
-- Employee advances/debts
-- Loans and installment schedules
-- Cheques receivable/payable
-- Due date alerts
-- Telegram/internal notifications when appropriate
+## 16. Partner / Periodic Reports
 
-Suggested high-level cost centers include warehouse, logistics, programming/development, AI tools, marketing, management, finance/accounting, HR, and purchasing.
-
-## 18. Partner / Periodic Report
-
-Partner reports are a core output, not an afterthought.
+Partner reports are a core output.
 
 Reports must use Jalali periods and Tehran timezone.
 
-Show at least:
-
-- Gross sales
-- Net sales
-- Completed/accounted sales
-- Order count
-- Average order value
-- Gross profit
-- Operational profit
-- Net period profit
-- Profit percentages
-- Cash collected
-- Remaining receivables
-- Payables
-- Bank/cash balances
-- Inventory value for visibility
-- Product/channel performance
-- Torob/Google/Basalam performance
-- Shipping charged vs real cost
-- Fees/commissions
-- Expenses by category and cost center
-- Payroll
-- Loans and cheques summary
-- Lost sales when data exists
-- Returns/refunds/cancellations
-- Incomplete-data warnings
-- Adjustments from previous periods
+Show gross sales, net sales, completed/accounted sales, order count, average order value, gross profit, operational profit, net period profit, profit percentages, cash collected, receivables, payables, bank/cash balances, inventory value for visibility, product/channel performance, shipping, fees, expenses by category/cost center, payroll, loans/cheques summary, lost sales when data exists, returns/refunds/cancellations, incomplete-data warnings, and adjustments from previous periods.
 
 Report states:
 
@@ -389,104 +209,61 @@ Report states:
 - Final
 - Corrected/adjusted
 
-Before finalizing, the system must show a readiness checklist: missing costs, missing mappings, missing shipping costs, unknown sources, sync errors, etc.
+Before finalizing, show a readiness checklist: missing costs, missing mappings, missing shipping costs, unknown sources, sync errors, etc.
 
 Finalized reports must be snapshotted. Later corrections must be handled as adjustments, not silent changes.
 
-## 19. Dashboard
+## 17. Dashboard
 
 The dashboard is a major product area.
 
-It must be:
+It must be responsive, live or near-live, modern, fast, and useful for daily management.
 
-- Responsive
-- Live or near-live
-- Modern
-- Fast
-- Useful for daily management
-- Built with professional UI components and chart libraries when useful
+Use professional UI/chart libraries when helpful. Charts do not need to be fully RTL if that hurts quality. Prioritize correct data, readability, modern visuals, interaction, and Jalali/Persian display where appropriate.
 
-Charts do not need to be fully RTL if that reduces quality. Prioritize readability, modern visual quality, interaction, and correct Persian/Jalali labels.
+Dashboard should show KPI cards, sales/profit trends, dynamic channel comparison, channel cost/profitability, shipping analysis, expenses, cash/bank overview, receivables/payables, product performance, low-margin/loss-making products, missing Cost Mapping, sync health, alerts, review tasks, recent price/stock changes, and unknown/new source alerts.
 
-Dashboard should include:
-
-- KPI cards
-- Sales/profit trends
-- Channel comparison
-- Torob performance
-- Google performance
-- Basalam performance
-- Shipping analysis
-- Expense charts
-- Cash/bank overview
-- Receivables/payables
-- Product performance
-- Low-margin/loss-making products
-- Missing cost mapping
-- Sync health
-- Alerts
-- Tasks needing review
-- Recent price/stock changes
-
-## 20. Product Price and Stock Sync
+## 18. Product Price and Stock Sync
 
 The hub can apply product updates.
 
 The accounting system must update displayed product sale price and stock when hub/webhook data changes.
 
-Track history:
+Track history for sale price, purchase cost, wholesale price, hub stock, Cost Mapping, and default shipping cost changes.
 
-- Sale price changes
-- Purchase cost changes
-- Wholesale price changes
-- Stock changes from hub
-- Cost mapping changes
-- Default shipping cost changes
+For price/stock changes, log old value, new value, product/variation ID, source, timestamp, and correlation ID in protected audit/sync logs.
 
-For price changes, log old value, new value, product/variation ID, source, timestamp, and correlation ID in protected audit/sync logs.
-
-## 21. API and Mobile Future
+## 19. API and Mobile Future
 
 The system must be API-ready, but the mobile app is not part of current implementation.
 
-Future mobile app may:
+Future mobile app may scan barcode/GTIN/UPC/EAN/ISBN, show product prices, show wholesale price, build invoice/quote, select customer, register payment, and later send orders to WooCommerce.
 
-- Scan barcode/GTIN/UPC/EAN/ISBN
-- Show product prices
-- Show wholesale price
-- Build invoice/quote
-- Select customer
-- Register payment
-- Later send order to WooCommerce
+Current phase must not implement mobile app or WooCommerce order creation.
 
-Current phase must not implement mobile app or WooCommerce order creation, but data/services should not block this future.
+APIs must be private/authenticated and must not expose sensitive data to unauthorized users.
 
-API must be private/authenticated and must not expose sensitive data to unauthorized users.
+## 20. CLI
 
-## 22. CLI
-
-Include a CLI for AI/developer operations.
-
-Useful commands:
+Include CLI tools for AI/developer operations:
 
 - Health check
 - Hub connectivity check
 - Inspect sample order
 - Inspect product mapping
+- Inspect discovered sources/channels
 - Sync selected order
 - Recalculate order profit
-- List orders with missing cost
+- List missing costs
 - List unmapped products
 - Import purchase-cost Excel with dry-run
 - Validate accounting integrity
-- Validate ledger balance
 - Rebuild reports/read models
-- Show sync errors
-- Retry failed jobs
+- Show/retry sync errors
 
 CLI output should support human-readable and JSON modes.
 
-## 23. Sync, Webhooks, Reliability
+## 21. Sync and Reliability
 
 Use safe sync patterns:
 
@@ -502,85 +279,49 @@ Use safe sync patterns:
 - No duplicate orders
 - No duplicate accounting entries
 - Detect changed order/product metadata
+- Detect new/unmapped source values
 
-Dashboard/CLI must show sync health:
+Dashboard/CLI must show sync health, last successful sync, failed webhook count, pending jobs, hub availability, and new/unmapped source count.
 
-- Last successful sync
-- Last product update
-- Last order update
-- Failed webhook count
-- Pending jobs
-- Hub availability
+## 22. Review Queues and Fast Forms
 
-## 24. Review Queues and Fast Forms
+Create a needs-review area for completed orders without cost, products without Cost Mapping, products without wholesale price, unknown/new order sources, missing real/default shipping data, unpaid credit balances, supplier delivery issues, sync failures, and low-margin/loss-making products.
 
-Create a “needs review” area for:
+Provide fast forms for expenses, real shipping cost, channel top-up/cost, purchase cost, wholesale price, customer payment, supplier payment, and source-to-channel mapping.
 
-- Completed orders without cost
-- Products without Cost Mapping
-- Products without wholesale price
-- Unknown order sources
-- Missing real/default shipping data
-- Credit customers with unpaid balance
-- Supplier partial delivery issues
-- Sync failures
-- Low-margin or loss-making products
+## 23. Attachments
 
-Provide fast forms for common actions:
+Allow protected attachments for purchase invoices, payment receipts, shipping receipts, channel/top-up receipts, payroll receipts, programming/AI expense receipts, cheques, loans, and expense documents.
 
-- Register expense
-- Register real shipping cost
-- Register Torob top-up
-- Register purchase cost
-- Register wholesale price
-- Register customer payment
-- Register supplier payment
+## 24. Testing Requirements
 
-## 25. Attachments
-
-Allow protected attachments for:
-
-- Purchase invoices
-- Payment receipts
-- Shipping receipts
-- Torob top-up receipts
-- Payroll receipts
-- Programming/AI expense receipts
-- Cheques
-- Loan documents
-- Expense documents
-
-## 26. Testing Requirements
-
-Testing is mandatory, especially because AI will help build the system.
+Tests are mandatory, especially because AI will help build the system.
 
 Required tests include:
 
-- Simple product sync: price and stock
-- Variable product sync: variation price and stock
-- Fake dev order affecting simple products
-- Fake dev order affecting variations
+- Simple product price/stock sync
+- Variable product/variation price/stock sync
+- Fake dev orders without real accounting impact
 - Completed order profit calculation
-- Pending order not finalized
-- Basalam commission metadata
-- Torob channel mapping and top-ups
-- Google channel mapping
+- Pending order exclusion
+- Platform/channel commission metadata
+- Dynamic channel discovery
+- Unknown source fallback behavior
+- New source mapping and report recalculation
+- Channel top-up/cost reporting
 - Missing cost handling
 - Cost multiplier
 - Wholesale profit/margin
-- Loss-making wholesale price
 - Purchase cost import from Excel
-- Real/default shipping logic
-- Credit order and partial settlement
-- Expense and cost center reporting
-- Partner report readiness checklist
-- Final report snapshot and later adjustment
+- Shipping fallback logic
+- Credit order partial settlement
+- Partner report readiness/finalization
 - Webhook retry/idempotency
 - No dev data entering real accounting
 
-## 27. Current Scope vs Future Scope
+## 25. Current Scope vs Future Scope
 
-### Current implementation scope
+Current scope:
 
 - Accounting core foundation
 - Hub-based order/product sync
@@ -591,9 +332,8 @@ Required tests include:
 - Latest-purchase-cost profit calculation
 - Wholesale price management
 - Order profit calculation
-- Basalam commission from metadata
-- Optional Basalam enrichment planning
-- Torob/Google/channel reporting
+- Dynamic sales-channel discovery/reporting
+- Configurable channel cost models
 - Manual shipping cost/default shipping logic
 - Credit customers/receivables
 - Bank/cash accounts
@@ -608,7 +348,7 @@ Required tests include:
 - API-ready architecture
 - Tests
 
-### Future, not current implementation
+Future, not current scope:
 
 - Mobile app
 - Barcode scanning app workflow
@@ -618,12 +358,14 @@ Required tests include:
 - Budgeting module
 - Advanced bank reconciliation automation
 
-## 28. Final Guidance
+## 26. Final Guidance
 
 Keep the implementation serious but not unnecessarily complicated.
 
-Prefer configuration over hard-coding when dealing with statuses, channels, source mapping, cost centers, reports, and thresholds.
+Prefer configuration over hard-coding for statuses, channels, source mapping, cost centers, reports, and thresholds.
 
 Every financial number must be explainable, traceable, and auditable.
 
-Do not optimize only for code generation. Optimize for correctness, maintainability, testability, and future debugging.
+The channel system must never break when a new source appears. New sources must be stored, surfaced, reviewable, and reportable with a safe fallback until mapped.
+
+Optimize for correctness, maintainability, testability, and future debugging.
