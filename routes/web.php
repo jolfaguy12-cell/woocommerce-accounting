@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AttachmentController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Webhooks\HubWebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -13,9 +14,7 @@ Route::post('webhooks/hub', HubWebhookController::class)
     ->name('webhooks.hub');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::post('attachments', [AttachmentController::class, 'store'])
         ->name('attachments.store');
