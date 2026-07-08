@@ -16,6 +16,7 @@ use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Models\Loan;
 use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Models\PayrollRun;
+use App\Domain\Reports\Models\PartnerReport;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\WebhookEvent;
@@ -52,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
             'payroll_run' => PayrollRun::class,
             'loan' => Loan::class,
             'cheque' => Cheque::class,
+            'partner_report' => PartnerReport::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.

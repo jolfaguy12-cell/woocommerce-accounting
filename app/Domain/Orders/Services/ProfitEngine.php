@@ -2,6 +2,7 @@
 
 namespace App\Domain\Orders\Services;
 
+use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Setting;
 use App\Domain\Accounting\Services\JournalPoster;
 use App\Domain\Accounting\Support\JalaliPeriod;
@@ -229,13 +230,28 @@ class ProfitEngine
             return null;
         }
 
-        return $this->poster->post([
+        $data = [
             'entry_date' => $order->order_date->copy()->setTimezone(JalaliPeriod::TIMEZONE),
             'description' => "سود سفارش {$order->hub_order_id}".($version > 1 ? " (نسخه {$version})" : ''),
             'idempotency_key' => "order:{$order->hub_order_id}:profit:v{$version}",
             'source' => $order,
             'correlation_id' => $order->rawOrder->payload['correlation_id'] ?? null,
-        ], $lines);
+        ];
+
+        try {
+            return $this->poster->post($data, $lines);
+        } catch (PeriodLockedException) {
+            // Order dated inside a finalized period: never rewrite history —
+            // the entry lands in the current open period and gets flagged.
+            $entry = $this->poster->post([
+                'entry_date' => Carbon::now(JalaliPeriod::TIMEZONE),
+                'description' => $data['description']." (ثبت دیرهنگام؛ دوره {$order->jalali_period} قفل است)",
+            ] + $data, $lines);
+
+            $this->openOnce('late_entry', $order, ['locked_period' => $order->jalali_period]);
+
+            return $entry;
+        }
     }
 
     private function storeProfit(Order $order, array $r, int $version, string $status, ?int $entryId, string $hash): OrderProfit
