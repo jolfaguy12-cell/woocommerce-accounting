@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Channels\Models\Channel;
+use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Expenses\Models\Attachment;
@@ -40,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
             'order' => Order::class,
             'channel' => Channel::class,
             'channel_source' => ChannelSource::class,
+            'channel_cost' => ChannelCost::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.
