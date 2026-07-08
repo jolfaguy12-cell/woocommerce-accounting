@@ -11,6 +11,11 @@ use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Expenses\Models\Expense;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Receivables\Models\Cheque;
+use App\Domain\Receivables\Models\CreditOrder;
+use App\Domain\Receivables\Models\Loan;
+use App\Domain\Receivables\Models\PartyPayment;
+use App\Domain\Receivables\Models\PayrollRun;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\WebhookEvent;
@@ -42,6 +47,11 @@ class AppServiceProvider extends ServiceProvider
             'channel' => Channel::class,
             'channel_source' => ChannelSource::class,
             'channel_cost' => ChannelCost::class,
+            'credit_order' => CreditOrder::class,
+            'party_payment' => PartyPayment::class,
+            'payroll_run' => PayrollRun::class,
+            'loan' => Loan::class,
+            'cheque' => Cheque::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.
