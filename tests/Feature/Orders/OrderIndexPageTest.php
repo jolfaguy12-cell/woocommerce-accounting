@@ -4,7 +4,6 @@ use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Models\User;
 use Database\Seeders\ChannelSeeder;
 use Database\Seeders\RoleSeeder;
-use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     $this->seed([RoleSeeder::class, ChannelSeeder::class]);
@@ -26,15 +25,15 @@ function indexPageOrder(int $id, array $overrides = []): array
 it('exposes customer name, payment status and last-sync time to the orders list', function () {
     app(OrderIngestPipeline::class)->ingest(8001, indexPageOrder(8001), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders')->assertOk()->assertInertia(
-        fn (Assert $page) => $page
-            ->component('orders/index')
-            ->has('channels')
-            ->has('orders.data', 1)
-            ->where('orders.data.0.customer_name', 'زهرا کریمی')
-            ->where('orders.data.0.payment_status', 'paid')
-            ->has('orders.data.0.updated_at'),
-    );
+    $this->actingAs($this->admin)->get('/orders')->assertOk()
+        ->assertViewIs('pages.orders.index')
+        ->assertViewHas('channels')
+        ->assertViewHas('orders', function ($orders) {
+            return $orders->count() === 1
+                && $orders->items()[0]->customerParty->name === 'زهرا کریمی'
+                && $orders->items()[0]->payment_status === 'paid'
+                && $orders->items()[0]->updated_at !== null;
+        });
 });
 
 it('searches orders by order number and by customer name', function () {
@@ -45,12 +44,12 @@ it('searches orders by order number and by customer name', function () {
         'billing' => ['first_name' => 'زهرا', 'last_name' => 'کریمی', 'phone' => '09120000002'],
     ]), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders?search=8101')->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8101),
+    $this->actingAs($this->admin)->get('/orders?search=8101')->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8101,
     );
 
-    $this->actingAs($this->admin)->get('/orders?search='.urlencode('کریمی'))->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8102),
+    $this->actingAs($this->admin)->get('/orders?search='.urlencode('کریمی'))->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8102,
     );
 });
 
@@ -58,8 +57,8 @@ it('filters orders by payment status', function () {
     app(OrderIngestPipeline::class)->ingest(8201, indexPageOrder(8201, ['date_paid' => null]), 'manual');
     app(OrderIngestPipeline::class)->ingest(8202, indexPageOrder(8202, ['date_paid' => '2026-07-05T10:05:00']), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders?payment_status=unpaid')->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8201),
+    $this->actingAs($this->admin)->get('/orders?payment_status=unpaid')->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8201,
     );
 });
 
@@ -69,19 +68,18 @@ it('exposes every real order status dynamically, not a hard-coded list', functio
         'status' => 'bslm-shipping', 'order_source' => 'basalam', 'meta' => [],
     ]), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders')->assertInertia(
-        fn (Assert $page) => $page
-            ->has('statuses', 2)
-            ->where('statuses.0.status', fn ($s) => in_array($s, ['completed', 'bslm-shipping'], true)),
-    );
+    $this->actingAs($this->admin)->get('/orders')->assertViewHas('statuses', function ($statuses) {
+        return $statuses->count() === 2
+            && in_array($statuses->first()->status, ['completed', 'bslm-shipping'], true);
+    });
 });
 
 it('filters orders by status', function () {
     app(OrderIngestPipeline::class)->ingest(8401, indexPageOrder(8401, ['status' => 'completed']), 'manual');
     app(OrderIngestPipeline::class)->ingest(8402, indexPageOrder(8402, ['status' => 'processing']), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders?status=processing')->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8402),
+    $this->actingAs($this->admin)->get('/orders?status=processing')->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8402,
     );
 });
 
@@ -89,17 +87,17 @@ it('filters orders with no resolved channel via the unmapped sentinel', function
     app(OrderIngestPipeline::class)->ingest(8501, indexPageOrder(8501, ['order_source' => 'a-brand-new-source', 'meta' => []]), 'manual');
     app(OrderIngestPipeline::class)->ingest(8502, indexPageOrder(8502), 'manual'); // resolves to website
 
-    $this->actingAs($this->admin)->get('/orders?channel_id=unmapped')->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8501)->where('unmappedCount', 1),
-    );
+    $this->actingAs($this->admin)->get('/orders?channel_id=unmapped')->assertOk()
+        ->assertViewHas('orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8501)
+        ->assertViewHas('unmappedCount', 1);
 });
 
 it('filters orders by a jalali-picked date range', function () {
     app(OrderIngestPipeline::class)->ingest(8601, indexPageOrder(8601, ['date_created' => '2026-07-01T10:00:00']), 'manual');
     app(OrderIngestPipeline::class)->ingest(8602, indexPageOrder(8602, ['date_created' => '2026-07-08T10:00:00']), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders?date_from=2026-07-05&date_to=2026-07-10')->assertInertia(
-        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8602),
+    $this->actingAs($this->admin)->get('/orders?date_from=2026-07-05&date_to=2026-07-10')->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 8602,
     );
 });
 

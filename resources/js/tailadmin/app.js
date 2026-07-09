@@ -7,13 +7,23 @@ import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 // FullCalendar
 import { Calendar } from '@fullcalendar/core';
-
-
+// Jalali date picker (vanilla JS, no framework) — used by <x-form.jalali-date-range>.
+// This package has no ES export; it attaches `window.jalaliDatepicker` itself.
+import '@majidh1/jalalidatepicker/dist/jalalidatepicker.min.js';
+import '@majidh1/jalalidatepicker/dist/jalalidatepicker.min.css';
 
 window.Alpine = Alpine;
 window.ApexCharts = ApexCharts;
 window.flatpickr = flatpickr;
 window.FullCalendar = Calendar;
+
+window.jalaliDatepicker.startWatch({
+    minWidth: false,
+    autoHide: true,
+    autoShow: true,
+    targetValueInput: 'attr',
+    targetValueType: 'attr',
+});
 
 Alpine.start();
 

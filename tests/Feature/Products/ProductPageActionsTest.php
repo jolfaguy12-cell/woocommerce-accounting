@@ -81,11 +81,12 @@ it('renders the product detail page with notes, purchases and sync info', functi
 
     $this->actingAs($this->admin)->get("/products/{$this->mirror->id}")
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('products/show')
-            ->has('product.notes', 1)
-            ->has('product.purchase_history', 1)
-            ->has('product.sync'));
+        ->assertViewIs('pages.products.show')
+        ->assertViewHas('product', function ($product) {
+            return count($product['notes']) === 1
+                && $product['purchase_history']->count() === 1
+                && $product['sync'] !== null;
+        });
 });
 
 it('refreshes the mirror from the hub on demand', function () {

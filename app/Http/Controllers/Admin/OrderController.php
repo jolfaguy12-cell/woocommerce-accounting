@@ -6,14 +6,13 @@ use App\Domain\Channels\Models\Channel;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class OrderController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         $orders = Order::with('channel', 'profit', 'customerParty')
             ->when($request->filled('profit_status'), fn ($q) => $q->where('profit_status', $request->string('profit_status')))
@@ -35,24 +34,10 @@ class OrderController extends Controller
             })
             ->orderByDesc('order_date')
             ->paginate(25)
-            ->withQueryString()
-            ->through(fn ($order) => [
-                'id' => $order->id,
-                'hub_order_id' => $order->hub_order_id,
-                'customer_name' => $order->customerParty?->name,
-                'status' => $order->status,
-                'financial_state' => $order->financial_state,
-                'profit_status' => $order->profit_status,
-                'payment_status' => $order->payment_status,
-                'jalali_period' => $order->jalali_period,
-                'channel' => $order->channel?->name,
-                'total' => $order->total,
-                'operational_profit' => $order->profit?->operational_profit,
-                'order_date' => $order->order_date->toIso8601String(),
-                'updated_at' => $order->updated_at->toIso8601String(),
-            ]);
+            ->withQueryString();
 
-        return Inertia::render('orders/index', [
+        return view('pages.orders.index', [
+            'title' => 'سفارش‌ها',
             'orders' => $orders,
             'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to'),
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -64,40 +49,11 @@ class OrderController extends Controller
         ]);
     }
 
-    public function show(Order $order): Response
+    public function show(Order $order): View
     {
         $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'refunds', 'customerParty', 'rawOrder');
 
-        return Inertia::render('orders/show', [
-            'order' => [
-                'id' => $order->id,
-                'hub_order_id' => $order->hub_order_id,
-                'customer_name' => $order->customerParty?->name,
-                'customer_phone' => $order->customerParty?->phone,
-                'status' => $order->status,
-                'financial_state' => $order->financial_state,
-                'profit_status' => $order->profit_status,
-                'payment_status' => $order->payment_status,
-                'jalali_period' => $order->jalali_period,
-                'channel' => $order->channel?->name,
-                'raw_source' => $order->raw_source_value,
-                'total' => $order->total,
-                'discount_total' => $order->discount_total,
-                'shipping_charged' => $order->shipping_charged,
-                'payment_method_title' => $order->payment_method_title,
-                'order_date' => $order->order_date->toIso8601String(),
-                'date_paid' => $order->date_paid?->toIso8601String(),
-                'updated_at' => $order->updated_at->toIso8601String(),
-                'real_shipping_cost' => $order->shippingCost?->real_cost,
-                'items' => $order->items->map(fn ($i) => [
-                    'name' => $i->name, 'qty' => $i->qty, 'unit_price' => $i->unit_price,
-                    'line_total' => $i->line_total, 'mapped' => $i->product_mirror_id !== null,
-                    'hub_product_id' => $i->hub_product_id,
-                ]),
-                'profit' => $order->profit,
-                'refunds' => $order->refunds,
-            ],
-        ]);
+        return view('pages.orders.show', ['title' => 'سفارش #'.$order->hub_order_id, 'order' => $order]);
     }
 
     /** Manual real shipping cost (README §13) then re-evaluate profit. */

@@ -28,6 +28,12 @@ class JalaliPeriod
         ];
     }
 
+    /** Short Jalali date+time for display, e.g. "1405/04/14 22:21" (Tehran time). */
+    public static function fmtDateTime(Carbon $date): string
+    {
+        return Jalalian::fromCarbon($date->copy()->setTimezone(self::TIMEZONE))->format('Y/m/d H:i');
+    }
+
     /** Gregorian [start, end] dates of the Jalali month containing $date (Tehran time). */
     public static function bounds(Carbon $date): array
     {

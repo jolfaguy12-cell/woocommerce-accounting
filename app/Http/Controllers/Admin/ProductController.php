@@ -11,42 +11,32 @@ use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Products\Services\ProductSyncer;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Inertia\Inertia;
-use Inertia\Response;
 use Throwable;
 
 class ProductController extends Controller
 {
-    public function index(Request $request, CostResolver $resolver): Response
+    public function index(Request $request, CostResolver $resolver): View
     {
-        $products = ProductMirror::whereIn('type', ['simple', 'variation', 'variable'])
+        $products = ProductMirror::with('costMapping')
+            ->whereIn('type', ['simple', 'variation', 'variable'])
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('name', 'like', '%'.$request->string('q').'%')
                 ->orWhere('sku', 'like', '%'.$request->string('q').'%')
                 ->orWhere('hub_product_id', $request->string('q'))))
-            ->when($request->string('mapping') === 'unmapped', fn ($q) => $q
+            ->when($request->input('mapping') === 'unmapped', fn ($q) => $q
                 ->whereIn('type', ['simple', 'variation'])
                 ->whereDoesntHave('costMapping', fn ($m) => $m->where('status', 'mapped')))
             ->orderByDesc('hub_modified_at')
-            ->paginate(25)->withQueryString()
-            ->through(fn ($p) => [
-                'id' => $p->id,
-                'hub_product_id' => $p->hub_product_id,
-                'name' => $p->name,
-                'type' => $p->type,
-                'sku' => $p->sku,
-                'price' => $p->price,
-                'stock_quantity' => $p->stock_quantity,
-                'mapping_status' => $p->costMapping?->status ?? 'unmapped',
-            ]);
+            ->paginate(25)->withQueryString();
 
-        return Inertia::render('products/index', ['products' => $products, 'filters' => $request->only('q', 'mapping')]);
+        return view('pages.products.index', ['title' => 'محصولات', 'products' => $products, 'filters' => $request->only('q', 'mapping')]);
     }
 
-    public function show(ProductMirror $product, CostResolver $resolver): Response
+    public function show(ProductMirror $product, CostResolver $resolver): View
     {
         $product->load('costMapping.costItem', 'variations');
 
@@ -56,7 +46,8 @@ class ProductController extends Controller
                 ->get(['id', 'unit_cost', 'landed_unit_cost', 'source', 'effective_at'])
             : collect();
 
-        return Inertia::render('products/show', [
+        return view('pages.products.show', [
+            'title' => 'جزئیات محصول — '.$product->name,
             'product' => [
                 'id' => $product->id,
                 'hub_product_id' => $product->hub_product_id,
@@ -98,7 +89,7 @@ class ProductController extends Controller
                     'mirrored_at' => $product->updated_at?->toIso8601String(),
                 ],
             ],
-            'cost_items' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
+            'costItems' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
         ]);
     }
 
