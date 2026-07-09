@@ -51,14 +51,33 @@ class HubClient
         return $this->get("/products/{$hubProductId}/variations");
     }
 
-    /** IDs/rows of orders changed since the cursor (hub handles the format). */
+    /** Every order changed since the cursor, walking all result pages. */
     public function changedOrders(?string $since): array
     {
-        return $this->get('/sync/changed/orders', array_filter(['since' => $since]));
+        return $this->paginated('/sync/changed/orders', ['since' => $since], 'orders');
     }
 
+    /** Every product changed since the cursor, walking all result pages. */
     public function changedProducts(?string $since): array
     {
-        return $this->get('/sync/changed/products', array_filter(['since' => $since]));
+        return $this->paginated('/sync/changed/products', ['since' => $since], 'products');
+    }
+
+    /** The hub pages list endpoints (default 20, cap 100); collect every page. */
+    private function paginated(string $path, array $query, string $listKey): array
+    {
+        $perPage = 100;
+        $rows = [];
+
+        for ($page = 1; ; $page++) {
+            $response = $this->get($path, array_filter($query) + ['page' => $page, 'per_page' => $perPage]);
+            $batch = array_is_list($response) ? $response : ($response[$listKey] ?? []);
+
+            $rows = array_merge($rows, $batch);
+
+            if (count($batch) < $perPage) {
+                return $rows;
+            }
+        }
     }
 }

@@ -57,6 +57,23 @@ it('acc:sync:poll-products sends a since parameter even on the very first run', 
     ) === 1);
 });
 
+it('acc:sync:poll-orders walks every page of the changed feed (hub pages cap at 100)', function () {
+    Http::fake(function ($request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $q);
+        $page = (int) ($q['page'] ?? 1);
+
+        $rows = $page === 1
+            ? array_map(fn ($i) => ['id' => $i, 'status' => 'completed', 'total' => '1000'], range(1000, 1099))
+            : [['id' => 1100, 'status' => 'completed', 'total' => '1000']];
+
+        return Http::response(['data' => $rows, 'pagination' => ['page' => $page]]);
+    });
+
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful();
+
+    expect(RawOrder::count())->toBe(101);
+});
+
 it('acc:sync:poll-orders walks the changed cursor and upserts, overlap-safe with webhooks', function () {
     Http::fake([
         'hub.test/api/v1/sync/changed/orders*' => Http::response([
