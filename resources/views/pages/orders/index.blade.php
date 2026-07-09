@@ -48,7 +48,7 @@
 
         <x-form.jalali-date-range :from-value="$filters['date_from'] ?? null" :to-value="$filters['date_to'] ?? null" />
 
-        <select name="channel_id" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+        <select name="channel_id" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <option value="">همه کانال‌ها</option>
             @foreach ($channels as $channel)
                 <option value="{{ $channel->id }}" @selected(($filters['channel_id'] ?? null) == $channel->id)>{{ $channel->name }}</option>
@@ -58,7 +58,7 @@
             @endif
         </select>
 
-        <select name="status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+        <select name="status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <option value="">همه وضعیت‌های سفارش</option>
             @foreach ($statuses as $s)
                 <option value="{{ $s->status }}" @selected(($filters['status'] ?? null) === $s->status)>
@@ -67,13 +67,13 @@
             @endforeach
         </select>
 
-        <select name="payment_status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+        <select name="payment_status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <option value="">وضعیت پرداخت</option>
             <option value="paid" @selected(($filters['payment_status'] ?? null) === 'paid')>پرداخت‌شده</option>
             <option value="unpaid" @selected(($filters['payment_status'] ?? null) === 'unpaid')>پرداخت‌نشده</option>
         </select>
 
-        <select name="profit_status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+        <select name="profit_status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <option value="">همه وضعیت‌های سود</option>
             <option value="ok" @selected(($filters['profit_status'] ?? null) === 'ok')>سود ثبت‌شده</option>
             <option value="blocked_missing_cost" @selected(($filters['profit_status'] ?? null) === 'blocked_missing_cost')>مسدود — بدون بها</option>

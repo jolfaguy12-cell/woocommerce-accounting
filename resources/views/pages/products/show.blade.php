@@ -297,7 +297,7 @@
             <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">این قیمت فقط داخلی است و هرگز به ووکامرس ارسال نمی‌شود.</p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">قیمت عمده (تومان)</label>
             <input type="number" name="price" min="0" dir="ltr" required value="{{ $pricing['wholesale_price'] }}"
-                class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             @error('price')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
@@ -315,7 +315,7 @@
                 {{ ($product['mapping']['cost_item'] ?? null) ? 'بهای جدید برای قلم «'.$product['mapping']['cost_item'].'» ثبت می‌شود.' : 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.' }}
             </p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">بهای هر واحد (تومان)</label>
-            <input type="number" name="unit_cost" min="1" dir="ltr" required class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+            <input type="number" name="unit_cost" min="1" dir="ltr" required class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             @error('unit_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
@@ -340,7 +340,7 @@
 
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">قلم بهای تمام‌شده</label>
             <select name="cost_item_id" onchange="document.getElementById('new-item-name-wrap').classList.toggle('hidden', this.value !== '')"
-                class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                 <option value="">قلم جدید…</option>
                 @foreach ($costItems as $item)
                     <option value="{{ $item->id }}" @selected(($product['mapping']['cost_item_id'] ?? null) == $item->id)>{{ $item->name }}{{ $item->sku ? " ({$item->sku})" : '' }}</option>
@@ -350,14 +350,14 @@
 
             <div id="new-item-name-wrap" class="mt-4 {{ ($product['mapping']['cost_item_id'] ?? null) ? 'hidden' : '' }}">
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام قلم جدید</label>
-                <input type="text" name="new_item_name" class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                <input type="text" name="new_item_name" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                 @error('new_item_name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
             </div>
 
             <div class="mt-4">
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">ضریب (تعداد واحد در هر فروش)</label>
                 <input type="number" step="0.001" min="0.001" name="multiplier" dir="ltr" value="{{ $product['mapping']['multiplier'] ?? 1 }}"
-                    class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                    class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                 @error('multiplier')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
             </div>
 
