@@ -13,9 +13,6 @@
         <x-orders.status-badge type="financial" :value="$order->financial_state" />
         <x-orders.status-badge type="profit" :value="$order->profit_status" />
         <x-orders.status-badge type="payment" :value="$order->payment_status" />
-        <span class="text-sm text-gray-500 dark:text-gray-400">
-            {{ $order->jalali_period }} · کانال: {{ $order->channel?->name ?? $order->raw_source_value ?? '—' }} · {{ $order->payment_method_title }}
-        </span>
 
         <form method="POST" action="{{ route('orders.recalc', $order) }}" class="mr-auto">
             @csrf
@@ -25,31 +22,62 @@
         </form>
     </div>
 
-    <div class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
-            <span class="text-gray-500 dark:text-gray-400">مشتری</span>
-            <p class="font-medium text-gray-800 dark:text-white/90">{{ $order->customerParty?->name ?? 'ثبت نشده' }}</p>
-            @if ($order->customerParty?->phone)
-                <p class="text-xs text-gray-500 dark:text-gray-400" dir="ltr">{{ $order->customerParty->phone }}</p>
-            @endif
+    @php
+        $jp = \App\Domain\Accounting\Support\JalaliPeriod::class;
+        $icon = fn ($name) => \App\Helpers\MenuHelper::getIconSvg($name);
+    @endphp
+    <div class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('user-profile') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">مشتری</span>
+                <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->customerParty?->name ?? 'ثبت نشده' }}</p>
+                @if ($order->customerParty?->phone)
+                    <p class="text-xs text-gray-500 dark:text-gray-400" dir="ltr">{{ $order->customerParty->phone }}</p>
+                @endif
+            </div>
         </div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
-            <span class="text-gray-500 dark:text-gray-400">تاریخ ثبت سفارش</span>
-            <p class="font-medium text-gray-800 dark:text-white/90">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->order_date) }}</p>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('calendar') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">تاریخ ثبت سفارش</span>
+                <p class="font-medium text-gray-800 dark:text-white/90">{{ $jp::fmtDateTime($order->order_date) }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $jp::humanDiff($order->order_date) }}</p>
+            </div>
         </div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
-            <span class="text-gray-500 dark:text-gray-400">تاریخ پرداخت</span>
-            <p class="font-medium text-gray-800 dark:text-white/90">
-                {{ $order->date_paid ? \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->date_paid) : 'پرداخت نشده' }}
-            </p>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('income-plus') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">تاریخ پرداخت</span>
+                @if ($order->date_paid)
+                    <p class="font-medium text-gray-800 dark:text-white/90">{{ $jp::fmtDateTime($order->date_paid) }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ $jp::humanDiff($order->date_paid) }}</p>
+                @else
+                    <p class="font-medium text-gray-800 dark:text-white/90">پرداخت نشده</p>
+                @endif
+            </div>
         </div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
-            <span class="text-gray-500 dark:text-gray-400">آخرین همگام‌سازی</span>
-            <p class="font-medium text-gray-800 dark:text-white/90">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->updated_at) }}</p>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('exchange-arrows') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">آخرین همگام‌سازی</span>
+                <p class="font-medium text-gray-800 dark:text-white/90">{{ $jp::fmtDateTime($order->updated_at) }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $jp::humanDiff($order->updated_at) }}</p>
+            </div>
+        </div>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('shopping-cart') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">کانال فروش</span>
+                <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->channel?->name ?? $order->raw_source_value ?? '—' }}</p>
+                @if ($order->payment_method_title)
+                    <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $order->payment_method_title }}</p>
+                @endif
+            </div>
         </div>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid gap-4 xl:grid-cols-2">
         <x-common.component-card title="اقلام سفارش">
             <table class="w-full text-sm">
                 <thead>
@@ -64,8 +92,10 @@
                     @foreach ($order->items as $item)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">
-                                {{ $item->name }}
-                                @if (! $item->product_mirror_id)
+                                @if ($item->product_mirror_id)
+                                    <a href="{{ route('products.show', $item->product_mirror_id) }}" class="text-brand-500 hover:underline">{{ $item->name }}</a>
+                                @else
+                                    {{ $item->name }}
                                     <x-ui.badge color="error" size="sm">بدون نگاشت</x-ui.badge>
                                 @endif
                             </td>
