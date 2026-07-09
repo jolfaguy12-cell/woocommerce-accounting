@@ -40,8 +40,8 @@ class PollOrdersCommand extends Command
                     continue;
                 }
 
-                $payload = (is_array($row) && isset($row['status'])) ? $row : $hub->order($id);
-                $pipeline->ingest($id, $payload, 'poll');
+                // Feed rows are stubs (no items/meta); always pull the full order.
+                $pipeline->ingest($id, $hub->order($id), 'poll');
                 $stats['upserted']++;
             }
 

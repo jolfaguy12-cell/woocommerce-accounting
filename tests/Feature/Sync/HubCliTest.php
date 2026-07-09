@@ -59,6 +59,10 @@ it('acc:sync:poll-products sends a since parameter even on the very first run', 
 
 it('acc:sync:poll-orders walks every page of the changed feed (hub pages cap at 100)', function () {
     Http::fake(function ($request) {
+        if (preg_match('#/orders/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['id' => (int) $m[1], 'status' => 'completed', 'total' => '1000']);
+        }
+
         parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $q);
         $page = (int) ($q['page'] ?? 1);
 
@@ -72,6 +76,23 @@ it('acc:sync:poll-orders walks every page of the changed feed (hub pages cap at 
     $this->artisan('acc:sync:poll-orders')->assertSuccessful();
 
     expect(RawOrder::count())->toBe(101);
+});
+
+it('acc:sync:poll-orders fetches the full order — feed rows are stubs without items or meta', function () {
+    Http::fake([
+        'hub.test/api/v1/sync/changed/orders*' => Http::response([
+            // the changed feed carries a status, but no meta_data/line_items
+            'orders' => [['id' => 702, 'status' => 'completed', 'total' => '5000']],
+        ]),
+        'hub.test/api/v1/orders/702' => Http::response([
+            'id' => 702, 'status' => 'completed', 'total' => '5000',
+            'order_source' => 'basalam', 'meta_data' => [], 'line_items' => [],
+        ]),
+    ]);
+
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful();
+
+    expect(RawOrder::first()->payload)->toHaveKey('order_source');
 });
 
 it('acc:sync:poll-orders walks the changed cursor and upserts, overlap-safe with webhooks', function () {
