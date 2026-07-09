@@ -39,7 +39,7 @@ class JalaliPeriod
     {
         $now = Carbon::now(self::TIMEZONE);
         $date = $date->copy()->setTimezone(self::TIMEZONE);
-        $minutes = $date->diffInMinutes($now);
+        $minutes = (int) $date->diffInMinutes($now);
 
         if ($minutes < 1) {
             return 'همین الان';
@@ -47,17 +47,17 @@ class JalaliPeriod
         if ($minutes < 60) {
             return "{$minutes} دقیقه پیش";
         }
-        if (($hours = $date->diffInHours($now)) < 24) {
+        if (($hours = (int) $date->diffInHours($now)) < 24) {
             return "{$hours} ساعت پیش";
         }
-        if (($days = $date->diffInDays($now)) < 30) {
+        if (($days = (int) $date->diffInDays($now)) < 30) {
             return "{$days} روز پیش";
         }
-        if (($months = $date->diffInMonths($now)) < 12) {
+        if (($months = (int) $date->diffInMonths($now)) < 12) {
             return "{$months} ماه پیش";
         }
 
-        return $date->diffInYears($now).' سال پیش';
+        return ((int) $date->diffInYears($now)).' سال پیش';
     }
 
     /** Gregorian [start, end] dates of the Jalali month containing $date (Tehran time). */
