@@ -64,7 +64,6 @@ class MenuHelper
                     ['name' => 'مشاهده حساب های دو طرفه', 'path' => '/mutual-accounts', 'pro' => false],
                 ],
             ],
-            // TODO: Replace placeholder icons, define frontend routes, and create simple pages for Tools and Settings submenu items. For items with existing backend APIs, only list the currently implementable features in a minimal UI. Avoid heavy HTML/CSS until the required features are reviewed.
             [
                 'name' => 'ابزار ها',
                 'icon' => 'exchange-arrows',

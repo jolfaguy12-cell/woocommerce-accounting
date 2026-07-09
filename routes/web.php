@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
+use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\ToolsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Webhooks\HubWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -89,6 +91,20 @@ Route::middleware(['auth'])->group(function () {
         Route::post('users', [UserController::class, 'store'])->name('users.store');
         Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
+
+    // Tools & Settings: system administration, admin-only. Pages review which
+    // backend capabilities already exist and which still need building.
+    Route::middleware('role:admin')->group(function () {
+        Route::get('tools/backup', [ToolsController::class, 'backup'])->name('tools.backup');
+        Route::get('tools/system-status', [ToolsController::class, 'systemStatus'])->name('tools.system-status');
+        Route::get('tools/system-logs', [ToolsController::class, 'systemLogs'])->name('tools.system-logs');
+        Route::post('tools/system-logs/retry', [ToolsController::class, 'retryWebhookEvents'])->name('tools.system-logs.retry');
+
+        Route::get('setting', [SettingController::class, 'general'])->name('setting.general');
+        Route::get('setting/report-settings', [SettingController::class, 'reportSettings'])->name('setting.report-settings');
+        Route::get('setting/role-managment', [SettingController::class, 'roleManagement'])->name('setting.role-management');
+        Route::get('setting/api-webhook-managment', [SettingController::class, 'apiWebhookManagement'])->name('setting.api-webhook-management');
     });
 });
 
