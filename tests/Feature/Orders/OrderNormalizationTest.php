@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Channels\Services\ChannelMapper;
@@ -112,4 +113,50 @@ it('mapping an unknown source to a channel reclassifies its existing orders', fu
         ->and(Order::firstWhere('hub_order_id', 7200)->channel_id)->toBe($channel->id)
         ->and(Order::firstWhere('hub_order_id', 7200)->profit_status)->not->toBe('unknown_source')
         ->and(ReviewItem::where('type', 'unknown_source')->where('status', 'open')->count())->toBe(0);
+});
+
+it('links a registered customer to a Party by hub customer id, deduped across orders', function () {
+    $withBilling = fn (int $id, array $billing) => basalamOrder($id, [
+        'customer_id' => 42, 'billing' => $billing, 'date_paid' => null,
+    ]);
+
+    $this->pipeline->ingest(7300, $withBilling(7300, ['first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09120000000']), 'webhook');
+    $this->pipeline->ingest(7301, $withBilling(7301, ['first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09120000000']), 'webhook');
+
+    $first = Order::firstWhere('hub_order_id', 7300);
+    $second = Order::firstWhere('hub_order_id', 7301);
+
+    expect($first->customer_party_id)->not->toBeNull()
+        ->and($first->customer_party_id)->toBe($second->customer_party_id)
+        ->and($first->customerParty->name)->toBe('علی رضایی')
+        ->and($first->customerParty->hub_customer_id)->toBe(42)
+        ->and(Party::where('hub_customer_id', 42)->count())->toBe(1);
+});
+
+it('dedupes a guest checkout customer by phone when no hub customer id is present', function () {
+    $guest = fn (int $id) => basalamOrder($id, [
+        'customer_id' => 0, 'billing' => ['first_name' => 'سارا', 'last_name' => 'احمدی', 'phone' => '09359999999'],
+    ]);
+
+    $this->pipeline->ingest(7400, $guest(7400), 'webhook');
+    $this->pipeline->ingest(7401, $guest(7401), 'webhook');
+
+    expect(Order::firstWhere('hub_order_id', 7400)->customer_party_id)
+        ->toBe(Order::firstWhere('hub_order_id', 7401)->customer_party_id);
+});
+
+it('leaves customer_party_id null for a guest order with no name or phone', function () {
+    $this->pipeline->ingest(7500, basalamOrder(7500, ['customer_id' => 0, 'billing' => []]), 'webhook');
+
+    expect(Order::firstWhere('hub_order_id', 7500)->customer_party_id)->toBeNull();
+});
+
+it('derives payment_status and date_paid from the hub date_paid field', function () {
+    $this->pipeline->ingest(7600, basalamOrder(7600, ['date_paid' => '2026-07-01T10:00:00']), 'webhook');
+    $this->pipeline->ingest(7601, basalamOrder(7601, ['date_paid' => null]), 'webhook');
+
+    expect(Order::firstWhere('hub_order_id', 7600)->payment_status)->toBe('paid')
+        ->and(Order::firstWhere('hub_order_id', 7600)->date_paid)->not->toBeNull()
+        ->and(Order::firstWhere('hub_order_id', 7601)->payment_status)->toBe('unpaid')
+        ->and(Order::firstWhere('hub_order_id', 7601)->date_paid)->toBeNull();
 });

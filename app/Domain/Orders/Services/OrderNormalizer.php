@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class OrderNormalizer
 {
-    public function __construct(private readonly ChannelResolver $channels) {}
+    public function __construct(
+        private readonly ChannelResolver $channels,
+        private readonly CustomerResolver $customers,
+    ) {}
 
     /** Turn a raw hub payload into the normalized order + items (idempotent by hub_order_id). */
     public function normalize(RawOrder $raw): Order
@@ -30,12 +33,15 @@ class OrderNormalizer
                 'created_via' => $payload['created_via'] ?? null,
                 'order_date' => $orderDate,
                 'jalali_period' => JalaliPeriod::fromDate($orderDate),
+                'customer_party_id' => $this->customers->resolve($payload),
                 'currency_raw' => $payload['currency'] ?? null,
                 'discount_total' => $this->toman($payload['discount_total'] ?? 0),
                 'shipping_charged' => $this->toman($payload['shipping_total'] ?? 0),
                 'total' => $this->toman($payload['total'] ?? 0),
                 'payment_method' => $payload['payment_method'] ?? null,
                 'payment_method_title' => $payload['payment_method_title'] ?? null,
+                'payment_status' => empty($payload['date_paid']) ? 'unpaid' : 'paid',
+                'date_paid' => empty($payload['date_paid']) ? null : Carbon::parse($payload['date_paid'], 'UTC'),
                 'external_order_id' => $payload['external_order_id'] ?? null,
                 'raw_source_value' => $source->raw_value,
                 'channel_id' => $source->channel_id,

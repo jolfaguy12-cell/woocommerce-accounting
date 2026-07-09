@@ -2,6 +2,7 @@
 
 namespace App\Domain\Orders\Models;
 
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Sync\Models\RawOrder;
@@ -20,11 +21,17 @@ class Order extends Model
         'shipping_charged' => 'integer',
         'total' => 'integer',
         'normalized_at' => 'datetime',
+        'date_paid' => 'datetime',
     ];
 
     public function rawOrder(): BelongsTo
     {
         return $this->belongsTo(RawOrder::class);
+    }
+
+    public function customerParty(): BelongsTo
+    {
+        return $this->belongsTo(Party::class, 'customer_party_id');
     }
 
     public function items(): HasMany

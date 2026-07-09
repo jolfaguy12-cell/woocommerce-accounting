@@ -57,6 +57,12 @@ class HubClient
         return $this->paginated('/sync/changed/orders', ['since' => $since], 'orders');
     }
 
+    /** Every order in the hub (full listing, not just the changed feed) — used for one-off/repair backfills. */
+    public function allOrders(array $filters = []): array
+    {
+        return $this->paginated('/orders', $filters, 'data');
+    }
+
     /** Every product changed since the cursor, walking all result pages. */
     public function changedProducts(?string $since): array
     {

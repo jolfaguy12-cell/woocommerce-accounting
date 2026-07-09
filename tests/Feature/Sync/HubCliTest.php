@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\SyncRun;
 use Illuminate\Support\Facades\Http;
@@ -117,4 +119,69 @@ it('acc:sync:poll-orders walks the changed cursor and upserts, overlap-safe with
 
     expect(RawOrder::count())->toBe(2) // 700 not duplicated
         ->and(SyncRun::where('type', 'poll_orders')->where('status', 'done')->count())->toBe(1);
+});
+
+it('acc:sync:backfill-orders imports only orders missing locally, skipping ones already synced', function () {
+    Http::fake(function ($request) {
+        if (preg_match('#/orders/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['id' => (int) $m[1], 'status' => 'completed', 'total' => '1000']);
+        }
+
+        return Http::response(['data' => [['id' => 9001], ['id' => 9002], ['id' => 9003]], 'pagination' => ['total' => 3]]);
+    });
+
+    app(OrderIngestPipeline::class)->ingest(9001, ['id' => 9001, 'status' => 'completed', 'total' => '1000'], 'manual');
+
+    $this->artisan('acc:sync:backfill-orders')->assertSuccessful();
+
+    expect(Order::count())->toBe(3)
+        ->and(Order::whereIn('hub_order_id', [9002, 9003])->count())->toBe(2);
+
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/orders/9001'));
+});
+
+it('acc:sync:backfill-orders --dry-run reports counts without importing', function () {
+    Http::fake([
+        'hub.test/api/v1/orders*' => Http::response(['data' => [['id' => 9101], ['id' => 9102]], 'pagination' => ['total' => 2]]),
+    ]);
+
+    $this->artisan('acc:sync:backfill-orders --dry-run --json')
+        ->expectsOutputToContain('missing')
+        ->assertSuccessful();
+
+    expect(Order::count())->toBe(0);
+});
+
+it('acc:sync:backfill-orders --limit caps how many orders are imported this run', function () {
+    Http::fake(function ($request) {
+        if (preg_match('#/orders/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['id' => (int) $m[1], 'status' => 'completed', 'total' => '1000']);
+        }
+
+        return Http::response(['data' => [['id' => 9201], ['id' => 9202], ['id' => 9203]], 'pagination' => ['total' => 3]]);
+    });
+
+    $this->artisan('acc:sync:backfill-orders --limit=1')->assertSuccessful();
+
+    expect(Order::count())->toBe(1);
+});
+
+it('acc:sync:backfill-orders keeps going past a single failed order and records it', function () {
+    Http::fake(function ($request) {
+        if (str_contains($request->url(), '/orders/9302')) {
+            return Http::response(['error' => 'boom'], 500);
+        }
+        if (preg_match('#/orders/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['id' => (int) $m[1], 'status' => 'completed', 'total' => '1000']);
+        }
+
+        return Http::response(['data' => [['id' => 9301], ['id' => 9302], ['id' => 9303]], 'pagination' => ['total' => 3]]);
+    });
+
+    $this->artisan('acc:sync:backfill-orders')->assertFailed(); // non-zero exit when any order fails
+
+    expect(Order::whereIn('hub_order_id', [9301, 9303])->count())->toBe(2)
+        ->and(Order::where('hub_order_id', 9302)->exists())->toBeFalse()
+        ->and(SyncRun::where('type', 'backfill_orders')->latest()->first()->stats)
+        ->toMatchArray(['imported' => 2, 'failed' => 1, 'failed_ids' => [9302]]);
 });

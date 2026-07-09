@@ -26,7 +26,7 @@ return new class extends Migration
             $table->unsignedBigInteger('hub_order_id')->unique();
             $table->json('payload');
             $table->string('payload_hash', 64);
-            $table->enum('fetched_via', ['webhook', 'poll', 'manual']);
+            $table->enum('fetched_via', ['webhook', 'poll', 'manual', 'backfill']);
             $table->timestamp('hub_modified_at')->nullable();
             $table->timestamp('received_at');
             $table->timestamps();
