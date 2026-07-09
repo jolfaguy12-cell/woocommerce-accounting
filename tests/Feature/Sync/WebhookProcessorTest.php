@@ -68,6 +68,62 @@ it('updates the raw order when the payload changes but ignores stale updates', f
         ->and(RawOrder::first()->payload['status'])->toBe('completed');
 });
 
+it('reads the hub envelope: order.upserted with a full data snapshot needs no API fetch', function () {
+    Http::fake(); // any HTTP call would fail the test below
+
+    $event = makeEvent([
+        'event_id' => 'e9',
+        'event' => 'order.upserted',
+        'entity_type' => 'order',
+        'entity_id' => 6599,
+        'timestamp' => '2026-07-08T23:58:06+00:00',
+        'data' => ['id' => 6599, 'status' => 'pending', 'total' => '996500.00000000', 'currency' => 'IRT'],
+    ]);
+
+    app(WebhookProcessor::class)->process($event);
+
+    Http::assertNothingSent();
+    expect($event->refresh()->status)->toBe('done')
+        ->and(RawOrder::first()->hub_order_id)->toBe(6599)
+        ->and(RawOrder::first()->payload['status'])->toBe('pending');
+});
+
+it('reads the hub envelope: a thin data payload (id only) triggers a full API fetch', function () {
+    Http::fake([
+        'hub.test/api/v1/orders/6600' => Http::response(['id' => 6600, 'status' => 'completed', 'total' => '50000']),
+    ]);
+
+    $event = makeEvent([
+        'event_id' => 'e10',
+        'entity_type' => 'order',
+        'entity_id' => 6600,
+        'data' => ['id' => 6600],
+    ]);
+
+    app(WebhookProcessor::class)->process($event);
+
+    expect(RawOrder::first()->hub_order_id)->toBe(6600)
+        ->and(RawOrder::first()->payload['status'])->toBe('completed');
+});
+
+it('reads the hub envelope for product events via entity_id', function () {
+    Http::fake([
+        'hub.test/api/v1/products/700' => Http::response(['id' => 700, 'name' => 'p', 'type' => 'simple', 'sku' => 'p-700', 'price' => '1000']),
+        'hub.test/api/v1/products/700/variations' => Http::response([]),
+    ]);
+
+    $event = makeEvent([
+        'event_id' => 'e11',
+        'entity_type' => 'product',
+        'entity_id' => 700,
+        'data' => ['id' => 700],
+    ], 'product.upserted');
+
+    app(WebhookProcessor::class)->process($event);
+
+    expect($event->refresh()->status)->toBe('done');
+});
+
 it('marks the event dead after max attempts and opens a sync-error review item', function () {
     $event = makeEvent(['event_id' => 'e8'], 'order.upserted'); // no order id → always fails
 

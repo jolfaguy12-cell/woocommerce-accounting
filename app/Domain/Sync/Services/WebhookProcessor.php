@@ -68,8 +68,9 @@ class WebhookProcessor
         }
 
         $payload = $event->payload;
-        $order = is_array($payload['order'] ?? null) && isset($payload['order']['id']) ? $payload['order'] : null;
-        $orderId = $order['id'] ?? $payload['order_id'] ?? $payload['id'] ?? null;
+        $order = $this->embeddedEntity($payload, 'order');
+        $orderId = $order['id'] ?? $payload['entity_id'] ?? $payload['order_id'] ?? $payload['id']
+            ?? $payload['data']['id'] ?? null;
 
         if (! $orderId) {
             throw new RuntimeException('Webhook payload carries no order id.');
@@ -90,7 +91,8 @@ class WebhookProcessor
         }
 
         $payload = $event->payload;
-        $productId = $payload['product']['id'] ?? $payload['product_id'] ?? $payload['id'] ?? null;
+        $productId = $payload['product']['id'] ?? $payload['entity_id'] ?? $payload['product_id']
+            ?? $payload['id'] ?? $payload['data']['id'] ?? null;
 
         if (! $productId) {
             throw new RuntimeException('Webhook payload carries no product id.');
@@ -99,5 +101,25 @@ class WebhookProcessor
         // Always re-fetch: webhook payloads may be thin, and variations need pulling anyway.
         app(ProductSyncer::class)
             ->sync((int) $productId, 'webhook', $event->correlation_id);
+    }
+
+    /**
+     * Extract a full embedded entity from either the legacy test shape
+     * ({order: {...}}) or the hub envelope ({entity_id, data: {...}}).
+     * A data blob holding only an id counts as thin — return null so the
+     * caller re-fetches the full row from the hub.
+     */
+    private function embeddedEntity(array $payload, string $key): ?array
+    {
+        if (is_array($payload[$key] ?? null) && isset($payload[$key]['id'])) {
+            return $payload[$key];
+        }
+
+        $data = $payload['data'] ?? null;
+        if (is_array($data) && isset($data['id']) && count($data) > 1) {
+            return $data;
+        }
+
+        return null;
     }
 }
