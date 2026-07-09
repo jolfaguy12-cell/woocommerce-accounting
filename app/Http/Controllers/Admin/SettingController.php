@@ -7,16 +7,16 @@ use App\Domain\Reports\Models\PartnerReport;
 use App\Domain\Sync\Models\WebhookEvent;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\App;
-use Inertia\Inertia;
-use Inertia\Response;
 use Spatie\Permission\Models\Role;
 
 class SettingController extends Controller
 {
-    public function general(): Response
+    public function general(): View
     {
-        return Inertia::render('system-settings/general', [
+        return view('pages.system-settings.general', [
+            'title' => 'تنظیمات کلی',
             'config' => [
                 'app_name' => config('app.name'),
                 'timezone' => config('app.timezone'),
@@ -28,9 +28,10 @@ class SettingController extends Controller
         ]);
     }
 
-    public function reportSettings(): Response
+    public function reportSettings(): View
     {
-        return Inertia::render('system-settings/report-settings', [
+        return view('pages.system-settings.report-settings', [
+            'title' => 'تنظیمات گزارشات',
             'periods' => AccountingPeriod::orderByDesc('jalali_period')->limit(12)
                 ->get(['id', 'jalali_period', 'status', 'locked_at']),
             'reportCounts' => PartnerReport::selectRaw('state, count(*) as count')
@@ -38,18 +39,20 @@ class SettingController extends Controller
         ]);
     }
 
-    public function roleManagement(): Response
+    public function roleManagement(): View
     {
-        return Inertia::render('system-settings/role-management', [
+        return view('pages.system-settings.role-management', [
+            'title' => 'مدیریت نقش‌ها',
             'roles' => Role::withCount('users')->orderBy('name')->get()
                 ->map(fn (Role $r) => ['id' => $r->id, 'name' => $r->name, 'users_count' => $r->users_count]),
             'totalUsers' => User::count(),
         ]);
     }
 
-    public function apiWebhookManagement(): Response
+    public function apiWebhookManagement(): View
     {
-        return Inertia::render('system-settings/api-webhook-management', [
+        return view('pages.system-settings.api-webhook-management', [
+            'title' => 'مدیریت وبهوک‌ها و API',
             'hub' => [
                 'base_url' => config('hub.base_url'),
                 'api_key_configured' => filled(config('hub.api_key')),

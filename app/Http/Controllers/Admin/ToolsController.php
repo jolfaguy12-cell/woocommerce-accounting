@@ -7,28 +7,29 @@ use App\Domain\Sync\Models\WebhookEvent;
 use App\Domain\Sync\Services\SystemHealthService;
 use App\Domain\Sync\Services\WebhookProcessor;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Inertia\Inertia;
-use Inertia\Response;
 use Throwable;
 
 class ToolsController extends Controller
 {
-    public function backup(): Response
+    public function backup(): View
     {
-        return Inertia::render('tools/backup');
+        return view('pages.tools.backup', ['title' => 'بکاپ و بازیابی']);
     }
 
-    public function systemStatus(SystemHealthService $health): Response
+    public function systemStatus(SystemHealthService $health): View
     {
-        return Inertia::render('tools/system-status', [
+        return view('pages.tools.system-status', [
+            'title' => 'وضعیت سیستم',
             'status' => $health->snapshot(),
         ]);
     }
 
-    public function systemLogs(): Response
+    public function systemLogs(): View
     {
-        return Inertia::render('tools/system-logs', [
+        return view('pages.tools.system-logs', [
+            'title' => 'لاگ سیستم',
             'webhookEvents' => WebhookEvent::whereIn('status', ['failed', 'dead'])
                 ->orderByDesc('id')
                 ->limit(50)
