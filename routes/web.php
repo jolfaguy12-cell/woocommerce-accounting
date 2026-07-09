@@ -7,12 +7,12 @@ use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Webhooks\HubWebhookController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('welcome');
+    return redirect(auth()->check() ? route('dashboard') : route('login'));
 })->name('home');
 
 Route::post('webhooks/hub', HubWebhookController::class)
@@ -43,6 +43,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('orders/{order}/recalc', [OrderController::class, 'recalc'])->name('orders.recalc');
         Route::post('products/{product}/map', [ProductController::class, 'map'])->name('products.map');
         Route::post('products/{product}/wholesale', [ProductController::class, 'setWholesale'])->name('products.wholesale');
+        Route::post('products/{product}/cost', [ProductController::class, 'storeCost'])->name('products.cost');
+        Route::post('products/{product}/notes', [ProductController::class, 'storeNote'])->name('products.notes');
+        Route::post('products/{product}/sync', [ProductController::class, 'syncFromHub'])->name('products.sync');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');
@@ -58,6 +61,14 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::post('reports/{period}/finalize', [ReportController::class, 'finalize'])
         ->middleware('role:admin')->name('reports.finalize');
+
+    // User management: only admins may create/update accounts (public registration is disabled).
+    Route::middleware('role:admin')->group(function () {
+        Route::get('users', [UserController::class, 'index'])->name('users.index');
+        Route::post('users', [UserController::class, 'store'])->name('users.store');
+        Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
 });
 
 require __DIR__.'/settings.php';
