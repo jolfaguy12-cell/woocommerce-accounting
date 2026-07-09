@@ -73,7 +73,7 @@
                 @foreach ($ordersList as $order)
                     <tr class="border-t border-gray-100 dark:border-gray-800">
                         <td class="py-3 whitespace-nowrap">
-                            <p class="font-medium text-gray-800 text-theme-sm dark:text-white/90" dir="ltr">#{{ $order['number'] }}</p>
+                            <p class="font-medium text-gray-800 text-theme-sm dark:text-white/90">#{{ $order['number'] }}</p>
                         </td>
                         <td class="py-3 whitespace-nowrap">
                             <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ $order['date'] }} - {{ $order['time'] }}</p>
