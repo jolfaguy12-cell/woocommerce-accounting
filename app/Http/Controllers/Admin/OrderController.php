@@ -16,11 +16,16 @@ class OrderController extends Controller
     public function index(Request $request): Response
     {
         $orders = Order::with('channel', 'profit', 'customerParty')
-            ->when($request->filled('period'), fn ($q) => $q->where('jalali_period', $request->string('period')))
             ->when($request->filled('profit_status'), fn ($q) => $q->where('profit_status', $request->string('profit_status')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('payment_status'), fn ($q) => $q->where('payment_status', $request->string('payment_status')))
-            ->when($request->filled('channel_id'), fn ($q) => $q->where('channel_id', $request->integer('channel_id')))
+            ->when($request->filled('channel_id'), function ($q) use ($request) {
+                $request->input('channel_id') === 'unmapped'
+                    ? $q->whereNull('channel_id')
+                    : $q->where('channel_id', $request->integer('channel_id'));
+            })
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('order_date', '>=', $request->string('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('order_date', '<=', $request->string('date_to')))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $search = $request->string('search')->trim()->value();
                 $q->where(function ($w) use ($search) {
@@ -49,8 +54,13 @@ class OrderController extends Controller
 
         return Inertia::render('orders/index', [
             'orders' => $orders,
-            'filters' => $request->only('period', 'profit_status', 'status', 'payment_status', 'channel_id', 'search'),
+            'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to'),
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'unmappedCount' => Order::whereNull('channel_id')->count(),
+            // Data-driven, never hard-coded: whatever statuses actually exist
+            // (including future/unknown ones from any source) show up here.
+            'statuses' => Order::select('status')->selectRaw('count(*) as count')
+                ->groupBy('status')->orderByDesc('count')->get(),
         ]);
     }
 

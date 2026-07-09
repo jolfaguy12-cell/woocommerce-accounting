@@ -3,13 +3,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import {
+    financialStateLabels,
+    financialStateVariant,
+    orderStatusLabels,
+    orderStatusVariant,
+    paymentStatusLabels,
+    profitStatusLabels,
+    profitStatusVariant,
+} from '@/lib/order-status';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString('fa-IR');
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
-
-const paymentStatusLabels: Record<string, string> = { paid: 'پرداخت‌شده', unpaid: 'پرداخت‌نشده' };
 
 type Item = { name: string; qty: number; unit_price: number; line_total: number; mapped: boolean; hub_product_id: number | null };
 type Profit = {
@@ -67,9 +74,11 @@ export default function OrderShow({ order }: { order: OrderData }) {
             <div className="flex flex-col gap-4 p-4" dir="rtl">
                 <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl font-bold">سفارش #{order.hub_order_id}</h1>
-                    <Badge variant="outline">{order.status}</Badge>
-                    <Badge variant="secondary">{order.financial_state}</Badge>
-                    <Badge variant={order.profit_status === 'ok' ? 'default' : 'destructive'}>{order.profit_status}</Badge>
+                    <Badge variant={orderStatusVariant(order.status)}>{orderStatusLabels[order.status] ?? order.status}</Badge>
+                    <Badge variant={financialStateVariant(order.financial_state)}>
+                        {financialStateLabels[order.financial_state] ?? order.financial_state}
+                    </Badge>
+                    <Badge variant={profitStatusVariant(order.profit_status)}>{profitStatusLabels[order.profit_status] ?? order.profit_status}</Badge>
                     <Badge variant={order.payment_status === 'paid' ? 'default' : 'secondary'}>
                         {paymentStatusLabels[order.payment_status] ?? order.payment_status}
                     </Badge>

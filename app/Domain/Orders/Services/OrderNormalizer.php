@@ -3,6 +3,7 @@
 namespace App\Domain\Orders\Services;
 
 use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Services\ChannelResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
@@ -26,6 +27,7 @@ class OrderNormalizer
 
             $orderDate = Carbon::parse($payload['date_created'] ?? $raw->received_at, 'UTC');
             $status = (string) ($payload['status'] ?? 'unknown');
+            [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
 
             $order = Order::updateOrCreate(['hub_order_id' => $raw->hub_order_id], [
                 'raw_order_id' => $raw->id,
@@ -40,8 +42,8 @@ class OrderNormalizer
                 'total' => $this->toman($payload['total'] ?? 0),
                 'payment_method' => $payload['payment_method'] ?? null,
                 'payment_method_title' => $payload['payment_method_title'] ?? null,
-                'payment_status' => empty($payload['date_paid']) ? 'unpaid' : 'paid',
-                'date_paid' => empty($payload['date_paid']) ? null : Carbon::parse($payload['date_paid'], 'UTC'),
+                'payment_status' => $paymentStatus,
+                'date_paid' => $datePaid,
                 'external_order_id' => $payload['external_order_id'] ?? null,
                 'raw_source_value' => $source->raw_value,
                 'channel_id' => $source->channel_id,
@@ -82,6 +84,31 @@ class OrderNormalizer
                 'line_total' => $this->toman($item['total'] ?? 0),
             ]);
         }
+    }
+
+    /**
+     * Most channels only mark paid when the hub reports date_paid. Some
+     * (Basalam) settle with the vendor upfront and never set it — for
+     * those, config flags every order paid unless it's one of the
+     * channel's own "never actually paid" statuses (README §11: configurable
+     * mapping, not a hard-coded per-channel rule).
+     */
+    private function paymentStatus(array $payload, string $status, Carbon $orderDate, ?Channel $channel): array
+    {
+        if ($channel && ($channel->config['payment_prepaid_by_channel'] ?? false)) {
+            $unpaidStatuses = $channel->config['payment_prepaid_unless_statuses'] ?? [];
+            if (in_array($status, $unpaidStatuses, true)) {
+                return ['unpaid', null];
+            }
+
+            return ['paid', empty($payload['date_paid']) ? $orderDate : Carbon::parse($payload['date_paid'], 'UTC')];
+        }
+
+        if (empty($payload['date_paid'])) {
+            return ['unpaid', null];
+        }
+
+        return ['paid', Carbon::parse($payload['date_paid'], 'UTC')];
     }
 
     private function financialState(string $status): string

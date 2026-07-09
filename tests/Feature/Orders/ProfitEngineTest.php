@@ -115,7 +115,7 @@ it('uses the default shipping setting when no real cost and customer shipping is
 
 it('reads basalam commission from order metadata', function () {
     $order = hubOrder(1005, [
-        'order_source' => 'basalam', 'status' => 'bslm-sent',
+        'order_source' => 'basalam', 'status' => 'bslm-completed',
         'meta' => ['_sync_basalam_hash_id' => 'X', '_basalam_fee_amount' => '-81720'],
     ]);
 
@@ -129,7 +129,7 @@ it('reads basalam commission from order metadata', function () {
 });
 
 it('warns (not crashes) when a commission channel order lacks commission metadata', function () {
-    $order = hubOrder(1006, ['order_source' => 'basalam', 'status' => 'bslm-sent', 'meta' => []]);
+    $order = hubOrder(1006, ['order_source' => 'basalam', 'status' => 'bslm-completed', 'meta' => []]);
 
     app(OrderIngestPipeline::class)->ingest(1006, $order, 'manual');
 
@@ -181,6 +181,18 @@ it('recalculation with unchanged inputs does not bump the version', function () 
 
     expect(OrderProfit::firstWhere('order_id', $order->id)->version)->toBe(1)
         ->and(JournalEntry::where('status', 'posted')->count())->toBe(1);
+});
+
+it('recognizes profit for a completed or shipping basalam order but not one still in preparation', function () {
+    app(OrderIngestPipeline::class)->ingest(1011, hubOrder(1011, ['order_source' => 'basalam', 'status' => 'bslm-completed', 'meta' => ['_basalam_fee_amount' => '-1000']]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(1012, hubOrder(1012, ['order_source' => 'basalam', 'status' => 'bslm-shipping', 'meta' => ['_basalam_fee_amount' => '-1000']]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(1013, hubOrder(1013, ['order_source' => 'basalam', 'status' => 'bslm-preparation', 'meta' => ['_basalam_fee_amount' => '-1000']]), 'manual');
+
+    expect(Order::firstWhere('hub_order_id', 1011)->financial_state)->toBe('valid')
+        ->and(Order::firstWhere('hub_order_id', 1012)->financial_state)->toBe('valid')
+        ->and(Order::firstWhere('hub_order_id', 1013)->financial_state)->toBe('pending')
+        ->and(OrderProfit::whereIn('order_id', Order::whereIn('hub_order_id', [1011, 1012])->pluck('id'))->count())->toBe(2)
+        ->and(OrderProfit::where('order_id', Order::firstWhere('hub_order_id', 1013)->id)->exists())->toBeFalse();
 });
 
 it('posts a proportional reversal for a partial refund', function () {

@@ -53,7 +53,7 @@ it('aggregates metadata commissions as the period cost of commission channels', 
     ProductCostMapping::create(['product_mirror_id' => $mirror->id, 'cost_item_id' => $item->id, 'status' => 'mapped']);
 
     $base = [
-        'status' => 'bslm-sent', 'currency' => 'IRT', 'total' => 771000, 'discount_total' => 0,
+        'status' => 'bslm-completed', 'currency' => 'IRT', 'total' => 771000, 'discount_total' => 0,
         'shipping_total' => 90000, 'order_source' => 'basalam',
         'date_created' => '2026-07-08T16:04:29', 'date_modified' => '2026-07-08T16:04:29',
         'line_items' => [['id' => 1, 'name' => 'اسپری', 'quantity' => 1, 'subtotal' => 681000, 'total' => 681000, 'product_id' => 5732, 'variation_id' => null]],

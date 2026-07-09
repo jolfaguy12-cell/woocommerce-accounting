@@ -63,6 +63,46 @@ it('filters orders by payment status', function () {
     );
 });
 
+it('exposes every real order status dynamically, not a hard-coded list', function () {
+    app(OrderIngestPipeline::class)->ingest(8301, indexPageOrder(8301, ['status' => 'completed']), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8302, indexPageOrder(8302, [
+        'status' => 'bslm-shipping', 'order_source' => 'basalam', 'meta' => [],
+    ]), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders')->assertInertia(
+        fn (Assert $page) => $page
+            ->has('statuses', 2)
+            ->where('statuses.0.status', fn ($s) => in_array($s, ['completed', 'bslm-shipping'], true)),
+    );
+});
+
+it('filters orders by status', function () {
+    app(OrderIngestPipeline::class)->ingest(8401, indexPageOrder(8401, ['status' => 'completed']), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8402, indexPageOrder(8402, ['status' => 'processing']), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?status=processing')->assertInertia(
+        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8402),
+    );
+});
+
+it('filters orders with no resolved channel via the unmapped sentinel', function () {
+    app(OrderIngestPipeline::class)->ingest(8501, indexPageOrder(8501, ['order_source' => 'a-brand-new-source', 'meta' => []]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8502, indexPageOrder(8502), 'manual'); // resolves to website
+
+    $this->actingAs($this->admin)->get('/orders?channel_id=unmapped')->assertInertia(
+        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8501)->where('unmappedCount', 1),
+    );
+});
+
+it('filters orders by a jalali-picked date range', function () {
+    app(OrderIngestPipeline::class)->ingest(8601, indexPageOrder(8601, ['date_created' => '2026-07-01T10:00:00']), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8602, indexPageOrder(8602, ['date_created' => '2026-07-08T10:00:00']), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?date_from=2026-07-05&date_to=2026-07-10')->assertInertia(
+        fn (Assert $page) => $page->has('orders.data', 1)->where('orders.data.0.hub_order_id', 8602),
+    );
+});
+
 it('blocks partner viewers from the orders list', function () {
     $partner = User::factory()->create()->assignRole('partner_viewer');
 

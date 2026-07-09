@@ -151,12 +151,35 @@ it('leaves customer_party_id null for a guest order with no name or phone', func
     expect(Order::firstWhere('hub_order_id', 7500)->customer_party_id)->toBeNull();
 });
 
-it('derives payment_status and date_paid from the hub date_paid field', function () {
-    $this->pipeline->ingest(7600, basalamOrder(7600, ['date_paid' => '2026-07-01T10:00:00']), 'webhook');
-    $this->pipeline->ingest(7601, basalamOrder(7601, ['date_paid' => null]), 'webhook');
+it('derives payment_status and date_paid from the hub date_paid field for a gateway-paid channel', function () {
+    $website = fn (int $id, array $overrides) => basalamOrder($id, array_merge([
+        'order_source' => null, 'source_channel' => null, 'external_marketplace' => null,
+        'created_via' => 'checkout', 'meta' => [], 'status' => 'completed',
+    ], $overrides));
+
+    $this->pipeline->ingest(7600, $website(7600, ['date_paid' => '2026-07-01T10:00:00']), 'webhook');
+    $this->pipeline->ingest(7601, $website(7601, ['date_paid' => null]), 'webhook');
 
     expect(Order::firstWhere('hub_order_id', 7600)->payment_status)->toBe('paid')
         ->and(Order::firstWhere('hub_order_id', 7600)->date_paid)->not->toBeNull()
         ->and(Order::firstWhere('hub_order_id', 7601)->payment_status)->toBe('unpaid')
         ->and(Order::firstWhere('hub_order_id', 7601)->date_paid)->toBeNull();
+});
+
+it('treats every basalam order as paid regardless of date_paid, since basalam settles upfront', function () {
+    $this->pipeline->ingest(7700, basalamOrder(7700, ['status' => 'bslm-preparation', 'date_paid' => null]), 'webhook');
+    $this->pipeline->ingest(7701, basalamOrder(7701, ['status' => 'bslm-completed', 'date_paid' => null]), 'webhook');
+
+    expect(Order::firstWhere('hub_order_id', 7700)->payment_status)->toBe('paid')
+        ->and(Order::firstWhere('hub_order_id', 7700)->date_paid)->not->toBeNull()
+        ->and(Order::firstWhere('hub_order_id', 7701)->payment_status)->toBe('paid');
+});
+
+it('treats a rejected or cancelled basalam order as unpaid', function () {
+    $this->pipeline->ingest(7800, basalamOrder(7800, ['status' => 'bslm-rejected', 'date_paid' => null]), 'webhook');
+    $this->pipeline->ingest(7801, basalamOrder(7801, ['status' => 'cancelled', 'date_paid' => null]), 'webhook');
+
+    expect(Order::firstWhere('hub_order_id', 7800)->payment_status)->toBe('unpaid')
+        ->and(Order::firstWhere('hub_order_id', 7800)->date_paid)->toBeNull()
+        ->and(Order::firstWhere('hub_order_id', 7801)->payment_status)->toBe('unpaid');
 });
