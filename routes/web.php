@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Admin\AttachmentController;
-use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -19,7 +18,29 @@ Route::post('webhooks/hub', HubWebhookController::class)
     ->name('webhooks.hub');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', DashboardController::class)->name('dashboard');
+    // TailAdmin static dashboard (template data only — backend wiring comes later;
+    // DashboardController is kept for that reconnection).
+    Route::get('dashboard', fn () => view('pages.dashboard.ecommerce', ['title' => 'داشبورد']))->name('dashboard');
+
+    // TailAdmin demo pages, kept while the new UI is being customized.
+    foreach ([
+        'calendar' => ['pages.calender', 'تقویم'],
+        'profile' => ['pages.profile', 'پروفایل'],
+        'form-elements' => ['pages.form.form-elements', 'فرم‌ها'],
+        'basic-tables' => ['pages.tables.basic-tables', 'جدول‌ها'],
+        'blank' => ['pages.blank', 'صفحه خالی'],
+        'error-404' => ['pages.errors.error-404', 'خطای ۴۰۴'],
+        'line-chart' => ['pages.chart.line-chart', 'نمودار خطی'],
+        'bar-chart' => ['pages.chart.bar-chart', 'نمودار میله‌ای'],
+        'alerts' => ['pages.ui-elements.alerts', 'هشدارها'],
+        'avatars' => ['pages.ui-elements.avatars', 'آواتارها'],
+        'badge' => ['pages.ui-elements.badges', 'نشان‌ها'],
+        'buttons' => ['pages.ui-elements.buttons', 'دکمه‌ها'],
+        'image' => ['pages.ui-elements.images', 'تصاویر'],
+        'videos' => ['pages.ui-elements.videos', 'ویدئوها'],
+    ] as $uri => [$view, $title]) {
+        Route::get($uri, fn () => view($view, ['title' => $title]))->name("tailadmin.$uri");
+    }
 
     Route::post('attachments', [AttachmentController::class, 'store'])
         ->name('attachments.store');
