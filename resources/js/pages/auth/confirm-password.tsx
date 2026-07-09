@@ -23,24 +23,23 @@ export default function ConfirmPassword() {
     };
 
     return (
-        <AuthLayout
-            title="Confirm your password"
-            description="This is a secure area of the application. Please confirm your password before continuing."
-        >
-            <Head title="Confirm password" />
+        <AuthLayout title="تأیید رمز عبور" description="این بخش امن است؛ برای ادامه ابتدا رمز عبور خود را تأیید کنید.">
+            <Head title="تأیید رمز عبور" />
 
             <form onSubmit={submit}>
                 <div className="space-y-6">
                     <div className="grid gap-2">
-                        <Label htmlFor="password">Password</Label>
+                        <Label htmlFor="password">رمز عبور</Label>
                         <Input
                             id="password"
                             type="password"
                             name="password"
-                            placeholder="Password"
+                            placeholder="********"
                             autoComplete="current-password"
                             value={data.password}
                             autoFocus
+                            dir="ltr"
+                            className="text-left"
                             onChange={(e) => setData('password', e.target.value)}
                         />
 
@@ -50,7 +49,7 @@ export default function ConfirmPassword() {
                     <div className="flex items-center">
                         <Button className="w-full" disabled={processing}>
                             {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                            Confirm password
+                            تأیید رمز عبور
                         </Button>
                     </div>
                 </div>

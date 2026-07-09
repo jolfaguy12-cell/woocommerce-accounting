@@ -19,12 +19,15 @@ export interface NavItem {
     url: string;
     icon?: LucideIcon | null;
     isActive?: boolean;
+    /** When set, the item is shown only to users holding one of these roles. */
+    roles?: string[];
 }
 
 export interface SharedData {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
+    flash: { success?: string };
     [key: string]: unknown;
 }
 
@@ -33,6 +36,7 @@ export interface User {
     name: string;
     email: string;
     avatar?: string;
+    roles?: string[];
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;

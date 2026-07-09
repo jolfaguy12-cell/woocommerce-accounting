@@ -24,7 +24,7 @@ export default function ReportsIndex({ reports, current_period }: { reports: Row
                     <CardContent className="p-0">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b text-right text-muted-foreground">
+                                <tr className="text-muted-foreground border-b text-right">
                                     <th className="p-3 font-normal">دوره</th>
                                     <th className="font-normal">وضعیت</th>
                                     <th className="font-normal">آمادگی</th>
@@ -34,16 +34,26 @@ export default function ReportsIndex({ reports, current_period }: { reports: Row
                             </thead>
                             <tbody>
                                 {reports.map((r) => (
-                                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40">
+                                    <tr key={r.id} className="hover:bg-muted/40 border-b last:border-0">
                                         <td className="p-3">
-                                            <Link href={`/reports/${r.jalali_period}`} className="font-medium text-primary hover:underline" dir="ltr">
+                                            <Link href={`/reports/${r.jalali_period}`} className="text-primary font-medium hover:underline" dir="ltr">
                                                 {r.jalali_period}
                                             </Link>
-                                            {r.jalali_period === current_period && <Badge variant="outline" className="mr-2">جاری</Badge>}
+                                            {r.jalali_period === current_period && (
+                                                <Badge variant="outline" className="mr-2">
+                                                    جاری
+                                                </Badge>
+                                            )}
                                         </td>
-                                        <td><Badge variant={r.state === 'final' ? 'default' : r.state === 'adjusted' ? 'secondary' : 'outline'}>{stateLabels[r.state] ?? r.state}</Badge></td>
+                                        <td>
+                                            <Badge variant={r.state === 'final' ? 'default' : r.state === 'adjusted' ? 'secondary' : 'outline'}>
+                                                {stateLabels[r.state] ?? r.state}
+                                            </Badge>
+                                        </td>
                                         <td>{r.state === 'final' || r.state === 'adjusted' ? '—' : r.ready ? '✅' : '⚠️ موارد باز'}</td>
-                                        <td dir="ltr" className={r.net_period_profit !== null && r.net_period_profit < 0 ? 'text-red-600' : ''}>{fmt(r.net_period_profit)}</td>
+                                        <td dir="ltr" className={r.net_period_profit !== null && r.net_period_profit < 0 ? 'text-red-600' : ''}>
+                                            {fmt(r.net_period_profit)}
+                                        </td>
                                         <td>{r.finalized_at ? new Date(r.finalized_at).toLocaleDateString('fa-IR') : '—'}</td>
                                     </tr>
                                 ))}
