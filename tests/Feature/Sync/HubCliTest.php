@@ -33,6 +33,30 @@ it('acc:sync:order fetches and stores one raw order', function () {
         ->and(RawOrder::first()->fetched_via)->toBe('manual');
 });
 
+it('acc:sync:poll-orders sends a since parameter even on the very first run (hub requires it)', function () {
+    Http::fake(['hub.test/api/v1/sync/changed/orders*' => Http::response(['orders' => []])]);
+
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful();
+
+    Http::assertSent(function ($request) {
+        $since = $request->data()['since'] ?? '';
+
+        // plain ISO datetime, no timezone suffix — the shape the hub documents
+        return preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $since) === 1;
+    });
+});
+
+it('acc:sync:poll-products sends a since parameter even on the very first run', function () {
+    Http::fake(['hub.test/api/v1/sync/changed/products*' => Http::response(['products' => []])]);
+
+    $this->artisan('acc:sync:poll-products')->assertSuccessful();
+
+    Http::assertSent(fn ($request) => preg_match(
+        '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/',
+        $request->data()['since'] ?? ''
+    ) === 1);
+});
+
 it('acc:sync:poll-orders walks the changed cursor and upserts, overlap-safe with webhooks', function () {
     Http::fake([
         'hub.test/api/v1/sync/changed/orders*' => Http::response([

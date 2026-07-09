@@ -17,13 +17,16 @@ class PollOrdersCommand extends Command
 
     public function handle(HubClient $hub, OrderIngestPipeline $pipeline): int
     {
+        // The hub requires `since` (plain ISO, no timezone suffix); with no
+        // prior cursor, cover the last day rather than failing the first run.
         $since = SyncRun::where('type', 'poll_orders')->where('status', 'done')
-            ->latest('finished_at')->value('since_cursor');
+            ->latest('finished_at')->value('since_cursor')
+            ?? Carbon::now('UTC')->subDay()->format('Y-m-d\TH:i:s');
 
         $run = SyncRun::create(['type' => 'poll_orders', 'status' => 'running', 'started_at' => now()]);
 
         // Overlap window guards against rows missed during the hub's nightly mirror swap.
-        $cursor = Carbon::now('UTC')->subMinutes(config('hub.poll_overlap_minutes'))->toIso8601String();
+        $cursor = Carbon::now('UTC')->subMinutes(config('hub.poll_overlap_minutes'))->format('Y-m-d\TH:i:s');
 
         try {
             $response = $hub->changedOrders($since);

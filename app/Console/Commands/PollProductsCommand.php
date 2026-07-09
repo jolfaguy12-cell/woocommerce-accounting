@@ -18,11 +18,15 @@ class PollProductsCommand extends Command
 
     public function handle(HubClient $hub, ProductSyncer $syncer): int
     {
+        // Hub compares products against local-time post_modified, so a UTC
+        // cursor only over-fetches (safe: sync is idempotent). `since` is
+        // required — default the first run to the last day.
         $since = SyncRun::where('type', 'poll_products')->where('status', 'done')
-            ->latest('finished_at')->value('since_cursor');
+            ->latest('finished_at')->value('since_cursor')
+            ?? Carbon::now('UTC')->subDay()->format('Y-m-d\TH:i:s');
 
         $run = SyncRun::create(['type' => 'poll_products', 'status' => 'running', 'started_at' => now()]);
-        $cursor = Carbon::now('UTC')->subMinutes(config('hub.poll_overlap_minutes'))->toIso8601String();
+        $cursor = Carbon::now('UTC')->subMinutes(config('hub.poll_overlap_minutes'))->format('Y-m-d\TH:i:s');
         $correlation = (string) Str::uuid();
 
         try {
