@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Reports\Services\PartnerReportService;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\SyncRun;
@@ -36,6 +37,8 @@ class DashboardController extends Controller
                     'trend' => $this->trend(),
                     'channels' => $data['channels'] ?? [],
                     'balances' => $data['balances'] ?? [],
+                    'recent_orders' => $this->recentOrders(),
+                    'top_products' => $this->topProducts($period),
                 ] : null,
                 'operations' => [
                     'review' => ReviewItem::where('status', 'open')
@@ -50,6 +53,7 @@ class DashboardController extends Controller
                     ],
                     'blocked_orders' => Order::where('profit_status', 'blocked_missing_cost')->count(),
                     'unknown_source_orders' => Order::where('profit_status', 'unknown_source')->count(),
+                    'low_stock' => $this->lowStock(),
                 ],
             ],
         ]);
@@ -86,6 +90,65 @@ class DashboardController extends Controller
                 'net_sales' => (int) $row->net_sales,
                 'operational_profit' => (int) $row->operational_profit,
                 'orders' => (int) $row->orders,
+            ])
+            ->all();
+    }
+
+    /** Latest orders for the dashboard widget (financial viewers only). */
+    private function recentOrders(): array
+    {
+        return Order::with('channel:id,name')
+            ->latest('order_date')
+            ->limit(8)
+            ->get(['id', 'hub_order_id', 'status', 'total', 'order_date', 'channel_id', 'profit_status'])
+            ->map(fn (Order $order) => [
+                'id' => $order->id,
+                'hub_order_id' => $order->hub_order_id,
+                'status' => $order->status,
+                'total' => (int) $order->total,
+                'channel' => $order->channel?->name,
+                'profit_status' => $order->profit_status,
+                'date_label' => Jalalian::fromCarbon($order->order_date->setTimezone(JalaliPeriod::TIMEZONE))->format('m/d H:i'),
+            ])
+            ->all();
+    }
+
+    /** Best-selling products of the current period by sold amount. */
+    private function topProducts(string $period): array
+    {
+        return DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.jalali_period', $period)
+            ->whereNotIn('orders.financial_state', ['cancelled', 'void'])
+            ->groupBy('order_items.name')
+            ->selectRaw('order_items.name, SUM(order_items.qty) as qty, SUM(order_items.line_total) as revenue, MAX(order_items.product_mirror_id) as product_mirror_id')
+            ->orderByDesc('revenue')
+            ->limit(6)
+            ->get()
+            ->map(fn ($row) => [
+                'name' => $row->name,
+                'qty' => (int) $row->qty,
+                'revenue' => (int) $row->revenue,
+                'product_mirror_id' => $row->product_mirror_id ? (int) $row->product_mirror_id : null,
+            ])
+            ->all();
+    }
+
+    /** Sellable products at/below the configured stock threshold (no financial data). */
+    private function lowStock(): array
+    {
+        return ProductMirror::whereIn('type', ['simple', 'variation'])
+            ->where('status', '!=', 'trash')
+            ->whereNotNull('stock_quantity')
+            ->where('stock_quantity', '<=', config('accounting.low_stock_threshold'))
+            ->orderBy('stock_quantity')
+            ->limit(8)
+            ->get(['id', 'name', 'sku', 'stock_quantity'])
+            ->map(fn (ProductMirror $p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'stock_quantity' => (int) $p->stock_quantity,
             ])
             ->all();
     }
