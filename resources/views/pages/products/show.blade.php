@@ -109,7 +109,7 @@
                 </div>
                 <div class="flex items-center justify-between py-1.5 text-sm">
                     <span class="text-gray-500 dark:text-gray-400">سود هر واحد</span>
-                    <span class="font-medium {{ $pricing['retail_profit'] === null ? 'text-gray-800 dark:text-white/90' : ($pricing['retail_profit'] >= 0 ? 'text-success-600' : 'text-error-500') }}">
+                    <span class="font-medium {{ $pricing['retail_profit'] === null ? 'text-gray-800 dark:text-white/90' : ($pricing['retail_profit'] >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-500') }}">
                         {{ $pricing['retail_profit'] !== null ? number_format($pricing['retail_profit']).' تومان' : '—' }}
                     </span>
                 </div>
@@ -123,7 +123,7 @@
                 </div>
                 <div class="flex items-center justify-between py-1.5 text-sm">
                     <span class="text-gray-500 dark:text-gray-400">سود عمده</span>
-                    <span class="font-medium {{ $pricing['wholesale_profit'] === null ? 'text-gray-800 dark:text-white/90' : ($pricing['wholesale_profit'] >= 0 ? 'text-success-600' : 'text-error-500') }}">
+                    <span class="font-medium {{ $pricing['wholesale_profit'] === null ? 'text-gray-800 dark:text-white/90' : ($pricing['wholesale_profit'] >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-500') }}">
                         {{ $pricing['wholesale_profit'] !== null ? number_format($pricing['wholesale_profit']).' تومان ('.$pct($pricing['wholesale_margin']).')' : '—' }}
                     </span>
                 </div>

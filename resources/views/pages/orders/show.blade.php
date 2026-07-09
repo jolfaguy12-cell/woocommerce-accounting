@@ -93,7 +93,7 @@
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">
                                 @if ($item->product_mirror_id)
-                                    <a href="{{ route('products.show', $item->product_mirror_id) }}" class="text-brand-500 hover:underline">{{ $item->name }}</a>
+                                    <a href="{{ route('products.show', $item->product_mirror_id) }}" class="text-inherit hover:underline">{{ $item->name }}</a>
                                 @else
                                     {{ $item->name }}
                                     <x-ui.badge color="error" size="sm">بدون نگاشت</x-ui.badge>
@@ -166,7 +166,7 @@
 
                     <div class="flex justify-between py-2 text-base font-bold">
                         <span>سود عملیاتی</span>
-                        <span dir="ltr" class="{{ ($order->profit->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-success-600' }}">
+                        <span dir="ltr" class="{{ ($order->profit->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-success-600 dark:text-success-400' }}">
                             {{ $order->profit->operational_profit !== null ? number_format($order->profit->operational_profit) : 'مسدود' }}
                         </span>
                     </div>
