@@ -9,11 +9,14 @@ use App\Domain\Costing\Services\CostResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Products\Services\ProductSyncer;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -47,10 +50,17 @@ class ProductController extends Controller
     {
         $product->load('costMapping.costItem', 'variations');
 
+        $purchaseHistory = $product->costMapping?->cost_item_id
+            ? $product->costMapping->costItem->costHistory()
+                ->latest('effective_at')->latest('id')->limit(20)
+                ->get(['id', 'unit_cost', 'landed_unit_cost', 'source', 'effective_at'])
+            : collect();
+
         return Inertia::render('products/show', [
             'product' => [
                 'id' => $product->id,
                 'hub_product_id' => $product->hub_product_id,
+                'parent_hub_id' => $product->parent_hub_id,
                 'name' => $product->name,
                 'type' => $product->type,
                 'sku' => $product->sku,
@@ -73,6 +83,20 @@ class ProductController extends Controller
                 ]),
                 'price_history' => $product->priceHistory()->latest('changed_at')->limit(20)->get(),
                 'stock_history' => $product->stockHistory()->latest('changed_at')->limit(20)->get(),
+                'purchase_history' => $purchaseHistory,
+                'notes' => $product->notes()->with('author:id,name')->latest()->limit(30)->get()
+                    ->map(fn ($note) => [
+                        'id' => $note->id,
+                        'title' => $note->title,
+                        'body' => $note->body,
+                        'multiplier' => $note->multiplier,
+                        'author' => $note->author?->name,
+                        'created_at' => $note->created_at->toIso8601String(),
+                    ]),
+                'sync' => [
+                    'hub_modified_at' => $product->hub_modified_at?->toIso8601String(),
+                    'mirrored_at' => $product->updated_at?->toIso8601String(),
+                ],
             ],
             'cost_items' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
         ]);
@@ -122,5 +146,60 @@ class ProductController extends Controller
         ]);
 
         return back()->with('success', 'قیمت عمده داخلی ثبت شد.');
+    }
+
+    /** Manual landed cost entry for the mapped Cost Item, then unblock this product's orders. */
+    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine): RedirectResponse
+    {
+        $data = $request->validate([
+            'unit_cost' => 'required|integer|min:1',
+            'effective_at' => 'nullable|date',
+        ]);
+
+        $mapping = $product->costMapping;
+        if (! $mapping?->cost_item_id) {
+            return back()->withErrors(['unit_cost' => 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.']);
+        }
+
+        $mapping->costItem->costHistory()->create([
+            'unit_cost' => $data['unit_cost'],
+            'landed_unit_cost' => $data['unit_cost'],
+            'source' => 'manual',
+            'effective_at' => $data['effective_at'] ?? now()->toDateString(),
+            'created_by' => $request->user()->id,
+        ]);
+
+        // Controlled recalculation: only orders blocked on missing cost re-run.
+        Order::where('profit_status', 'blocked_missing_cost')
+            ->whereHas('items', fn ($q) => $q->where('product_mirror_id', $product->id))
+            ->get()->each(fn ($order) => $engine->evaluate($order));
+
+        return back()->with('success', 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.');
+    }
+
+    public function storeNote(Request $request, ProductMirror $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'title' => 'required|string|max:150',
+            'body' => 'nullable|string|max:2000',
+            'multiplier' => 'nullable|numeric|min:0.001|max:1000',
+        ]);
+
+        $product->notes()->create($data + ['created_by' => $request->user()->id]);
+
+        return back()->with('success', 'یادداشت ذخیره شد.');
+    }
+
+    /** Read-only refresh of the mirror from the hub. Never writes to WooCommerce. */
+    public function syncFromHub(ProductMirror $product, ProductSyncer $syncer): RedirectResponse
+    {
+        try {
+            // Variations refresh through their parent so the whole family stays consistent.
+            $syncer->sync($product->parent_hub_id ?? $product->hub_product_id, 'manual', (string) Str::uuid());
+        } catch (Throwable) {
+            return back()->withErrors(['sync' => 'به‌روزرسانی از هاب ناموفق بود؛ کمی بعد دوباره تلاش کنید.']);
+        }
+
+        return back()->with('success', 'اطلاعات محصول از هاب به‌روزرسانی شد.');
     }
 }

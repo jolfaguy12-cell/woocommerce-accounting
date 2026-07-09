@@ -41,4 +41,9 @@ class ProductMirror extends Model
     {
         return $this->hasMany(ProductStockHistory::class);
     }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(ProductNote::class);
+    }
 }
