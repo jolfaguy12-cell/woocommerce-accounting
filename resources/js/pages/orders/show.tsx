@@ -7,6 +7,9 @@ import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString('fa-IR');
+const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
+
+const paymentStatusLabels: Record<string, string> = { paid: 'پرداخت‌شده', unpaid: 'پرداخت‌نشده' };
 
 type Item = { name: string; qty: number; unit_price: number; line_total: number; mapped: boolean; hub_product_id: number | null };
 type Profit = {
@@ -28,9 +31,12 @@ type Profit = {
 type OrderData = {
     id: number;
     hub_order_id: number;
+    customer_name: string | null;
+    customer_phone: string | null;
     status: string;
     financial_state: string;
     profit_status: string;
+    payment_status: string;
     jalali_period: string;
     channel: string | null;
     raw_source: string | null;
@@ -39,6 +45,8 @@ type OrderData = {
     shipping_charged: number;
     payment_method_title: string | null;
     order_date: string;
+    date_paid: string | null;
+    updated_at: string;
     real_shipping_cost: number | null;
     items: Item[];
     profit: Profit;
@@ -62,7 +70,10 @@ export default function OrderShow({ order }: { order: OrderData }) {
                     <Badge variant="outline">{order.status}</Badge>
                     <Badge variant="secondary">{order.financial_state}</Badge>
                     <Badge variant={order.profit_status === 'ok' ? 'default' : 'destructive'}>{order.profit_status}</Badge>
-                    <span className="text-muted-foreground text-sm">
+                    <Badge variant={order.payment_status === 'paid' ? 'default' : 'secondary'}>
+                        {paymentStatusLabels[order.payment_status] ?? order.payment_status}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
                         {order.jalali_period} · کانال: {order.channel ?? order.raw_source ?? '—'} · {order.payment_method_title ?? ''}
                     </span>
                     <Button
@@ -73,6 +84,30 @@ export default function OrderShow({ order }: { order: OrderData }) {
                     >
                         بازمحاسبه سود
                     </Button>
+                </div>
+
+                <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                        <span className="text-muted-foreground">مشتری</span>
+                        <p className="font-medium">{order.customer_name ?? 'ثبت نشده'}</p>
+                        {order.customer_phone && (
+                            <p dir="ltr" className="text-xs text-muted-foreground">
+                                {order.customer_phone}
+                            </p>
+                        )}
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                        <span className="text-muted-foreground">تاریخ ثبت سفارش</span>
+                        <p className="font-medium">{fmtDateTime(order.order_date)}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                        <span className="text-muted-foreground">تاریخ پرداخت</span>
+                        <p className="font-medium">{order.date_paid ? fmtDateTime(order.date_paid) : 'پرداخت نشده'}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                        <span className="text-muted-foreground">آخرین همگام‌سازی</span>
+                        <p className="font-medium">{fmtDateTime(order.updated_at)}</p>
+                    </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">

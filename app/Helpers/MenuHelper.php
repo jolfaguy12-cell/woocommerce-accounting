@@ -64,6 +64,26 @@ class MenuHelper
                     ['name' => 'مشاهده حساب های دو طرفه', 'path' => '/mutual-accounts', 'pro' => false],
                 ],
             ],
+            // TODO: Replace placeholder icons, define frontend routes, and create simple pages for Tools and Settings submenu items. For items with existing backend APIs, only list the currently implementable features in a minimal UI. Avoid heavy HTML/CSS until the required features are reviewed.
+            [
+                'name' => 'ابزار ها',
+                'icon' => 'exchange-arrows',
+                'subItems' => [
+                    ['name' => 'بکاپ و بازیابی', 'path' => '/tools/backup', 'pro' => false],
+                    ['name' => 'وضعیت سیستم', 'path' => '/tools/system-status', 'pro' => false],
+                    ['name' => 'لاگ سیستم', 'path' => '/tools/system-logs', 'pro' => false],
+                ],
+            ],
+            [
+                'name' => 'تنضیمات',
+                'icon' => 'exchange-arrows',
+                'subItems' => [
+                    ['name' => 'تنضیمات کلی', 'path' => '/setting', 'pro' => false],
+                    ['name' => 'گزارشات', 'path' => '/setting/report-settings', 'pro' => false],
+                    ['name' => 'مدیریت نقش ها', 'path' => '/setting/role-managment', 'pro' => false],
+                    ['name' => 'مدیریت وبهوک ها و Api ها', 'path' => '/setting/api-webhook-managment', 'pro' => false],
+                ],
+            ],
         ];
     }
 
