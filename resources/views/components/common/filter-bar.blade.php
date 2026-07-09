@@ -9,6 +9,14 @@
     query param not re-declared as a visible input inside the slot is
     preserved via a hidden field, so switching one filter never drops
     the others.
+
+    The hidden fields MUST render before the slot: when a query param is
+    also a visible input in the slot (the normal case — the slot's <select
+    name="status"> IS the same field the hidden hidden-field would
+    duplicate), browsers submit same-named fields in DOM order and PHP's
+    query-string parsing keeps the LAST one. Hidden-before-slot means the
+    user's live selection always wins instead of being silently
+    overwritten by the stale value it was reflecting.
 --}}
 @php
     $preserved = collect(request()->query())
@@ -17,11 +25,11 @@
 @endphp
 
 <form method="GET" action="{{ $action }}" {{ $attributes->merge(['class' => 'flex flex-wrap items-center gap-2']) }}>
-    {{ $slot }}
-
     @foreach ($preserved as $key => $value)
         @if (! is_array($value))
             <input type="hidden" name="{{ $key }}" value="{{ $value }}">
         @endif
     @endforeach
+
+    {{ $slot }}
 </form>

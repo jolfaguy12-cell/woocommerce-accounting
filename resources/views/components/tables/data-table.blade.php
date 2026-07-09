@@ -10,8 +10,11 @@
             <thead>
                 <tr class="border-b border-gray-100 dark:border-gray-800">
                     @foreach ($headers as $header)
-                        <th class="px-5 py-3 text-right sm:px-6">
-                            <p class="font-medium text-gray-500 text-theme-xs dark:text-gray-400">{{ $header }}</p>
+                        {{-- Headers may be a plain string (always shown) or ['key' => ..., 'label' => ...]
+                             so a page can drive column visibility from an Alpine `visible` object
+                             defined on an ancestor element (see orders/index.blade.php). --}}
+                        <th @if (is_array($header)) x-show="visible['{{ $header['key'] }}']" @endif class="px-5 py-3 text-right sm:px-6">
+                            <p class="font-medium text-gray-500 text-theme-xs dark:text-gray-400">{{ is_array($header) ? $header['label'] : $header }}</p>
                         </th>
                     @endforeach
                 </tr>

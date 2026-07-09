@@ -27,6 +27,7 @@ class OrderStatusPresenter
     private const ORDER_STATUS_COLORS = [
         'completed' => 'success',
         'bslm-completed' => 'success',
+        'bslm-shipping' => 'success',
         'cancelled' => 'error',
         'bslm-rejected' => 'error',
         'trash' => 'error',

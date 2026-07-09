@@ -1,9 +1,40 @@
 @extends('layouts.app')
 
+@php
+    $columns = [
+        ['key' => 'order', 'label' => 'سفارش'],
+        ['key' => 'customer', 'label' => 'مشتری'],
+        ['key' => 'channel', 'label' => 'کانال'],
+        ['key' => 'status', 'label' => 'وضعیت سفارش'],
+        ['key' => 'payment_status', 'label' => 'وضعیت پرداخت'],
+        ['key' => 'total', 'label' => 'مبلغ (تومان)'],
+        ['key' => 'shipping', 'label' => 'هزینه ارسال'],
+        ['key' => 'profit', 'label' => 'سود'],
+        ['key' => 'profit_status', 'label' => 'وضعیت سود'],
+        ['key' => 'order_date', 'label' => 'تاریخ ثبت'],
+        ['key' => 'updated_at', 'label' => 'آخرین به‌روزرسانی از هاب'],
+    ];
+@endphp
+
 @section('content')
 <x-common.page-breadcrumb pageTitle="سفارش‌ها" />
 
-<div class="space-y-4">
+<div
+    class="space-y-4"
+    x-data="{
+        visible: {{ json_encode(array_fill_keys(array_column($columns, 'key'), true)) }},
+        columnsOpen: false,
+        init() {
+            const saved = JSON.parse(localStorage.getItem('orders.visibleColumns') || '{}');
+            Object.assign(this.visible, saved);
+        },
+        toggle(key) {
+            this.visible[key] = !this.visible[key];
+            localStorage.setItem('orders.visibleColumns', JSON.stringify(this.visible));
+        },
+    }"
+    x-init="init()"
+>
     <x-common.filter-bar>
         <div class="relative">
             <input
@@ -55,29 +86,39 @@
         @if (array_filter($filters))
             <a href="{{ route('orders.index') }}" class="h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-600 leading-9 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">پاک کردن فیلترها</a>
         @endif
+
+        {{-- Column visibility --}}
+        <div class="relative" @click.away="columnsOpen = false">
+            <button type="button" @click="columnsOpen = !columnsOpen" class="h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ستون‌ها</button>
+            <div x-show="columnsOpen" x-cloak x-transition class="absolute left-0 z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
+                @foreach ($columns as $col)
+                    <label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5">
+                        <input type="checkbox" :checked="visible['{{ $col['key'] }}']" @change="toggle('{{ $col['key'] }}')">
+                        {{ $col['label'] }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
     </x-common.filter-bar>
 
-    <x-tables.data-table
-        :headers="['سفارش', 'مشتری', 'کانال', 'وضعیت سفارش', 'وضعیت پرداخت', 'مبلغ (تومان)', 'سود', 'وضعیت سود', 'تاریخ ثبت', 'آخرین همگام‌سازی']"
-        :paginator="$orders"
-        emptyMessage="سفارشی با این فیلترها یافت نشد"
-    >
+    <x-tables.data-table :headers="$columns" :paginator="$orders" emptyMessage="سفارشی با این فیلترها یافت نشد">
         @foreach ($orders as $order)
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td class="px-5 py-3 sm:px-6">
+                <td x-show="visible.order" class="px-5 py-3 sm:px-6">
                     <a href="{{ route('orders.show', $order) }}" class="font-medium text-brand-500 hover:underline">#{{ $order->hub_order_id }}</a>
                 </td>
-                <td class="max-w-40 truncate px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->customerParty?->name ?? '—' }}</td>
-                <td class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->channel?->name ?? 'نامشخص' }}</td>
-                <td class="px-5 py-3 sm:px-6"><x-orders.status-badge type="order" :value="$order->status" /></td>
-                <td class="px-5 py-3 sm:px-6"><x-orders.status-badge type="payment" :value="$order->payment_status" /></td>
-                <td class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($order->total) }}</td>
-                <td class="whitespace-nowrap px-5 py-3 sm:px-6 {{ ($order->profit?->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-gray-600 dark:text-gray-300' }}" dir="ltr">
+                <td x-show="visible.customer" class="max-w-40 truncate px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->customerParty?->name ?? '—' }}</td>
+                <td x-show="visible.channel" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->channel?->name ?? 'نامشخص' }}</td>
+                <td x-show="visible.status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="order" :value="$order->status" /></td>
+                <td x-show="visible.payment_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="payment" :value="$order->payment_status" /></td>
+                <td x-show="visible.total" class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($order->total) }}</td>
+                <td x-show="visible.shipping" class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($order->shipping_charged) }}</td>
+                <td x-show="visible.profit" class="whitespace-nowrap px-5 py-3 sm:px-6 {{ ($order->profit?->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-gray-600 dark:text-gray-300' }}" dir="ltr">
                     {{ $order->profit?->operational_profit !== null ? number_format($order->profit->operational_profit) : '—' }}
                 </td>
-                <td class="px-5 py-3 sm:px-6"><x-orders.status-badge type="profit" :value="$order->profit_status" /></td>
-                <td class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->order_date) }}</td>
-                <td class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->updated_at) }}</td>
+                <td x-show="visible.profit_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="profit" :value="$order->profit_status" /></td>
+                <td x-show="visible.order_date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->order_date) }}</td>
+                <td x-show="visible.updated_at" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($order->updated_at) }}</td>
             </tr>
         @endforeach
     </x-tables.data-table>
