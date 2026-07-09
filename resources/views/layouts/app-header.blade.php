@@ -49,9 +49,9 @@
             </button>
 
             <!-- Logo (mobile only) -->
-            <a href="/" class="xl:hidden">
-                <img class="dark:hidden" src="/images/logo/logo.svg" alt="Logo" />
-                <img class="hidden dark:block" src="/images/logo/logo-dark.svg" alt="Logo" />
+            <a href="/" class="flex items-center gap-2 xl:hidden">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">ب</span>
+                <span class="whitespace-nowrap text-base font-bold text-gray-800 dark:text-white/90">داشبورد حسابداری بهداشتیک</span>
             </a>
 
             <!-- Application Menu Toggle (mobile only) -->
