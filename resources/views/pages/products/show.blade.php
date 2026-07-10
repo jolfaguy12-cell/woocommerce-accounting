@@ -321,7 +321,7 @@
     </x-ui.modal>
 
     {{-- Cost entry modal --}}
-    <x-ui.modal :isOpen="$errors->has('unit_cost')" @open-cost-modal.window="open = true" class="max-w-sm p-6">
+    <x-ui.modal :isOpen="$errors->hasAny(['unit_cost', 'effective_at', 'supplier_party_id', 'new_supplier_name'])" @open-cost-modal.window="open = true" class="max-w-sm p-6">
         <form method="POST" action="{{ route('products.cost', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بهای تمام‌شده</h4>
@@ -329,8 +329,34 @@
                 {{ ($product['mapping']['cost_item'] ?? null) ? 'بهای جدید برای قلم «'.$product['mapping']['cost_item'].'» ثبت می‌شود.' : 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.' }}
             </p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">بهای هر واحد (تومان)</label>
-            <input type="number" name="unit_cost" min="1" dir="ltr" required class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <input type="number" name="unit_cost" min="1" dir="ltr" required value="{{ old('unit_cost') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             @error('unit_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تاریخ خرید (اختیاری — پیش‌فرض امروز)</label>
+            <input type="text" inputmode="none" placeholder="امروز" autocomplete="off" data-jdp
+                data-jdp-target-value-input="#cost-effective-at-g" data-jdp-target-value-type="gregorian"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <input type="hidden" id="cost-effective-at-g" name="effective_at" value="{{ old('effective_at') }}">
+            @error('effective_at')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تامین‌کننده (اختیاری)</label>
+            <select name="supplier_party_id" onchange="document.getElementById('new-supplier-name-wrap').classList.toggle('hidden', this.value !== '__new__')"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                <option value="">بدون تامین‌کننده</option>
+                @foreach ($suppliers as $s)
+                    <option value="{{ $s->id }}" @selected(old('supplier_party_id') == $s->id)>{{ $s->name }}{{ $s->shop_name ? " ({$s->shop_name})" : '' }}</option>
+                @endforeach
+                <option value="__new__" @selected(old('new_supplier_name'))>+ تامین‌کننده جدید…</option>
+            </select>
+            @error('supplier_party_id')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+            <div id="new-supplier-name-wrap" class="mt-4 {{ old('new_supplier_name') ? '' : 'hidden' }}">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام تامین‌کننده جدید</label>
+                <input type="text" name="new_supplier_name" value="{{ old('new_supplier_name') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                @error('new_supplier_name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-gray-400">اطلاعات کامل‌تر (فروشگاه، تلفن، شماره حساب) را می‌توانید بعداً از «مدیریت تامین‌کننده‌ها» تکمیل کنید.</p>
+            </div>
+
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
                 <button type="submit" @disabled(! ($product['mapping']['cost_item_id'] ?? null)) class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">ثبت بهای تمام‌شده</button>

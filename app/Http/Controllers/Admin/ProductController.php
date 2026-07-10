@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Accounting\Exceptions\PeriodLockedException;
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Costing\Models\WholesalePrice;
 use App\Domain\Costing\Services\CostResolver;
+use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
@@ -15,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class ProductController extends Controller
@@ -94,6 +98,7 @@ class ProductController extends Controller
                 ],
             ],
             'costItems' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
+            'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
         ]);
     }
 
@@ -143,12 +148,25 @@ class ProductController extends Controller
         return back()->with('success', 'قیمت عمده داخلی ثبت شد.');
     }
 
-    /** Manual landed cost entry for the mapped Cost Item, then unblock this product's orders. */
-    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine): RedirectResponse
+    /**
+     * Landed cost entry for the mapped Cost Item, then unblock this product's orders.
+     * With no supplier picked, this stays a lightweight "manual" note (no ledger effect,
+     * same as before). Picking/creating a supplier instead posts a real one-line purchase
+     * invoice (received immediately) so the payable to that supplier hits the books.
+     */
+    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
     {
+        // The "+ تامین‌کننده جدید" option submits this sentinel instead of a real id;
+        // new_supplier_name (not this field) is what actually drives creating it below.
+        if ($request->input('supplier_party_id') === '__new__') {
+            $request->merge(['supplier_party_id' => null]);
+        }
+
         $data = $request->validate([
             'unit_cost' => 'required|integer|min:1',
             'effective_at' => 'nullable|date',
+            'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
+            'new_supplier_name' => 'nullable|string|max:150',
         ]);
 
         $mapping = $product->costMapping;
@@ -156,13 +174,35 @@ class ProductController extends Controller
             return back()->withErrors(['unit_cost' => 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.']);
         }
 
-        $mapping->costItem->costHistory()->create([
-            'unit_cost' => $data['unit_cost'],
-            'landed_unit_cost' => $data['unit_cost'],
-            'source' => 'manual',
-            'effective_at' => $data['effective_at'] ?? now()->toDateString(),
-            'created_by' => $request->user()->id,
-        ]);
+        $date = $data['effective_at'] ?? now()->toDateString();
+
+        if (($data['supplier_party_id'] ?? null) || ($data['new_supplier_name'] ?? null)) {
+            $supplierId = $data['supplier_party_id']
+                ?? Party::create(['type' => 'supplier', 'name' => $data['new_supplier_name']])->id;
+
+            try {
+                $invoice = $purchaseInvoices->create([
+                    'supplier_party_id' => $supplierId,
+                    'invoice_date' => $date,
+                    'lines' => [
+                        ['cost_item_id' => $mapping->cost_item_id, 'qty' => 1, 'unit_price' => $data['unit_cost']],
+                    ],
+                    'created_by' => $request->user()->id,
+                ]);
+
+                $purchaseInvoices->receive($invoice, [$invoice->lines->first()->id => 1], $request->user()->id);
+            } catch (PeriodLockedException) {
+                return back()->withErrors(['effective_at' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.']);
+            }
+        } else {
+            $mapping->costItem->costHistory()->create([
+                'unit_cost' => $data['unit_cost'],
+                'landed_unit_cost' => $data['unit_cost'],
+                'source' => 'manual',
+                'effective_at' => $date,
+                'created_by' => $request->user()->id,
+            ]);
+        }
 
         // Controlled recalculation: only orders blocked on missing cost re-run.
         Order::where('profit_status', 'blocked_missing_cost')

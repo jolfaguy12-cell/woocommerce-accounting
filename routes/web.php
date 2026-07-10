@@ -6,9 +6,11 @@ use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\PurchaseInvoiceController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\ToolsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Webhooks\HubWebhookController;
@@ -78,6 +80,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('products/{product}/cost', [ProductController::class, 'storeCost'])->name('products.cost');
         Route::post('products/{product}/notes', [ProductController::class, 'storeNote'])->name('products.notes');
         Route::post('products/{product}/sync', [ProductController::class, 'syncFromHub'])->name('products.sync');
+
+        Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
+        Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
+        Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])->name('suppliers.show');
+
+        Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
+        Route::post('new-buy-order', [PurchaseInvoiceController::class, 'store'])->name('purchases.store');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');

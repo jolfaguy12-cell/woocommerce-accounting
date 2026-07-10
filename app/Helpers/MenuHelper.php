@@ -70,6 +70,7 @@ class MenuHelper
                 'subItems' => [
                     ['name' => 'ثبت خرید', 'path' => '/new-buy-order', 'pro' => false],
                     ['name' => 'مشاهده خرید ها', 'path' => '/new-buy-order', 'pro' => false],
+                    ['name' => 'مدیریت تامین‌کننده‌ها', 'path' => '/suppliers', 'pro' => false],
                 ],
             ],
             [
