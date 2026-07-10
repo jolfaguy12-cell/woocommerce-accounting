@@ -14,6 +14,19 @@ const stateLabels: Record<string, string> = {
 
 type Row = { id: number; jalali_period: string; state: string; ready: boolean; net_period_profit: number | null; finalized_at: string | null };
 
+// Planned purchasing reports (2026-07-10) — not implemented yet, just a punch
+// list so the eventual Blade version has a ready-made starting point. Data
+// source: purchase_invoices + purchase_invoice_lines (already indexed by
+// jalali_period and carry qty/unit_price/landed_unit_cost per line), so all
+// four are plain aggregate queries once someone builds the UI for them.
+const plannedPurchaseReports: string[] = [
+    'تعداد کل اقلام خریداری‌شده در ماه جاری (مجموع qty فاکتورهای خرید)',
+    'جمع مبلغ خرید کالا در ماه جاری (qty × unit_price همه اقلام)',
+    'مبلغ کل خرید در ماه جاری (جمع خرید کالا + هزینه‌های ارسال)',
+    'جمع هزینه‌های ارسال کالاهای خریداری‌شده در ماه جاری',
+    '(بعداً) پرفروش‌ترین کالاهای خریداری‌شده این ماه بر اساس مجموع مبلغ سفارش',
+];
+
 export default function ReportsIndex({ reports, current_period }: { reports: Row[]; current_period: string }) {
     return (
         <AppLayout breadcrumbs={[{ title: 'گزارش‌ها', href: '/reports' }]}>
@@ -59,6 +72,17 @@ export default function ReportsIndex({ reports, current_period }: { reports: Row
                                 ))}
                             </tbody>
                         </table>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="flex flex-col gap-2 p-4">
+                        <h2 className="text-sm font-bold">گزارش‌های خرید کالا (برنامه‌ریزی‌شده — TODO)</h2>
+                        <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
+                            {plannedPurchaseReports.map((item) => (
+                                <li key={item}>{item}</li>
+                            ))}
+                        </ul>
                     </CardContent>
                 </Card>
             </div>

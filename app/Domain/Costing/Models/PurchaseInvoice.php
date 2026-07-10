@@ -4,9 +4,11 @@ namespace App\Domain\Costing\Models;
 
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Expenses\Models\Attachment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class PurchaseInvoice extends Model
 {
@@ -30,5 +32,10 @@ class PurchaseInvoice extends Model
     public function journalEntry(): BelongsTo
     {
         return $this->belongsTo(JournalEntry::class);
+    }
+
+    public function attachments(): MorphMany
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
     }
 }

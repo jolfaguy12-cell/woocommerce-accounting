@@ -19,7 +19,7 @@
     </div>
 
     <x-tables.data-table
-        :headers="['تاریخ', 'تامین‌کننده', 'شماره فاکتور', 'تعداد اقلام', 'جمع کل', 'وضعیت']"
+        :headers="['تاریخ', 'تامین‌کننده', 'شماره فاکتور', 'تعداد اقلام', 'جمع کل', 'وضعیت', 'پیوست']"
         :paginator="$invoices"
         emptyMessage="هنوز خریدی ثبت نشده است"
     >
@@ -31,12 +31,19 @@
                     <a href="{{ route('suppliers.show', $invoice->supplier_party_id) }}" class="text-brand-500 hover:underline">{{ $invoice->supplier->name }}</a>
                 </td>
                 <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $invoice->invoice_no ?? '—' }}</td>
-                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ number_format($invoice->lines->count()) }}</td>
+                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ number_format($invoice->lines->sum('qty')) }}</td>
                 <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($total) }} تومان</td>
                 <td class="px-5 sm:px-6">
                     <x-ui.badge :color="$invoice->status === 'received' ? 'success' : ($invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
                         {{ $statusLabels[$invoice->status] ?? $invoice->status }}
                     </x-ui.badge>
+                </td>
+                <td class="px-5 sm:px-6">
+                    @if ($invoice->attachments->isNotEmpty())
+                        <a href="{{ route('attachments.download', $invoice->attachments->first()) }}" class="text-brand-500 hover:underline">📎 مشاهده</a>
+                    @else
+                        —
+                    @endif
                 </td>
             </tr>
         @endforeach
@@ -45,7 +52,7 @@
 
 {{-- Add purchase modal --}}
 <x-ui.modal :isOpen="$errors->any()" @open-add-purchase-modal.window="open = true" class="max-w-2xl p-6">
-    <form method="POST" action="{{ route('purchases.store') }}">
+    <form method="POST" action="{{ route('purchases.store') }}" enctype="multipart/form-data">
         @csrf
         <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">خرید جدید</h4>
 
@@ -90,19 +97,31 @@
                 @error('shipping_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
                 <p class="mt-1 text-xs text-gray-400">به نسبت تعداد بین اقلام تقسیم و به بهای تمام‌شده هرکدام اضافه می‌شود.</p>
             </div>
+
+            <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تصویر فاکتور (اختیاری)</label>
+                <input type="file" name="image" accept="image/*" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                @error('image')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+            </div>
         </div>
 
         <div x-data="{ lines: [{ cost_item_id: '', qty: 1, unit_price: '' }] }" class="mt-5">
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">اقلام خریداری‌شده</label>
 
             <template x-for="(line, idx) in lines" :key="idx">
-                <div class="mb-2 grid grid-cols-12 items-center gap-2">
-                    <select :name="`lines[${idx}][cost_item_id]`" required class="col-span-6 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                        <option value="">انتخاب قلم…</option>
-                        @foreach ($costItems as $item)
-                            <option value="{{ $item->id }}">{{ $item->name }}{{ $item->sku ? " ({$item->sku})" : '' }}</option>
-                        @endforeach
-                    </select>
+                <div class="mb-3 grid grid-cols-12 items-start gap-2 border-b border-gray-100 pb-3 last:border-0 dark:border-gray-800">
+                    <div class="col-span-6">
+                        <select :name="`lines[${idx}][cost_item_id]`" x-model="line.cost_item_id" class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                            <option value="">+ کالای جدید…</option>
+                            @foreach ($costItems as $item)
+                                <option value="{{ $item->id }}">{{ $item->name }}{{ $item->sku ? " ({$item->sku})" : '' }}</option>
+                            @endforeach
+                        </select>
+                        <input x-show="line.cost_item_id === ''" :name="`lines[${idx}][new_item_name]`" type="text" placeholder="نام کالای جدید"
+                            class="mt-1 h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <input :name="`lines[${idx}][note]`" type="text" placeholder="توضیحات (اختیاری)"
+                            class="mt-1 h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    </div>
                     <input type="number" :name="`lines[${idx}][qty]`" x-model.number="line.qty" min="1" placeholder="تعداد" required dir="ltr" class="col-span-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                     <input type="number" :name="`lines[${idx}][unit_price]`" min="1" placeholder="قیمت واحد" required dir="ltr" class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                     <button type="button" @click="lines.length > 1 && lines.splice(idx, 1)" x-show="lines.length > 1" class="col-span-1 text-error-500 hover:underline">حذف</button>
