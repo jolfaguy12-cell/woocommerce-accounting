@@ -14,13 +14,13 @@
         >
         <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" name="mapping" value="unmapped" onchange="this.form.submit()" @checked(($filters['mapping'] ?? null) === 'unmapped')>
-            فقط بدون نگاشت
+            فقط بدون بهای تمام‌شده
         </label>
         <button type="submit" class="h-9 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">اعمال فیلتر</button>
     </x-common.filter-bar>
 
     <x-tables.data-table
-        :headers="['محصول', 'نوع', 'SKU', 'قیمت سایت', 'موجودی', 'نگاشت بها']"
+        :headers="['محصول', 'نوع', 'SKU', 'قیمت سایت', 'موجودی', 'بهای تمام‌شده']"
         :paginator="$products"
         emptyMessage="محصولی یافت نشد — با acc:sync:product همگام‌سازی کنید"
     >
@@ -37,7 +37,7 @@
                 <td class="px-5 sm:px-6">
                     @php $mapped = $p->costMapping?->status === 'mapped'; @endphp
                     <x-ui.badge :color="$mapped ? 'success' : ($p->type === 'variable' ? 'light' : 'error')" size="sm">
-                        {{ $mapped ? 'نگاشت‌شده' : ($p->type === 'variable' ? '— (والد)' : 'بدون نگاشت') }}
+                        {{ $mapped ? 'ثبت‌شده' : ($p->type === 'variable' ? '— (والد)' : 'ثبت‌نشده') }}
                     </x-ui.badge>
                 </td>
             </tr>

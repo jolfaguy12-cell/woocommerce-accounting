@@ -213,3 +213,10 @@
         unicode-bidi: isolate;
     }
 }
+
+/* jalalidatepicker ships with no z-index of its own, so its popup silently
+   renders behind <x-ui.modal>'s z-99999 overlay whenever a date field sits
+   inside a modal (e.g. the purchase/cost-entry forms) — force it on top. */
+jdp-container {
+    z-index: 100000 !important;
+}

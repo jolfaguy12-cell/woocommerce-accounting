@@ -25,6 +25,16 @@ window.jalaliDatepicker.startWatch({
     targetValueType: 'attr',
 });
 
+// Toman/money inputs: show thousands separators while typing, keep the raw
+// digit value in a paired hidden field so the server still gets a plain
+// integer. Wire with oninput="formatTomanInput(this, '#hidden-id')".
+window.formatTomanInput = function (el, hiddenSelector) {
+    const digits = el.value.replace(/[^0-9]/g, '');
+    el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+    const hidden = document.querySelector(hiddenSelector);
+    if (hidden) hidden.value = digits;
+};
+
 Alpine.start();
 
 // Initialize components on DOM ready

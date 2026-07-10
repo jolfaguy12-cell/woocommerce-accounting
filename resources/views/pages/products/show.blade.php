@@ -9,9 +9,7 @@
     $outdatedSync = $mirroredAt && now()->diffInHours(\Illuminate\Support\Carbon::parse($mirroredAt)) > 48;
 
     $warnings = [];
-    if ($pricing['mapping_status'] !== 'mapped') {
-        $warnings[] = ['text' => 'محصول به قلم بهای تمام‌شده نگاشت نشده است', 'tone' => 'error'];
-    } elseif ($pricing['latest_cost'] === null) {
+    if ($pricing['latest_cost'] === null) {
         $warnings[] = ['text' => 'بهای تمام‌شده‌ای برای این محصول ثبت نشده است', 'tone' => 'error'];
     }
     if ($pricing['retail_profit'] !== null && $pricing['retail_profit'] < 0) {
@@ -65,7 +63,6 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <button @click="$dispatch('open-wholesale-modal')" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ثبت قیمت عمده</button>
                     <button @click="$dispatch('open-cost-modal')" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ثبت بهای تمام‌شده</button>
-                    <button @click="$dispatch('open-mapping-modal')" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ویرایش محصول</button>
                     <form method="POST" action="{{ route('products.sync', $product['id']) }}">
                         @csrf
                         <button type="submit" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">همگام‌سازی با ووکامرس</button>
@@ -110,8 +107,8 @@
         <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
             <div class="mb-3 flex items-center justify-between">
                 <h3 class="text-base font-medium text-gray-800 dark:text-white/90">سودآوری</h3>
-                <x-ui.badge :color="$pricing['mapping_status'] === 'mapped' ? 'light' : 'error'" size="sm">
-                    {{ $pricing['mapping_status'] === 'mapped' ? 'نگاشت‌شده' : 'بدون نگاشت' }}
+                <x-ui.badge :color="$pricing['latest_cost'] !== null ? 'light' : 'error'" size="sm">
+                    {{ $pricing['latest_cost'] !== null ? 'بهای ثبت‌شده' : 'بدون بهای تمام‌شده' }}
                 </x-ui.badge>
             </div>
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -141,12 +138,6 @@
                         {{ $pricing['wholesale_profit'] !== null ? number_format($pricing['wholesale_profit']).' تومان ('.$pct($pricing['wholesale_margin']).')' : '—' }}
                     </span>
                 </div>
-                @if ($product['mapping']['cost_item'] ?? null)
-                    <div class="flex items-center justify-between py-1.5 text-sm">
-                        <span class="text-gray-500 dark:text-gray-400">قلم نگاشت‌شده</span>
-                        <span class="font-medium text-gray-800 dark:text-white/90">{{ $product['mapping']['cost_item'] }} × {{ number_format($product['mapping']['multiplier'], 3) }}</span>
-                    </div>
-                @endif
             </div>
         </div>
 
@@ -325,11 +316,13 @@
         <form method="POST" action="{{ route('products.cost', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بهای تمام‌شده</h4>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                {{ ($product['mapping']['cost_item'] ?? null) ? 'بهای جدید برای قلم «'.$product['mapping']['cost_item'].'» ثبت می‌شود.' : 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.' }}
-            </p>
+            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">بهای جدید برای این محصول ثبت می‌شود.</p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">بهای هر واحد (تومان)</label>
-            <input type="number" name="unit_cost" min="1" dir="ltr" required value="{{ old('unit_cost') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <input type="text" inputmode="numeric" dir="ltr" autocomplete="off" required
+                value="{{ old('unit_cost') ? number_format((int) old('unit_cost')) : '' }}"
+                oninput="formatTomanInput(this, '#unit-cost-raw')"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <input type="hidden" id="unit-cost-raw" name="unit_cost" value="{{ old('unit_cost') }}">
             @error('unit_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
 
             <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تاریخ خرید (اختیاری — پیش‌فرض امروز)</label>
@@ -359,52 +352,7 @@
 
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
-                <button type="submit" @disabled(! ($product['mapping']['cost_item_id'] ?? null)) class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">ثبت بهای تمام‌شده</button>
-            </div>
-        </form>
-    </x-ui.modal>
-
-    {{-- Cost mapping modal --}}
-    {{--
-        Note: extra x-data passed via the component tag below is silently
-        dropped — <x-ui.modal>'s own template already hardcodes an x-data on
-        that same root element, and duplicate HTML attributes keep only the
-        first. So the new-item-name toggle uses plain vanilla JS instead of
-        a second (unreachable) Alpine scope.
-    --}}
-    <x-ui.modal :isOpen="$errors->hasAny(['cost_item_id', 'new_item_name']) || (old('_form') === 'mapping' && $errors->has('multiplier'))" @open-mapping-modal.window="open = true" class="max-w-md p-6">
-        <form method="POST" action="{{ route('products.map', $product['id']) }}">
-            @csrf
-            <input type="hidden" name="_form" value="mapping">
-            <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ویرایش اطلاعات داخلی محصول</h4>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">اطلاعات فروشگاه فقط از هاب خوانده می‌شود؛ اینجا نگاشت بهای تمام‌شده و ضریب واحد ویرایش می‌شود.</p>
-
-            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">قلم بهای تمام‌شده</label>
-            <select name="cost_item_id" onchange="document.getElementById('new-item-name-wrap').classList.toggle('hidden', this.value !== '')"
-                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                <option value="">قلم جدید…</option>
-                @foreach ($costItems as $item)
-                    <option value="{{ $item->id }}" @selected(($product['mapping']['cost_item_id'] ?? null) == $item->id)>{{ $item->name }}{{ $item->sku ? " ({$item->sku})" : '' }}</option>
-                @endforeach
-            </select>
-            @error('cost_item_id')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-
-            <div id="new-item-name-wrap" class="mt-4 {{ ($product['mapping']['cost_item_id'] ?? null) ? 'hidden' : '' }}">
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام قلم جدید</label>
-                <input type="text" name="new_item_name" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                @error('new_item_name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="mt-4">
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">ضریب (تعداد واحد در هر فروش)</label>
-                <input type="number" step="0.001" min="0.001" name="multiplier" dir="ltr" value="{{ $product['mapping']['multiplier'] ?? 1 }}"
-                    class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                @error('multiplier')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="mt-5 flex justify-end gap-3">
-                <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
-                <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ذخیره تغییرات</button>
+                <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت بهای تمام‌شده</button>
             </div>
         </form>
     </x-ui.modal>

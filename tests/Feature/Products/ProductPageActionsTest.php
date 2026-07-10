@@ -64,10 +64,28 @@ it('records a manual cost and unblocks orders for the product', function () {
         ->and(Order::firstWhere('hub_order_id', 6001)->refresh()->profit_status)->toBe('ok');
 });
 
-it('rejects a manual cost when the product has no mapping', function () {
+it('silently creates a 1:1 cost item/mapping the first time a cost is registered for an unmapped product', function () {
+    expect($this->mirror->costMapping)->toBeNull();
+
     $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/cost", [
         'unit_cost' => 400_000,
-    ])->assertSessionHasErrors('unit_cost');
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $mapping = $this->mirror->fresh()->costMapping;
+
+    expect($mapping)->not->toBeNull()
+        ->and($mapping->status)->toBe('mapped')
+        ->and((float) $mapping->multiplier)->toBe(1.0)
+        ->and($mapping->costItem->name)->toBe($this->mirror->name)
+        ->and($mapping->costItem->costHistory()->where('source', 'manual')->count())->toBe(1);
+});
+
+it('silently creates a cost item/mapping when a wholesale price is set for an unmapped product', function () {
+    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/wholesale", [
+        'price' => 500_000,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($this->mirror->fresh()->costMapping)->not->toBeNull();
 });
 
 it('posts a real purchase invoice and journal entry when a supplier is picked for the cost entry', function () {

@@ -97,7 +97,6 @@ class ProductController extends Controller
                     'mirrored_at' => $product->updated_at?->toIso8601String(),
                 ],
             ],
-            'costItems' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
             'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
         ]);
     }
@@ -133,10 +132,7 @@ class ProductController extends Controller
     {
         $data = $request->validate(['price' => 'required|integer|min:0']);
 
-        $mapping = $product->costMapping;
-        if (! $mapping?->cost_item_id) {
-            return back()->withErrors(['price' => 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.']);
-        }
+        $mapping = $this->resolveOrCreateMapping($product);
 
         WholesalePrice::create([
             'cost_item_id' => $mapping->cost_item_id,
@@ -169,10 +165,7 @@ class ProductController extends Controller
             'new_supplier_name' => 'nullable|string|max:150',
         ]);
 
-        $mapping = $product->costMapping;
-        if (! $mapping?->cost_item_id) {
-            return back()->withErrors(['unit_cost' => 'ابتدا محصول را به قلم بهای تمام‌شده نگاشت کنید.']);
-        }
+        $mapping = $this->resolveOrCreateMapping($product);
 
         $date = $data['effective_at'] ?? now()->toDateString();
 
@@ -210,6 +203,28 @@ class ProductController extends Controller
             ->get()->each(fn ($order) => $engine->evaluate($order));
 
         return back()->with('success', 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.');
+    }
+
+    /**
+     * Every product needs a Cost Item to hang cost history off of, but users never
+     * pick or name one directly (that indirection confused more than it helped) —
+     * the first time a cost/wholesale price is registered for a product, silently
+     * create its own 1:1 Cost Item (multiplier 1) if it doesn't already have one.
+     */
+    private function resolveOrCreateMapping(ProductMirror $product): ProductCostMapping
+    {
+        if ($mapping = $product->costMapping) {
+            return $mapping;
+        }
+
+        $item = CostItem::create(['name' => $product->name, 'sku' => $product->sku]);
+
+        return ProductCostMapping::create([
+            'product_mirror_id' => $product->id,
+            'cost_item_id' => $item->id,
+            'multiplier' => 1,
+            'status' => 'mapped',
+        ]);
     }
 
     public function storeNote(Request $request, ProductMirror $product): RedirectResponse
