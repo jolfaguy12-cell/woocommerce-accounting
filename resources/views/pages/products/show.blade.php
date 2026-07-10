@@ -23,6 +23,9 @@
     if ($outdatedSync) {
         $warnings[] = ['text' => 'اطلاعات محصول مدتی است از هاب به‌روزرسانی نشده است', 'tone' => 'warning'];
     }
+    if ($product['status'] === 'trash') {
+        $warnings[] = ['text' => 'این محصول در ووکامرس داخل سطل زباله است', 'tone' => 'error'];
+    }
 
     $pct = fn ($n) => $n === null ? '—' : number_format($n, 1).'٪';
 @endphp
@@ -42,8 +45,19 @@
                 @if ($product['gtin'])
                     <span>GTIN: <span dir="ltr">{{ $product['gtin'] }}</span></span>
                 @endif
-                @if ($product['status'])
+                @if ($product['status'] === 'trash')
+                    <span class="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-0.5 text-xs font-semibold text-white">در سطل زباله ووکامرس</span>
+                @elseif ($product['status'])
                     <x-ui.badge color="light" size="sm">{{ $product['status'] === 'publish' ? 'منتشرشده' : $product['status'] }}</x-ui.badge>
+                @endif
+                @if ($product['type'] === 'variation')
+                    @if ($product['parent'])
+                        <a href="{{ route('products.show', $product['parent']['id']) }}" class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 transition-colors hover:border-brand-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                            محصول والد: {{ $product['parent']['name'] }}
+                        </a>
+                    @else
+                        <span class="text-xs text-gray-400 dark:text-gray-500">محصول والد یافت نشد</span>
+                    @endif
                 @endif
             </div>
 

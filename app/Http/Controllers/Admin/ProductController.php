@@ -38,7 +38,7 @@ class ProductController extends Controller
 
     public function show(ProductMirror $product, CostResolver $resolver): View
     {
-        $product->load('costMapping.costItem', 'variations');
+        $product->load('costMapping.costItem', 'variations', 'parent');
 
         $purchaseHistory = $product->costMapping?->cost_item_id
             ? $product->costMapping->costItem->costHistory()
@@ -72,6 +72,10 @@ class ProductController extends Controller
                     'id' => $v->id, 'hub_product_id' => $v->hub_product_id, 'name' => $v->name,
                     'price' => $v->price, 'stock_quantity' => $v->stock_quantity,
                 ]),
+                'parent' => $product->parent ? [
+                    'id' => $product->parent->id, 'hub_product_id' => $product->parent->hub_product_id,
+                    'name' => $product->parent->name,
+                ] : null,
                 'price_history' => $product->priceHistory()->latest('changed_at')->limit(20)->get(),
                 'stock_history' => $product->stockHistory()->latest('changed_at')->limit(20)->get(),
                 'purchase_history' => $purchaseHistory,
