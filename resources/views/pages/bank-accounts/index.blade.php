@@ -1,0 +1,82 @@
+@extends('layouts.app')
+
+@section('content')
+<x-common.page-breadcrumb pageTitle="حساب‌ها" />
+
+<div class="space-y-4">
+    @if (session('success'))
+        <x-ui.alert variant="success" :message="session('success')" />
+    @endif
+
+    <div class="flex justify-end">
+        <button @click="$dispatch('open-add-bank-account-modal')" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm text-white hover:bg-brand-600">
+            + حساب جدید
+        </button>
+    </div>
+
+    <x-tables.data-table
+        :headers="['نام', 'نام بانک', 'شماره کارت', 'شماره شبا', 'موجودی فعلی']"
+        :paginator="null"
+        emptyMessage="هنوز حسابی ثبت نشده است"
+    >
+        @forelse ($accounts as $row)
+            <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                <td class="p-3 sm:px-6">
+                    <a href="{{ route('bank-accounts.show', $row['model']) }}" class="text-brand-500 hover:underline">{{ $row['model']->name }}</a>
+                    @if ($row['model']->is_cash)
+                        <x-ui.badge color="light" size="sm">صندوق</x-ui.badge>
+                    @endif
+                </td>
+                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ $row['model']->bank_name ?? '—' }}</td>
+                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->card_number ?? '—' }}</td>
+                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->iban ?? '—' }}</td>
+                <td class="px-5 sm:px-6 font-medium {{ $row['balance'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">{{ number_format($row['balance']) }} تومان</td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="5" class="px-5 py-8 text-center text-gray-500 dark:text-gray-400">هنوز حسابی ثبت نشده است</td>
+            </tr>
+        @endforelse
+    </x-tables.data-table>
+</div>
+
+{{-- Add bank account modal --}}
+<x-ui.modal :isOpen="$errors->any() || $openCreate" @open-add-bank-account-modal.window="open = true" class="max-w-sm p-6">
+    <form method="POST" action="{{ route('bank-accounts.store') }}">
+        @csrf
+        <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">حساب جدید</h4>
+
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام حساب</label>
+        <input type="text" name="name" required value="{{ old('name') }}"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        @error('name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">نام بانک (اختیاری)</label>
+        <input type="text" name="bank_name" value="{{ old('bank_name') }}"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        @error('bank_name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">شماره کارت (اختیاری)</label>
+        <input type="text" name="card_number" dir="ltr" value="{{ old('card_number') }}"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        @error('card_number')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">شماره شبا (اختیاری)</label>
+        <input type="text" name="iban" dir="ltr" value="{{ old('iban') }}"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        @error('iban')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+        <label class="mt-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" name="is_cash" value="1" @checked(old('is_cash'))>
+            این یک صندوق نقدی است (نه حساب بانکی)
+        </label>
+
+        <p class="mt-3 text-xs text-gray-400">موجودی حساب ذخیره نمی‌شود؛ همیشه از روی تراکنش‌های ثبت‌شده محاسبه می‌شود.</p>
+
+        <div class="mt-5 flex justify-end gap-3">
+            <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+            <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ذخیره</button>
+        </div>
+    </form>
+</x-ui.modal>
+@endsection

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AttachmentController;
+use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
@@ -87,6 +88,11 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
         Route::post('new-buy-order', [PurchaseInvoiceController::class, 'store'])->name('purchases.store');
+
+        Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
+        Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');
+        Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
+        Route::get('bank-accounts/{bankAccount}', [BankAccountController::class, 'show'])->name('bank-accounts.show');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');

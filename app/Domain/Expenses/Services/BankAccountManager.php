@@ -27,6 +27,7 @@ class BankAccountManager
                 'name' => $data['name'],
                 'account_id' => $account->id,
                 'bank_name' => $data['bank_name'] ?? null,
+                'card_number' => $data['card_number'] ?? null,
                 'iban' => $data['iban'] ?? null,
                 'is_cash' => $isCash,
             ])->load('account');
