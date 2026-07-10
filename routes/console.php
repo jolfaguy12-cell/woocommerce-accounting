@@ -12,3 +12,8 @@ Schedule::command('acc:sync:poll-products')->everyThirtyMinutes()->withoutOverla
 // is missing since it only re-fetches orders absent locally.
 Schedule::command('acc:sync:backfill-orders')->dailyAt('03:30')->withoutOverlapping();
 Schedule::command('acc:sync:backfill-products')->dailyAt('04:00')->withoutOverlapping();
+
+// Order items normalized before their product ever synced are stuck unlinked
+// (product_mirror_id is resolved once, not retroactively) — catch up nightly
+// after the product backfill above has had a chance to fill the gap.
+Schedule::command('acc:sync:relink-order-items')->dailyAt('04:30')->withoutOverlapping();
