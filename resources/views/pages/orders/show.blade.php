@@ -25,6 +25,7 @@
     @php
         $jp = \App\Domain\Accounting\Support\JalaliPeriod::class;
         $icon = fn ($name) => \App\Helpers\MenuHelper::getIconSvg($name);
+        $costs = app(\App\Domain\Costing\Services\CostResolver::class);
     @endphp
     <div class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -81,15 +82,17 @@
         <x-common.component-card title="اقلام سفارش">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="border-b border-gray-100 text-right text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                    <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
                         <th class="py-2 font-normal">کالا</th>
                         <th class="font-normal">تعداد</th>
                         <th class="font-normal">فی</th>
                         <th class="font-normal">جمع</th>
+                        <th class="font-normal">بهای تمام‌شده</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($order->items as $item)
+                        @php $cost = $item->productMirror ? $costs->resolveFor($item->productMirror) : null; @endphp
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">
                                 @if ($item->product_mirror_id)
@@ -102,6 +105,13 @@
                             <td class="text-gray-600 dark:text-gray-300">{{ number_format($item->qty) }}</td>
                             <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
                             <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
+                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">
+                                @if ($cost)
+                                    {{ number_format($cost['unit_cost'] * $item->qty) }}
+                                @else
+                                    <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
