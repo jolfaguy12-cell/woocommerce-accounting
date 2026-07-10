@@ -304,7 +304,7 @@
 
 @if ($canEdit)
     {{-- Wholesale price modal --}}
-    <x-ui.modal x-data="{ open: false }" @open-wholesale-modal.window="open = true" class="max-w-sm p-6">
+    <x-ui.modal :isOpen="$errors->has('price')" @open-wholesale-modal.window="open = true" class="max-w-sm p-6">
         <form method="POST" action="{{ route('products.wholesale', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت قیمت عمده داخلی</h4>
@@ -321,7 +321,7 @@
     </x-ui.modal>
 
     {{-- Cost entry modal --}}
-    <x-ui.modal x-data="{ open: false }" @open-cost-modal.window="open = true" class="max-w-sm p-6">
+    <x-ui.modal :isOpen="$errors->has('unit_cost')" @open-cost-modal.window="open = true" class="max-w-sm p-6">
         <form method="POST" action="{{ route('products.cost', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بهای تمام‌شده</h4>
@@ -346,9 +346,10 @@
         first. So the new-item-name toggle uses plain vanilla JS instead of
         a second (unreachable) Alpine scope.
     --}}
-    <x-ui.modal x-data="{ open: false }" @open-mapping-modal.window="open = true" class="max-w-md p-6">
+    <x-ui.modal :isOpen="$errors->hasAny(['cost_item_id', 'new_item_name']) || (old('_form') === 'mapping' && $errors->has('multiplier'))" @open-mapping-modal.window="open = true" class="max-w-md p-6">
         <form method="POST" action="{{ route('products.map', $product['id']) }}">
             @csrf
+            <input type="hidden" name="_form" value="mapping">
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ویرایش اطلاعات داخلی محصول</h4>
             <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">اطلاعات فروشگاه فقط از هاب خوانده می‌شود؛ اینجا نگاشت بهای تمام‌شده و ضریب واحد ویرایش می‌شود.</p>
 
