@@ -44,6 +44,7 @@ class OrderNormalizer
                 'total' => $this->toman($payload['total'] ?? 0),
                 'payment_method' => $payload['payment_method'] ?? null,
                 'payment_method_title' => $payload['payment_method_title'] ?? null,
+                'gateway_transaction_id' => $this->gatewayTransactionId($payload),
                 'payment_status' => $paymentStatus,
                 'date_paid' => $datePaid,
                 'external_order_id' => $payload['external_order_id'] ?? null,
@@ -121,6 +122,24 @@ class OrderNormalizer
             str_contains($status, 'fail') => 'void',
             default => 'pending', // the M7 validity gate promotes to 'valid'
         };
+    }
+
+    /**
+     * Zibal-paid orders carry the gateway transaction id in the hub payload's
+     * top-level transaction_id — needed later to look up the transaction's
+     * real status via Zibal's inquiry API (gateway reconciliation).
+     */
+    private function gatewayTransactionId(array $payload): ?string
+    {
+        $method = (string) ($payload['payment_method'] ?? '');
+        $title = (string) ($payload['payment_method_title'] ?? '');
+        $isZibal = stripos($method, 'zibal') !== false || str_contains($title, 'زیبال');
+
+        if (! $isZibal || empty($payload['transaction_id'])) {
+            return null;
+        }
+
+        return (string) $payload['transaction_id'];
     }
 
     private function toman(mixed $value): int

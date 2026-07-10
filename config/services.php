@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    // IPG merchant code — supports per-transaction verify/inquiry only,
+    // not a settlement/deposit listing API (see ZibalDepositImporter).
+    'zibal' => [
+        'merchant' => env('ZIBAL_API_KEY'),
+    ],
+
 ];

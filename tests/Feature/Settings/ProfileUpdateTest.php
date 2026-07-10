@@ -61,6 +61,23 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
+    public function test_telegram_id_can_be_set_for_alert_delivery()
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->patch('/settings/profile', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'telegram_id' => '123456789',
+            ]);
+
+        $response->assertSessionHasNoErrors()->assertRedirect('/settings/profile');
+
+        $this->assertSame('123456789', $user->refresh()->telegram_id);
+    }
+
     public function test_self_service_account_deletion_is_disabled()
     {
         $user = User::factory()->create();

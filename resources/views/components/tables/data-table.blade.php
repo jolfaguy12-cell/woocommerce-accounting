@@ -2,6 +2,7 @@
     'headers' => [],
     'paginator' => null,
     'emptyMessage' => 'موردی یافت نشد',
+    'totals' => null, // optional array of ['label' => ..., 'value' => ...] rendered as a summary footer row
 ])
 
 <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
@@ -30,6 +31,22 @@
                     </tr>
                 @endif
             </tbody>
+            @if ($totals)
+                <tfoot>
+                    <tr class="border-t border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.02]">
+                        <td colspan="{{ count($headers) }}" class="px-5 py-3 sm:px-6">
+                            <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
+                                @foreach ($totals as $total)
+                                    <p class="text-theme-xs text-gray-500 dark:text-gray-400">
+                                        {{ $total['label'] }}:
+                                        <span class="font-medium text-gray-700 dark:text-gray-200">{{ $total['value'] }}</span>
+                                    </p>
+                                @endforeach
+                            </div>
+                        </td>
+                    </tr>
+                </tfoot>
+            @endif
         </table>
     </div>
 </div>

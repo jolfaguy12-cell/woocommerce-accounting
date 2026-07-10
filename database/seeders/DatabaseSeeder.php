@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             CostCenterSeeder::class,
             ExpenseCategorySeeder::class,
             ChannelSeeder::class,
+            AlertTypeSeeder::class,
         ]);
     }
 }

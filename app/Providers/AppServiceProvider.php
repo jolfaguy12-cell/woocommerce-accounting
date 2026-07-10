@@ -8,6 +8,8 @@ use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Expenses\Models\Attachment;
+use App\Domain\Expenses\Models\BankAccount;
+use App\Domain\Expenses\Models\BankDeposit;
 use App\Domain\Expenses\Models\Expense;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
@@ -54,6 +56,8 @@ class AppServiceProvider extends ServiceProvider
             'loan' => Loan::class,
             'cheque' => Cheque::class,
             'partner_report' => PartnerReport::class,
+            'bank_deposit' => BankDeposit::class,
+            'bank_account' => BankAccount::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.

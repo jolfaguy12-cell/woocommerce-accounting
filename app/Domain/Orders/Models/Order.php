@@ -73,4 +73,9 @@ class Order extends Model
     {
         return $this->hasMany(OrderNote::class)->latest();
     }
+
+    public function gatewayChecks(): HasMany
+    {
+        return $this->hasMany(OrderGatewayCheck::class);
+    }
 }

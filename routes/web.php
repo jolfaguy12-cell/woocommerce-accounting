@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\AlertController;
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\BankAccountController;
+use App\Http\Controllers\Admin\BankDepositController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
@@ -92,6 +94,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');
         Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
+        Route::get('bank-accounts/deposits', [BankDepositController::class, 'index'])->name('deposits.index');
+        Route::post('bank-accounts/deposits/import', [BankDepositController::class, 'import'])->name('deposits.import');
         Route::get('bank-accounts/{bankAccount}', [BankAccountController::class, 'show'])->name('bank-accounts.show');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
@@ -124,6 +128,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('tools/system-status', [ToolsController::class, 'systemStatus'])->name('tools.system-status');
         Route::get('tools/system-logs', [ToolsController::class, 'systemLogs'])->name('tools.system-logs');
         Route::post('tools/system-logs/retry', [ToolsController::class, 'retryWebhookEvents'])->name('tools.system-logs.retry');
+
+        Route::get('tools/alerts', [AlertController::class, 'index'])->name('tools.alerts');
+        Route::post('tools/alerts/{alertType}/toggle', [AlertController::class, 'toggleActive'])->name('tools.alerts.toggle');
+        Route::post('tools/alerts/{alertType}/roles', [AlertController::class, 'updateRoles'])->name('tools.alerts.roles');
+        Route::post('tools/alerts/{alertType}/template', [AlertController::class, 'updateTemplate'])->name('tools.alerts.template');
 
         Route::get('setting', [SettingController::class, 'general'])->name('setting.general');
         Route::get('setting/report-settings', [SettingController::class, 'reportSettings'])->name('setting.report-settings');

@@ -62,6 +62,7 @@ class MenuHelper
                 'subItems' => [
                     ['name' => 'ثبت حساب جدید', 'path' => '/new-bank-account', 'pro' => false],
                     ['name' => 'مشاهده حساب ها', 'path' => '/bank-accounts', 'pro' => false],
+                    ['name' => 'واریزی‌های زیبال', 'path' => '/bank-accounts/deposits', 'pro' => false],
                 ],
             ],
             [
@@ -88,6 +89,7 @@ class MenuHelper
                     ['name' => 'بکاپ و بازیابی', 'path' => '/tools/backup', 'pro' => false],
                     ['name' => 'وضعیت سیستم', 'path' => '/tools/system-status', 'pro' => false],
                     ['name' => 'لاگ سیستم', 'path' => '/tools/system-logs', 'pro' => false],
+                    ['name' => 'هشدارها', 'path' => '/tools/alerts', 'pro' => false],
                 ],
             ],
             [
