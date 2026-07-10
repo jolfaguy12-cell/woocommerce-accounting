@@ -61,6 +61,7 @@ class ProductController extends Controller
                 'sku' => $product->sku,
                 'gtin' => $product->gtin,
                 'status' => $product->status,
+                'sold_as_set' => $product->sold_as_set,
                 'price' => $product->price,
                 'regular_price' => $product->regular_price,
                 'stock_quantity' => $product->stock_quantity,
@@ -78,7 +79,7 @@ class ProductController extends Controller
                 ]),
                 'parent' => $product->parent ? [
                     'id' => $product->parent->id, 'hub_product_id' => $product->parent->hub_product_id,
-                    'name' => $product->parent->name,
+                    'name' => $product->parent->name, 'sold_as_set' => $product->parent->sold_as_set,
                 ] : null,
                 'price_history' => $product->priceHistory()->latest('changed_at')->limit(20)->get(),
                 'stock_history' => $product->stockHistory()->latest('changed_at')->limit(20)->get(),
@@ -128,20 +129,43 @@ class ProductController extends Controller
         return back()->with('success', 'نگاشت بهای تمام‌شده ذخیره شد و سفارش‌های مسدود بازمحاسبه شدند.');
     }
 
+    /**
+     * Setting a wholesale price on a variable product also applies the same
+     * price to every variation that exists right now (each keeps its own Cost
+     * Item — this doesn't merge them). New variations synced later don't
+     * inherit it automatically; re-run this on the parent if needed.
+     */
     public function setWholesale(Request $request, ProductMirror $product): RedirectResponse
     {
-        $data = $request->validate(['price' => 'required|integer|min:0']);
-
-        $mapping = $this->resolveOrCreateMapping($product);
-
-        WholesalePrice::create([
-            'cost_item_id' => $mapping->cost_item_id,
-            'price' => $data['price'],
-            'effective_at' => now()->toDateString(),
-            'created_by' => $request->user()->id,
+        $data = $request->validate([
+            'price' => 'required|integer|min:0',
+            'sold_as_set' => 'boolean',
         ]);
 
-        return back()->with('success', 'قیمت عمده داخلی ثبت شد.');
+        if ($product->type === 'variable') {
+            $product->update(['sold_as_set' => $request->boolean('sold_as_set')]);
+        }
+
+        $targets = $product->type === 'variable'
+            ? $product->variations->prepend($product)
+            : collect([$product]);
+
+        foreach ($targets as $target) {
+            $mapping = $this->resolveOrCreateMapping($target);
+
+            WholesalePrice::create([
+                'cost_item_id' => $mapping->cost_item_id,
+                'price' => $data['price'],
+                'effective_at' => now()->toDateString(),
+                'created_by' => $request->user()->id,
+            ]);
+        }
+
+        $message = $product->type === 'variable'
+            ? 'قیمت عمده داخلی برای این محصول و همه تنوع‌های آن ثبت شد.'
+            : 'قیمت عمده داخلی ثبت شد.';
+
+        return back()->with('success', $message);
     }
 
     /**
@@ -160,6 +184,7 @@ class ProductController extends Controller
 
         $data = $request->validate([
             'unit_cost' => 'required|integer|min:1',
+            'qty' => 'nullable|integer|min:1',
             'effective_at' => 'nullable|date',
             'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
             'new_supplier_name' => 'nullable|string|max:150',
@@ -168,6 +193,7 @@ class ProductController extends Controller
         $mapping = $this->resolveOrCreateMapping($product);
 
         $date = $data['effective_at'] ?? now()->toDateString();
+        $qty = $data['qty'] ?? 1;
 
         if (($data['supplier_party_id'] ?? null) || ($data['new_supplier_name'] ?? null)) {
             $supplierId = $data['supplier_party_id']
@@ -178,12 +204,12 @@ class ProductController extends Controller
                     'supplier_party_id' => $supplierId,
                     'invoice_date' => $date,
                     'lines' => [
-                        ['cost_item_id' => $mapping->cost_item_id, 'qty' => 1, 'unit_price' => $data['unit_cost']],
+                        ['cost_item_id' => $mapping->cost_item_id, 'qty' => $qty, 'unit_price' => $data['unit_cost']],
                     ],
                     'created_by' => $request->user()->id,
                 ]);
 
-                $purchaseInvoices->receive($invoice, [$invoice->lines->first()->id => 1], $request->user()->id);
+                $purchaseInvoices->receive($invoice, [$invoice->lines->first()->id => $qty], $request->user()->id);
             } catch (PeriodLockedException) {
                 return back()->withErrors(['effective_at' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.']);
             }

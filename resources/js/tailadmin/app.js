@@ -23,6 +23,10 @@ window.jalaliDatepicker.startWatch({
     autoShow: true,
     targetValueInput: 'attr',
     targetValueType: 'attr',
+    // The library only sets its popup's z-index inline (authoritative, beats
+    // any CSS) when this option is a number — needed so it renders above
+    // <x-ui.modal>'s z-99999 overlay when a date field sits inside a modal.
+    zIndex: 100000,
 });
 
 // Toman/money inputs: show thousands separators while typing, keep the raw

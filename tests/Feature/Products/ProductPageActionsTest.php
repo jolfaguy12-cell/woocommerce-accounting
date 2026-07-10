@@ -4,6 +4,7 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Models\WholesalePrice;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Products\Models\ProductMirror;
@@ -88,6 +89,43 @@ it('silently creates a cost item/mapping when a wholesale price is set for an un
     expect($this->mirror->fresh()->costMapping)->not->toBeNull();
 });
 
+it('cascades a wholesale price set on a variable product to all its current variations', function () {
+    $parent = ProductMirror::create(['hub_product_id' => 9001, 'type' => 'variable', 'name' => 'کفش مدل X', 'payload' => []]);
+    $variantA = ProductMirror::create(['hub_product_id' => 9002, 'parent_hub_id' => 9001, 'type' => 'variation', 'name' => 'کفش مدل X - سایز 40', 'payload' => []]);
+    $variantB = ProductMirror::create(['hub_product_id' => 9003, 'parent_hub_id' => 9001, 'type' => 'variation', 'name' => 'کفش مدل X - سایز 41', 'payload' => []]);
+
+    expect($parent->fresh()->sold_as_set)->toBeTrue();
+
+    $this->actingAs($this->admin)->post("/products/{$parent->id}/wholesale", [
+        'price' => 900_000,
+        'sold_as_set' => '1',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    foreach ([$parent, $variantA, $variantB] as $product) {
+        $mapping = $product->fresh()->costMapping;
+        expect($mapping)->not->toBeNull()
+            ->and($mapping->costItem->latestWholesalePrice()->price)->toBe(900_000);
+    }
+});
+
+it('turns off sold_as_set on a variable product when the checkbox is left unticked', function () {
+    $parent = ProductMirror::create(['hub_product_id' => 9101, 'type' => 'variable', 'name' => 'کفش مدل Y', 'payload' => []]);
+
+    $this->actingAs($this->admin)->post("/products/{$parent->id}/wholesale", [
+        'price' => 700_000,
+    ])->assertRedirect();
+
+    expect($parent->fresh()->sold_as_set)->toBeFalse();
+});
+
+it('does not cascade a wholesale price for a simple product or a lone variation', function () {
+    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/wholesale", [
+        'price' => 300_000,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(WholesalePrice::count())->toBe(1);
+});
+
 it('posts a real purchase invoice and journal entry when a supplier is picked for the cost entry', function () {
     $item = CostItem::create(['name' => 'اسپری']);
     ProductCostMapping::create([
@@ -110,6 +148,29 @@ it('posts a real purchase invoice and journal entry when a supplier is picked fo
         ->and($invoice->journal_entry_id)->not->toBeNull()
         ->and($invoice->journalEntry->lines->firstWhere('credit', '>', 0)->party_id)->toBe($supplier->id)
         ->and($item->costHistory()->where('source', 'invoice')->count())->toBe(1);
+});
+
+it('uses the given purchase quantity for the invoice total and journal amount', function () {
+    $item = CostItem::create(['name' => 'اسپری']);
+    ProductCostMapping::create([
+        'product_mirror_id' => $this->mirror->id,
+        'cost_item_id' => $item->id,
+        'multiplier' => 1,
+        'status' => 'mapped',
+    ]);
+    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+
+    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/cost", [
+        'unit_cost' => 400_000,
+        'qty' => 5,
+        'supplier_party_id' => $supplier->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $invoice = PurchaseInvoice::firstWhere('supplier_party_id', $supplier->id);
+
+    expect($invoice->lines->first()->qty)->toBe(5)
+        ->and($invoice->lines->first()->received_qty)->toBe(5)
+        ->and($invoice->journalEntry->lines->sum('debit'))->toBe(2_000_000);
 });
 
 it('quick-creates a supplier from the cost entry modal when new_supplier_name is given instead of an id', function () {

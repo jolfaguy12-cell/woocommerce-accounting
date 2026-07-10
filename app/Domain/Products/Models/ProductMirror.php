@@ -22,6 +22,7 @@ class ProductMirror extends Model
         'stock_quantity' => 'integer',
         'weight_grams' => 'integer',
         'hub_modified_at' => 'datetime',
+        'sold_as_set' => 'boolean',
     ];
 
     public function variations(): HasMany

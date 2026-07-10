@@ -53,9 +53,14 @@
                         <a href="{{ route('products.show', $product['parent']['id']) }}" class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 transition-colors hover:border-brand-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
                             محصول والد: {{ $product['parent']['name'] }}
                         </a>
+                        @if ($product['parent']['sold_as_set'])
+                            <x-ui.badge color="warning" size="sm">فروش به صورت جور</x-ui.badge>
+                        @endif
                     @else
                         <span class="text-xs text-gray-400 dark:text-gray-500">محصول والد یافت نشد</span>
                     @endif
+                @elseif ($product['type'] === 'variable' && $product['sold_as_set'])
+                    <x-ui.badge color="warning" size="sm">فروش به صورت جور</x-ui.badge>
                 @endif
             </div>
 
@@ -299,11 +304,25 @@
         <form method="POST" action="{{ route('products.wholesale', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت قیمت عمده داخلی</h4>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">این قیمت فقط داخلی است و هرگز به ووکامرس ارسال نمی‌شود.</p>
+            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                این قیمت فقط داخلی است و هرگز به ووکامرس ارسال نمی‌شود.
+                @if ($product['type'] === 'variable')
+                    همین قیمت برای همه تنوع‌های فعلی این محصول هم ثبت خواهد شد.
+                @endif
+            </p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">قیمت عمده (تومان)</label>
             <input type="number" name="price" min="0" dir="ltr" required value="{{ $pricing['wholesale_price'] }}"
                 class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             @error('price')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+            @if ($product['type'] === 'variable')
+                <label class="mt-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" name="sold_as_set" value="1" @checked(old('sold_as_set', $product['sold_as_set']))>
+                    فروش به صورت جور (متناسب از هر سایز/رنگ)
+                </label>
+                <p class="mt-1 text-xs text-gray-400">فقط یک برچسب اطلاع‌رسانی است؛ بعداً هنگام دادن قیمت عمده به کاربر یادآوری می‌شود.</p>
+            @endif
+
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
                 <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت قیمت عمده</button>
@@ -312,7 +331,7 @@
     </x-ui.modal>
 
     {{-- Cost entry modal --}}
-    <x-ui.modal :isOpen="$errors->hasAny(['unit_cost', 'effective_at', 'supplier_party_id', 'new_supplier_name'])" @open-cost-modal.window="open = true" class="max-w-sm p-6">
+    <x-ui.modal :isOpen="$errors->hasAny(['unit_cost', 'qty', 'effective_at', 'supplier_party_id', 'new_supplier_name'])" @open-cost-modal.window="open = true" class="max-w-sm p-6">
         <form method="POST" action="{{ route('products.cost', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بهای تمام‌شده</h4>
@@ -324,6 +343,10 @@
                 class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <input type="hidden" id="unit-cost-raw" name="unit_cost" value="{{ old('unit_cost') }}">
             @error('unit_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+
+            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تعداد خرید</label>
+            <input type="number" name="qty" min="1" dir="ltr" value="{{ old('qty', 1) }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            @error('qty')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
 
             <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تاریخ خرید (اختیاری — پیش‌فرض امروز)</label>
             <input type="text" inputmode="none" placeholder="امروز" autocomplete="off" data-jdp
