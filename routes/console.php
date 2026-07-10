@@ -11,3 +11,4 @@ Schedule::command('acc:sync:poll-products')->everyThirtyMinutes()->withoutOverla
 // reconciliation catches anything that slipped through; cheap when nothing
 // is missing since it only re-fetches orders absent locally.
 Schedule::command('acc:sync:backfill-orders')->dailyAt('03:30')->withoutOverlapping();
+Schedule::command('acc:sync:backfill-products')->dailyAt('04:00')->withoutOverlapping();

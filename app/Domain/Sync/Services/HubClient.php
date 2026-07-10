@@ -69,6 +69,12 @@ class HubClient
         return $this->paginated('/sync/changed/products', ['since' => $since], 'products');
     }
 
+    /** Every product in the hub (full listing, not just the changed feed) — used for one-off/repair backfills. */
+    public function allProducts(array $filters = []): array
+    {
+        return $this->paginated('/products', $filters, 'data');
+    }
+
     /** The hub pages list endpoints (default 20, cap 100); collect every page. */
     private function paginated(string $path, array $query, string $listKey): array
     {

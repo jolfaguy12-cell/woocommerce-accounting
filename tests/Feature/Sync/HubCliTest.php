@@ -2,6 +2,8 @@
 
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
+use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Products\Services\ProductSyncer;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\SyncRun;
 use Illuminate\Support\Facades\Http;
@@ -184,4 +186,91 @@ it('acc:sync:backfill-orders keeps going past a single failed order and records 
         ->and(Order::where('hub_order_id', 9302)->exists())->toBeFalse()
         ->and(SyncRun::where('type', 'backfill_orders')->latest()->first()->stats)
         ->toMatchArray(['imported' => 2, 'failed' => 1, 'failed_ids' => [9302]]);
+});
+
+function fakeProduct(int $id): array
+{
+    return [
+        'id' => $id, 'name' => "Product {$id}", 'status' => 'publish', 'sku' => "SKU-{$id}",
+        'global_unique_id' => null, 'parent_id' => 0, 'price' => 100000.0, 'regular_price' => 100000.0,
+        'sale_price' => null, 'stock_quantity' => 5.0, 'stock_status' => 'instock',
+        'date_modified' => '2026-07-07T10:00:00', 'variations' => [],
+    ];
+}
+
+it('acc:sync:backfill-products imports only products missing locally, skipping ones already synced', function () {
+    Http::fake(function ($request) {
+        if (preg_match('#/products/(\d+)/variations#', $request->url())) {
+            return Http::response(['data' => []]);
+        }
+        if (preg_match('#/products/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['data' => fakeProduct((int) $m[1])]);
+        }
+
+        return Http::response(['data' => [['id' => 8001], ['id' => 8002], ['id' => 8003]], 'pagination' => ['total' => 3]]);
+    });
+
+    app(ProductSyncer::class)->sync(8001, 'manual', 'corr-existing');
+
+    $this->artisan('acc:sync:backfill-products')->assertSuccessful();
+
+    expect(ProductMirror::count())->toBe(3)
+        ->and(ProductMirror::whereIn('hub_product_id', [8002, 8003])->count())->toBe(2);
+
+    // Product 8001 was only ever fetched once — during setup, before the
+    // backfill ran — proving the backfill itself skipped it as already synced.
+    expect(Http::recorded(fn ($request) => str_contains($request->url(), '/products/8001') && ! str_contains($request->url(), 'variations')))
+        ->toHaveCount(1);
+});
+
+it('acc:sync:backfill-products --dry-run reports counts without importing', function () {
+    Http::fake([
+        'hub.test/api/v1/products*' => Http::response(['data' => [['id' => 8101], ['id' => 8102]], 'pagination' => ['total' => 2]]),
+    ]);
+
+    $this->artisan('acc:sync:backfill-products --dry-run --json')
+        ->expectsOutputToContain('missing')
+        ->assertSuccessful();
+
+    expect(ProductMirror::count())->toBe(0);
+});
+
+it('acc:sync:backfill-products --limit caps how many products are imported this run', function () {
+    Http::fake(function ($request) {
+        if (preg_match('#/products/(\d+)/variations#', $request->url())) {
+            return Http::response(['data' => []]);
+        }
+        if (preg_match('#/products/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['data' => fakeProduct((int) $m[1])]);
+        }
+
+        return Http::response(['data' => [['id' => 8201], ['id' => 8202], ['id' => 8203]], 'pagination' => ['total' => 3]]);
+    });
+
+    $this->artisan('acc:sync:backfill-products --limit=1')->assertSuccessful();
+
+    expect(ProductMirror::count())->toBe(1);
+});
+
+it('acc:sync:backfill-products keeps going past a single failed product and records it', function () {
+    Http::fake(function ($request) {
+        if (str_contains($request->url(), '/products/8302')) {
+            return Http::response(['error' => 'boom'], 500);
+        }
+        if (preg_match('#/products/(\d+)/variations#', $request->url())) {
+            return Http::response(['data' => []]);
+        }
+        if (preg_match('#/products/(\d+)$#', $request->url(), $m)) {
+            return Http::response(['data' => fakeProduct((int) $m[1])]);
+        }
+
+        return Http::response(['data' => [['id' => 8301], ['id' => 8302], ['id' => 8303]], 'pagination' => ['total' => 3]]);
+    });
+
+    $this->artisan('acc:sync:backfill-products')->assertFailed();
+
+    expect(ProductMirror::whereIn('hub_product_id', [8301, 8303])->count())->toBe(2)
+        ->and(ProductMirror::where('hub_product_id', 8302)->exists())->toBeFalse()
+        ->and(SyncRun::where('type', 'backfill_products')->latest()->first()->stats)
+        ->toMatchArray(['imported' => 2, 'failed' => 1, 'failed_ids' => [8302]]);
 });
