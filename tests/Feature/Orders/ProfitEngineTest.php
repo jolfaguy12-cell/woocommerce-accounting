@@ -4,8 +4,10 @@ use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Setting;
 use App\Domain\Costing\Models\CostHistory;
 use App\Domain\Costing\Models\CostItem;
+use App\Domain\Costing\Models\PackagingCostTier;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Models\OrderPackagingCost;
 use App\Domain\Orders\Models\OrderProfit;
 use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Orders\Services\ProfitEngine;
@@ -207,4 +209,60 @@ it('posts a proportional reversal for a partial refund', function () {
         ->and($refundEntry)->not->toBeNull()
         ->and($refundEntry->lines->sum('debit'))->toBe($refundEntry->lines->sum('credit'))
         ->and($refundEntry->lines->sum('debit'))->toBeGreaterThan(0);
+});
+
+it('falls back to the flat default packaging cost when no tier matches the weight', function () {
+    // Mirror has no weight_grams set -> falls back to default_product_weight_grams (150g) x qty 1,
+    // plus default_packaging_weight_grams (100g) = 250g, below any tier.
+    $order = app(OrderIngestPipeline::class)->ingest(1101, hubOrder(1101), 'manual');
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($profit->package_weight_grams)->toBe(250)
+        ->and($profit->packaging_cost)->toBe(12_000)
+        ->and($profit->packaging_cost_basis)->toBe('default')
+        // Tracked only — must not change the already-verified operational profit.
+        ->and($profit->operational_profit)->toBe(281_000);
+});
+
+it('resolves the highest matching weight tier for the packaging cost', function () {
+    PackagingCostTier::create(['min_weight_grams' => 1000, 'cost' => 20_000]);
+    PackagingCostTier::create(['min_weight_grams' => 2000, 'cost' => 30_000]);
+    PackagingCostTier::create(['min_weight_grams' => 3000, 'cost' => 50_000]);
+    $this->mirror->update(['weight_grams' => 2000]); // + 100g packaging = 2100g -> the 2000g tier
+
+    $order = app(OrderIngestPipeline::class)->ingest(1102, hubOrder(1102), 'manual');
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($profit->package_weight_grams)->toBe(2100)
+        ->and($profit->packaging_cost)->toBe(30_000)
+        ->and($profit->packaging_cost_basis)->toBe('tier');
+});
+
+it('a manual per-order packaging cost override wins over any tier or default', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1103, hubOrder(1103), 'manual');
+    OrderPackagingCost::create(['order_id' => $order->id, 'real_cost' => 77_000]);
+
+    app(ProfitEngine::class)->recalculate($order->refresh());
+    $profit = OrderProfit::firstWhere('order_id', $order->id);
+
+    expect($profit->packaging_cost)->toBe(77_000)
+        ->and($profit->packaging_cost_basis)->toBe('manual');
+});
+
+it('packaging cost is resolved once and does not silently change when tiers are edited later', function () {
+    PackagingCostTier::create(['min_weight_grams' => 0, 'cost' => 5_000]);
+
+    $order = app(OrderIngestPipeline::class)->ingest(1104, hubOrder(1104), 'manual');
+    $before = OrderProfit::firstWhere('order_id', $order->id)->packaging_cost;
+
+    PackagingCostTier::first()->update(['cost' => 999_999]); // change settings after the fact
+
+    $stillFrozen = OrderProfit::firstWhere('order_id', $order->id)->packaging_cost;
+
+    expect($before)->toBe(5_000)
+        ->and($stillFrozen)->toBe(5_000); // unchanged until an explicit recalculation runs
+
+    app(ProfitEngine::class)->recalculate($order->refresh()->load('items.productMirror'));
+
+    expect(OrderProfit::firstWhere('order_id', $order->id)->packaging_cost)->toBe(999_999);
 });

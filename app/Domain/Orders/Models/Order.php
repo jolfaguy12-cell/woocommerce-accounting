@@ -59,6 +59,11 @@ class Order extends Model
         return $this->hasOne(OrderShippingCost::class);
     }
 
+    public function packagingCost(): HasOne
+    {
+        return $this->hasOne(OrderPackagingCost::class);
+    }
+
     public function refunds(): HasMany
     {
         return $this->hasMany(OrderRefund::class);

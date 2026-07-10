@@ -21,6 +21,8 @@ class OrderProfit extends Model
         'shipping_real' => 'integer',
         'channel_fee' => 'integer',
         'gateway_fee' => 'integer',
+        'package_weight_grams' => 'integer',
+        'packaging_cost' => 'integer',
         'gross_profit' => 'integer',
         'operational_profit' => 'integer',
         'calculated_at' => 'datetime',

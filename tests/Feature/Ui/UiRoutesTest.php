@@ -1,7 +1,9 @@
 <?php
 
+use App\Domain\Accounting\Models\Setting;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\CostItem;
+use App\Domain\Costing\Models\PackagingCostTier;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Models\Expense;
@@ -91,6 +93,49 @@ it('sets a manual real shipping cost and re-evaluates profit', function () {
     expect($order->refresh()->profit->shipping_real)->toBe(120_000)
         ->and($order->profit->shipping_basis)->toBe('manual')
         ->and($order->profit->version)->toBe(2); // reverse + repost
+});
+
+it('sets a manual packaging cost override and re-evaluates profit', function () {
+    $mirror = ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
+    $item = CostItem::create(['name' => 'اسپری']);
+    $item->costHistory()->create(['unit_cost' => 400_000, 'landed_unit_cost' => 400_000, 'source' => 'manual', 'effective_at' => '2026-07-01']);
+    ProductCostMapping::create(['product_mirror_id' => $mirror->id, 'cost_item_id' => $item->id, 'status' => 'mapped']);
+
+    app(OrderIngestPipeline::class)->ingest(5005, uiOrder(5005), 'manual');
+    $order = Order::firstWhere('hub_order_id', 5005);
+
+    $this->actingAs($this->admin)->post("/orders/{$order->id}/packaging", ['real_cost' => 45_000])->assertRedirect();
+
+    expect($order->refresh()->profit->packaging_cost)->toBe(45_000)
+        ->and($order->profit->packaging_cost_basis)->toBe('manual');
+});
+
+it('manages packaging cost tiers and defaults from the warehouse settings page (admin only)', function () {
+    $this->actingAs($this->partner)->get('/warehouse/packaging-cost')->assertForbidden();
+    $this->actingAs($this->admin)->get('/warehouse/packaging-cost')->assertOk();
+
+    $this->actingAs($this->admin)->post('/warehouse/packaging-cost/defaults', [
+        'default_packaging_cost' => 15_000,
+        'default_product_weight_grams' => 200,
+        'default_packaging_weight_grams' => 120,
+    ])->assertRedirect();
+
+    expect(Setting::get('default_packaging_cost'))->toBe(15_000);
+
+    $this->actingAs($this->admin)->post('/warehouse/packaging-cost/tiers', [
+        'min_weight_grams' => 1000, 'cost' => 20_000,
+    ])->assertRedirect();
+
+    $tier = PackagingCostTier::firstWhere('min_weight_grams', 1000);
+    expect($tier->cost)->toBe(20_000);
+
+    $this->actingAs($this->admin)->put("/warehouse/packaging-cost/tiers/{$tier->id}", [
+        'min_weight_grams' => 1000, 'cost' => 25_000,
+    ])->assertRedirect();
+    expect($tier->refresh()->cost)->toBe(25_000);
+
+    $this->actingAs($this->admin)->delete("/warehouse/packaging-cost/tiers/{$tier->id}")->assertRedirect();
+    expect(PackagingCostTier::find($tier->id))->toBeNull();
 });
 
 it('records a fast expense from the form', function () {

@@ -26,6 +26,13 @@ class MenuHelper
                 'path' => '/products',
             ],
             [
+                'icon' => 'warehouse',
+                'name' => 'انبار',
+                'subItems' => [
+                    ['name' => 'هزینه بسته‌بندی', 'path' => '/warehouse/packaging-cost'],
+                ],
+            ],
+            [
                 'icon' => 'expense-minus',
                 'name' => 'ثبت هزینه جدید',
                 'path' => '/new-cost',
@@ -147,6 +154,8 @@ class MenuHelper
             'purchase-cart' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M14 2v5m0 0-2-2m2 2 2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="9.5" cy="20.5" r="1.25" fill="currentColor"></circle><circle cx="17.5" cy="20.5" r="1.25" fill="currentColor"></circle></svg>',
 
             'exchange-arrows' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8h11m0 0-3-3m3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 16H7m0 0 3-3m-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>',
+
+            'warehouse' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 21V9.5L12 4l9 5.5V21H3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M8 21v-6h8v6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M3 12h18" stroke="currentColor" stroke-width="1.5"></path></svg>',
         ];
 
         return $icons[$iconName] ?? '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg>';

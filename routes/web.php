@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\OrderController;
+use App\Http\Controllers\Admin\PackagingCostController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
@@ -63,6 +64,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('review/{item}/resolve', [ReviewController::class, 'resolve'])->name('review.resolve');
         Route::post('review/sources/{source}/map', [ReviewController::class, 'mapSource'])->name('review.map-source');
         Route::post('orders/{order}/shipping', [OrderController::class, 'setShipping'])->name('orders.shipping');
+        Route::post('orders/{order}/packaging', [OrderController::class, 'setPackaging'])->name('orders.packaging');
         Route::post('orders/{order}/recalc', [OrderController::class, 'recalc'])->name('orders.recalc');
         Route::post('products/{product}/map', [ProductController::class, 'map'])->name('products.map');
         Route::post('products/{product}/wholesale', [ProductController::class, 'setWholesale'])->name('products.wholesale');
@@ -105,6 +107,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('setting/report-settings', [SettingController::class, 'reportSettings'])->name('setting.report-settings');
         Route::get('setting/role-managment', [SettingController::class, 'roleManagement'])->name('setting.role-management');
         Route::get('setting/api-webhook-managment', [SettingController::class, 'apiWebhookManagement'])->name('setting.api-webhook-management');
+
+        Route::get('warehouse/packaging-cost', [PackagingCostController::class, 'index'])->name('warehouse.packaging-cost');
+        Route::post('warehouse/packaging-cost/defaults', [PackagingCostController::class, 'updateDefaults'])->name('warehouse.packaging-cost.defaults');
+        Route::post('warehouse/packaging-cost/tiers', [PackagingCostController::class, 'storeTier'])->name('warehouse.packaging-cost.tiers.store');
+        Route::put('warehouse/packaging-cost/tiers/{tier}', [PackagingCostController::class, 'updateTier'])->name('warehouse.packaging-cost.tiers.update');
+        Route::delete('warehouse/packaging-cost/tiers/{tier}', [PackagingCostController::class, 'destroyTier'])->name('warehouse.packaging-cost.tiers.destroy');
     });
 });
 

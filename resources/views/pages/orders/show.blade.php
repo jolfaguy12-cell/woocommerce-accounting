@@ -159,6 +159,22 @@
                     ثبت و بازمحاسبه
                 </button>
             </form>
+
+            <form method="POST" action="{{ route('orders.packaging', $order) }}" class="mt-2 flex items-center gap-2 pt-1">
+                @csrf
+                <span class="text-sm text-gray-700 dark:text-gray-300">هزینه بسته‌بندی این سفارش:</span>
+                <input
+                    type="number"
+                    name="real_cost"
+                    dir="ltr"
+                    value="{{ $order->packagingCost?->real_cost }}"
+                    placeholder="{{ $order->profit?->packaging_cost !== null ? number_format($order->profit->packaging_cost) : 'تومان' }}"
+                    class="h-9 w-36 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90"
+                >
+                <button type="submit" class="h-9 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">
+                    ثبت و بازمحاسبه
+                </button>
+            </form>
         </x-common.component-card>
 
         <x-common.component-card title="تفکیک سود">
@@ -200,6 +216,19 @@
                             {{ $opProfit !== null ? number_format($opProfit) : 'مسدود' }}
                         </span>
                     </div>
+
+                    @if ($order->profit->packaging_cost !== null)
+                        <div class="flex justify-between border-t border-gray-100 py-1 text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                            <span>
+                                هزینه بسته‌بندی (فقط ثبت — در سود عملیاتی لحاظ نشده)
+                                @if ($order->profit->packaging_cost_basis === 'manual') دستی
+                                @elseif ($order->profit->packaging_cost_basis === 'tier') پلکانی، وزن {{ number_format($order->profit->package_weight_grams) }} گرم
+                                @else پیش‌فرض، وزن {{ number_format($order->profit->package_weight_grams) }} گرم
+                                @endif
+                            </span>
+                            <span dir="ltr">{{ number_format($order->profit->packaging_cost) }}</span>
+                        </div>
+                    @endif
 
                     @if ($order->profit->cost_breakdown)
                         <div class="mt-2 rounded-md bg-gray-50 p-2 text-xs dark:bg-white/5">

@@ -19,6 +19,7 @@ class ProductMirror extends Model
         'regular_price' => 'integer',
         'sale_price' => 'integer',
         'stock_quantity' => 'integer',
+        'weight_grams' => 'integer',
         'hub_modified_at' => 'datetime',
     ];
 

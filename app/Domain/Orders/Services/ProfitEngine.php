@@ -6,6 +6,7 @@ use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Setting;
 use App\Domain\Accounting\Services\JournalPoster;
 use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Costing\Models\PackagingCostTier;
 use App\Domain\Costing\Services\CostResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderProfit;
@@ -115,6 +116,7 @@ class ProfitEngine
         [$cost, $breakdown, $missing] = $this->productCost($order);
         [$shippingReal, $shippingBasis] = $this->shipping($order);
         [$fee, $feeSource, $warnings] = $this->channelFee($order);
+        [$packagingCost, $packageWeight, $packagingBasis] = $this->packaging($order);
 
         return [
             'blocked' => $missing !== [],
@@ -131,6 +133,10 @@ class ProfitEngine
             'channel_fee' => $fee,
             'channel_fee_source' => $feeSource,
             'gateway_fee' => 0, // not exposed by the hub yet
+            // Tracked for visibility only — not folded into gross/operational profit yet.
+            'package_weight_grams' => $packageWeight,
+            'packaging_cost' => $packagingCost,
+            'packaging_cost_basis' => $packagingBasis,
             'gross_profit' => $missing === [] ? $net - $cost : null,
             'operational_profit' => $missing === []
                 ? $net - $cost + $order->shipping_charged - $shippingReal - $fee
@@ -183,6 +189,43 @@ class ProfitEngine
         }
 
         return [0, 'none'];
+    }
+
+    /**
+     * README-pending decision: packaging cost is resolved and stored per order
+     * for visibility/reporting, same manual-override-then-fallback pattern as
+     * shipping(), but is NOT folded into gross/operational profit or posted to
+     * the journal yet. Resolved once per calculate() call — later edits to
+     * tiers/defaults only affect orders on their next explicit recalculation,
+     * never retroactively.
+     */
+    private function packaging(Order $order): array
+    {
+        if ($manual = $order->packagingCost) {
+            return [$manual->real_cost, null, 'manual'];
+        }
+
+        $weight = $this->packageWeight($order);
+        $tier = PackagingCostTier::where('min_weight_grams', '<=', $weight)
+            ->orderByDesc('min_weight_grams')
+            ->first();
+
+        return $tier
+            ? [$tier->cost, $weight, 'tier']
+            : [(int) Setting::get('default_packaging_cost', 12000), $weight, 'default'];
+    }
+
+    /** Sum of item weights (falling back to a configurable default per item when unknown) plus the packaging's own weight. */
+    private function packageWeight(Order $order): int
+    {
+        $defaultItemWeight = (int) Setting::get('default_product_weight_grams', 150);
+        $packagingWeight = (int) Setting::get('default_packaging_weight_grams', 100);
+
+        $itemsWeight = $order->items->sum(
+            fn ($item) => $item->qty * ($item->productMirror?->weight_grams ?? $defaultItemWeight)
+        );
+
+        return (int) $itemsWeight + $packagingWeight;
     }
 
     private function channelFee(Order $order): array
@@ -269,6 +312,9 @@ class ProfitEngine
             'channel_fee' => $r['channel_fee'],
             'channel_fee_source' => $r['channel_fee_source'],
             'gateway_fee' => $r['gateway_fee'],
+            'package_weight_grams' => $r['package_weight_grams'],
+            'packaging_cost' => $r['packaging_cost'],
+            'packaging_cost_basis' => $r['packaging_cost_basis'],
             'gross_profit' => $r['gross_profit'],
             'operational_profit' => $r['operational_profit'],
             'status' => $status,

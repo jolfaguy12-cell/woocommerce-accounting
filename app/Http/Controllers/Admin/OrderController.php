@@ -51,7 +51,7 @@ class OrderController extends Controller
 
     public function show(Order $order): View
     {
-        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'refunds', 'customerParty', 'rawOrder');
+        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder');
 
         return view('pages.orders.show', ['title' => 'سفارش #'.$order->hub_order_id, 'order' => $order]);
     }
@@ -69,6 +69,21 @@ class OrderController extends Controller
         $engine->evaluate($order->refresh());
 
         return back()->with('success', 'هزینه حمل واقعی ثبت و سود بازمحاسبه شد.');
+    }
+
+    /** Manual per-order packaging cost override, taking precedence over the weight-tier/default resolution. */
+    public function setPackaging(Request $request, Order $order, ProfitEngine $engine): RedirectResponse
+    {
+        $data = $request->validate(['real_cost' => 'required|integer|min:0']);
+
+        $order->packagingCost()->updateOrCreate([], [
+            'real_cost' => $data['real_cost'],
+            'set_by' => $request->user()->id,
+        ]);
+
+        $engine->evaluate($order->refresh());
+
+        return back()->with('success', 'هزینه بسته‌بندی ثبت و سود بازمحاسبه شد.');
     }
 
     public function recalc(Order $order, ProfitEngine $engine): RedirectResponse

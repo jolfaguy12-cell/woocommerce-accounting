@@ -44,6 +44,8 @@ class ProductSyncer
             'sale_price' => $this->toman($payload['sale_price'] ?? null),
             'stock_quantity' => isset($payload['stock_quantity']) ? (int) $payload['stock_quantity'] : null,
             'stock_status' => $payload['stock_status'] ?? null,
+            // Hub weight unit is grams (confirmed against real store data), no conversion needed.
+            'weight_grams' => isset($payload['weight']) ? (int) round((float) $payload['weight']) : null,
             'payload' => $payload,
             'hub_modified_at' => isset($payload['date_modified']) ? Carbon::parse($payload['date_modified'], 'UTC') : null,
         ];
