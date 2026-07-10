@@ -12,6 +12,7 @@ class CostHistory extends Model
 
     protected $casts = [
         'unit_cost' => 'integer',
+        'qty' => 'integer',
         'landed_unit_cost' => 'integer',
         'effective_at' => 'date',
     ];

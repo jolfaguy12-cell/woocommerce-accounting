@@ -244,7 +244,12 @@
                                 {{ \Illuminate\Support\Carbon::parse($row->effective_at)->format('Y/m/d') }}
                                 <x-ui.badge color="light" size="sm">{{ $sourceLabels[$row->source] ?? $row->source }}</x-ui.badge>
                             </span>
-                            <span class="whitespace-nowrap font-medium text-gray-800 dark:text-white/90">{{ number_format($row->landed_unit_cost) }} تومان</span>
+                            <span class="whitespace-nowrap font-medium text-gray-800 dark:text-white/90">
+                                @if ($row->qty)
+                                    {{ number_format($row->qty) }} عدد ×
+                                @endif
+                                {{ number_format($row->landed_unit_cost) }} تومان
+                            </span>
                         </div>
                     @endforeach
                 </div>
@@ -330,12 +335,14 @@
         </form>
     </x-ui.modal>
 
-    {{-- Cost entry modal --}}
-    <x-ui.modal :isOpen="$errors->hasAny(['unit_cost', 'qty', 'effective_at', 'supplier_party_id', 'new_supplier_name'])" @open-cost-modal.window="open = true" class="max-w-sm p-6">
+    {{-- Cost entry modal: profit-discovery only — never creates a supplier,
+         purchase invoice, or journal entry. Real purchases go through
+         «ثبت خرید» (/new-buy-order) instead. --}}
+    <x-ui.modal :isOpen="$errors->hasAny(['unit_cost', 'qty', 'effective_at'])" @open-cost-modal.window="open = true" class="max-w-sm p-6">
         <form method="POST" action="{{ route('products.cost', $product['id']) }}">
             @csrf
             <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بهای تمام‌شده</h4>
-            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">بهای جدید برای این محصول ثبت می‌شود.</p>
+            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">فقط برای محاسبه سود/زیان سفارش‌ها استفاده می‌شود؛ سند حسابداری صادر نمی‌کند. برای خرید واقعی از «ثبت خرید» استفاده کنید.</p>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">بهای هر واحد (تومان)</label>
             <input type="text" inputmode="numeric" dir="ltr" autocomplete="off" required
                 value="{{ old('unit_cost') ? number_format((int) old('unit_cost')) : '' }}"
@@ -344,7 +351,7 @@
             <input type="hidden" id="unit-cost-raw" name="unit_cost" value="{{ old('unit_cost') }}">
             @error('unit_cost')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
 
-            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تعداد خرید</label>
+            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تعداد (نمایشی — در محاسبات اثری ندارد)</label>
             <input type="number" name="qty" min="1" dir="ltr" value="{{ old('qty', 1) }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             @error('qty')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
 
@@ -354,24 +361,6 @@
                 class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
             <input type="hidden" id="cost-effective-at-g" name="effective_at" value="{{ old('effective_at') }}">
             @error('effective_at')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-
-            <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">تامین‌کننده (اختیاری)</label>
-            <select name="supplier_party_id" onchange="document.getElementById('new-supplier-name-wrap').classList.toggle('hidden', this.value !== '__new__')"
-                class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                <option value="">بدون تامین‌کننده</option>
-                @foreach ($suppliers as $s)
-                    <option value="{{ $s->id }}" @selected(old('supplier_party_id') == $s->id)>{{ $s->name }}{{ $s->shop_name ? " ({$s->shop_name})" : '' }}</option>
-                @endforeach
-                <option value="__new__" @selected(old('new_supplier_name'))>+ تامین‌کننده جدید…</option>
-            </select>
-            @error('supplier_party_id')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-
-            <div id="new-supplier-name-wrap" class="mt-4 {{ old('new_supplier_name') ? '' : 'hidden' }}">
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام تامین‌کننده جدید</label>
-                <input type="text" name="new_supplier_name" value="{{ old('new_supplier_name') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                @error('new_supplier_name')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
-                <p class="mt-1 text-xs text-gray-400">اطلاعات کامل‌تر (فروشگاه، تلفن، شماره حساب) را می‌توانید بعداً از «مدیریت تامین‌کننده‌ها» تکمیل کنید.</p>
-            </div>
 
             <div class="mt-5 flex justify-end gap-3">
                 <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\ProductCostMapping;
@@ -126,7 +127,7 @@ it('does not cascade a wholesale price for a simple product or a lone variation'
     expect(WholesalePrice::count())->toBe(1);
 });
 
-it('posts a real purchase invoice and journal entry when a supplier is picked for the cost entry', function () {
+it('never creates a supplier, purchase invoice, or journal entry from the cost-entry form (profit discovery only)', function () {
     $item = CostItem::create(['name' => 'اسپری']);
     ProductCostMapping::create([
         'product_mirror_id' => $this->mirror->id,
@@ -134,64 +135,21 @@ it('posts a real purchase invoice and journal entry when a supplier is picked fo
         'multiplier' => 1,
         'status' => 'mapped',
     ]);
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
-
-    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/cost", [
-        'unit_cost' => 400_000,
-        'supplier_party_id' => $supplier->id,
-    ])->assertRedirect()->assertSessionHasNoErrors();
-
-    $invoice = PurchaseInvoice::firstWhere('supplier_party_id', $supplier->id);
-
-    expect($invoice)->not->toBeNull()
-        ->and($invoice->status)->toBe('received')
-        ->and($invoice->journal_entry_id)->not->toBeNull()
-        ->and($invoice->journalEntry->lines->firstWhere('credit', '>', 0)->party_id)->toBe($supplier->id)
-        ->and($item->costHistory()->where('source', 'invoice')->count())->toBe(1);
-});
-
-it('uses the given purchase quantity for the invoice total and journal amount', function () {
-    $item = CostItem::create(['name' => 'اسپری']);
-    ProductCostMapping::create([
-        'product_mirror_id' => $this->mirror->id,
-        'cost_item_id' => $item->id,
-        'multiplier' => 1,
-        'status' => 'mapped',
-    ]);
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $partiesBefore = Party::count();
+    $journalEntriesBefore = JournalEntry::count();
 
     $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/cost", [
         'unit_cost' => 400_000,
         'qty' => 5,
-        'supplier_party_id' => $supplier->id,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
-    $invoice = PurchaseInvoice::firstWhere('supplier_party_id', $supplier->id);
+    $history = $item->costHistory()->where('source', 'manual')->first();
 
-    expect($invoice->lines->first()->qty)->toBe(5)
-        ->and($invoice->lines->first()->received_qty)->toBe(5)
-        ->and($invoice->journalEntry->lines->sum('debit'))->toBe(2_000_000);
-});
-
-it('quick-creates a supplier from the cost entry modal when new_supplier_name is given instead of an id', function () {
-    $item = CostItem::create(['name' => 'اسپری']);
-    ProductCostMapping::create([
-        'product_mirror_id' => $this->mirror->id,
-        'cost_item_id' => $item->id,
-        'multiplier' => 1,
-        'status' => 'mapped',
-    ]);
-
-    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/cost", [
-        'unit_cost' => 400_000,
-        'supplier_party_id' => '__new__',
-        'new_supplier_name' => 'تامین‌کننده جدید',
-    ])->assertRedirect()->assertSessionHasNoErrors();
-
-    $supplier = Party::where('type', 'supplier')->firstWhere('name', 'تامین‌کننده جدید');
-
-    expect($supplier)->not->toBeNull()
-        ->and(PurchaseInvoice::where('supplier_party_id', $supplier->id)->count())->toBe(1);
+    expect(PurchaseInvoice::count())->toBe(0)
+        ->and(Party::count())->toBe($partiesBefore)
+        ->and(JournalEntry::count())->toBe($journalEntriesBefore)
+        ->and($history->qty)->toBe(5)
+        ->and($history->unit_cost)->toBe(400_000);
 });
 
 it('renders the product detail page with notes, purchases and sync info', function () {

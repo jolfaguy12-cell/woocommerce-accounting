@@ -2,13 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Domain\Accounting\Exceptions\PeriodLockedException;
-use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Costing\Models\WholesalePrice;
 use App\Domain\Costing\Services\CostResolver;
-use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
@@ -18,7 +15,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Throwable;
 
 class ProductController extends Controller
@@ -47,7 +43,7 @@ class ProductController extends Controller
         $purchaseHistory = $product->costMapping?->cost_item_id
             ? $product->costMapping->costItem->costHistory()
                 ->latest('effective_at')->latest('id')->limit(20)
-                ->get(['id', 'unit_cost', 'landed_unit_cost', 'source', 'effective_at'])
+                ->get(['id', 'unit_cost', 'qty', 'landed_unit_cost', 'source', 'effective_at'])
             : collect();
 
         return view('pages.products.show', [
@@ -98,7 +94,6 @@ class ProductController extends Controller
                     'mirrored_at' => $product->updated_at?->toIso8601String(),
                 ],
             ],
-            'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
         ]);
     }
 
@@ -130,6 +125,9 @@ class ProductController extends Controller
     }
 
     /**
+     * Internal wholesale price for profit discovery only — never touches the
+     * ledger (see storeCost()'s docblock; the same boundary applies here).
+     *
      * Setting a wholesale price on a variable product also applies the same
      * price to every variation that exists right now (each keeps its own Cost
      * Item — this doesn't merge them). New variations synced later don't
@@ -170,58 +168,33 @@ class ProductController extends Controller
 
     /**
      * Landed cost entry for the mapped Cost Item, then unblock this product's orders.
-     * With no supplier picked, this stays a lightweight "manual" note (no ledger effect,
-     * same as before). Picking/creating a supplier instead posts a real one-line purchase
-     * invoice (received immediately) so the payable to that supplier hits the books.
+     *
+     * NON-NEGOTIABLE: this never touches the ledger. It exists purely to feed
+     * CostResolver/ProfitEngine so order profit/loss can be computed — it must
+     * never create a Party, PurchaseInvoice, or JournalEntry. Real purchases
+     * (with a real supplier and a real accounts-payable entry) are recorded
+     * exclusively through PurchaseInvoiceController (/new-buy-order). `qty` is
+     * display-only context (e.g. "bought 10 units at this price") and is never
+     * used in any calculation.
      */
-    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine): RedirectResponse
     {
-        // The "+ تامین‌کننده جدید" option submits this sentinel instead of a real id;
-        // new_supplier_name (not this field) is what actually drives creating it below.
-        if ($request->input('supplier_party_id') === '__new__') {
-            $request->merge(['supplier_party_id' => null]);
-        }
-
         $data = $request->validate([
             'unit_cost' => 'required|integer|min:1',
             'qty' => 'nullable|integer|min:1',
             'effective_at' => 'nullable|date',
-            'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
-            'new_supplier_name' => 'nullable|string|max:150',
         ]);
 
         $mapping = $this->resolveOrCreateMapping($product);
 
-        $date = $data['effective_at'] ?? now()->toDateString();
-        $qty = $data['qty'] ?? 1;
-
-        if (($data['supplier_party_id'] ?? null) || ($data['new_supplier_name'] ?? null)) {
-            $supplierId = $data['supplier_party_id']
-                ?? Party::create(['type' => 'supplier', 'name' => $data['new_supplier_name']])->id;
-
-            try {
-                $invoice = $purchaseInvoices->create([
-                    'supplier_party_id' => $supplierId,
-                    'invoice_date' => $date,
-                    'lines' => [
-                        ['cost_item_id' => $mapping->cost_item_id, 'qty' => $qty, 'unit_price' => $data['unit_cost']],
-                    ],
-                    'created_by' => $request->user()->id,
-                ]);
-
-                $purchaseInvoices->receive($invoice, [$invoice->lines->first()->id => $qty], $request->user()->id);
-            } catch (PeriodLockedException) {
-                return back()->withErrors(['effective_at' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.']);
-            }
-        } else {
-            $mapping->costItem->costHistory()->create([
-                'unit_cost' => $data['unit_cost'],
-                'landed_unit_cost' => $data['unit_cost'],
-                'source' => 'manual',
-                'effective_at' => $date,
-                'created_by' => $request->user()->id,
-            ]);
-        }
+        $mapping->costItem->costHistory()->create([
+            'unit_cost' => $data['unit_cost'],
+            'qty' => $data['qty'] ?? null,
+            'landed_unit_cost' => $data['unit_cost'],
+            'source' => 'manual',
+            'effective_at' => $data['effective_at'] ?? now()->toDateString(),
+            'created_by' => $request->user()->id,
+        ]);
 
         // Controlled recalculation: only orders blocked on missing cost re-run.
         Order::where('profit_status', 'blocked_missing_cost')
