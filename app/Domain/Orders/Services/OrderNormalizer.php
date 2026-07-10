@@ -25,7 +25,9 @@ class OrderNormalizer
             $payload = $raw->payload;
             $source = $this->channels->resolve($payload);
 
-            $orderDate = Carbon::parse($payload['date_created'] ?? $raw->received_at, 'UTC');
+            $orderDate = isset($payload['date_created'])
+                ? JalaliPeriod::parseHubGmt($payload['date_created'])
+                : $raw->received_at;
             $status = (string) ($payload['status'] ?? 'unknown');
             [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
 
@@ -101,14 +103,14 @@ class OrderNormalizer
                 return ['unpaid', null];
             }
 
-            return ['paid', empty($payload['date_paid']) ? $orderDate : Carbon::parse($payload['date_paid'], 'UTC')];
+            return ['paid', empty($payload['date_paid']) ? $orderDate : JalaliPeriod::parseHubGmt($payload['date_paid'])];
         }
 
         if (empty($payload['date_paid'])) {
             return ['unpaid', null];
         }
 
-        return ['paid', Carbon::parse($payload['date_paid'], 'UTC')];
+        return ['paid', JalaliPeriod::parseHubGmt($payload['date_paid'])];
     }
 
     private function financialState(string $status): string

@@ -61,6 +61,24 @@ it('normalizes a hub order into Toman integers with a jalali period and resolved
         ->and($order->items->first()->product_mirror_id)->not->toBeNull();
 });
 
+it('order_date and date_paid survive a DB round-trip as the same absolute instant the hub sent (GMT)', function () {
+    ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
+
+    $this->pipeline->ingest(6592, basalamOrder(6592, [
+        'order_source' => null, 'source_channel' => null, // avoid the prepaid-by-channel date_paid fallback
+        'date_created' => '2026-07-08T09:47:32',
+        'date_paid' => '2026-07-08T10:00:00',
+        'meta' => [],
+    ]), 'manual');
+
+    // Refetch from the DB — a fresh model, not the one still held in memory from ingest()
+    // — to catch APP_TIMEZONE=Asia/Tehran mislabeling naive MySQL datetime strings on read.
+    $order = Order::firstWhere('hub_order_id', 6592);
+
+    expect($order->order_date->copy()->utc()->format('Y-m-d H:i:s'))->toBe('2026-07-08 09:47:32')
+        ->and($order->date_paid->copy()->utc()->format('Y-m-d H:i:s'))->toBe('2026-07-08 10:00:00');
+});
+
 it('re-ingesting the same order updates in place without duplicates', function () {
     $this->pipeline->ingest(6591, basalamOrder(), 'manual');
     $this->pipeline->ingest(6591, basalamOrder(6591, ['status' => 'completed', 'date_modified' => '2026-07-09T10:00:00']), 'poll');

@@ -2,9 +2,9 @@
 
 namespace App\Domain\Products\Services;
 
+use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Sync\Services\HubClient;
-use Illuminate\Support\Carbon;
 
 class ProductSyncer
 {
@@ -47,7 +47,7 @@ class ProductSyncer
             // Hub weight unit is grams (confirmed against real store data), no conversion needed.
             'weight_grams' => isset($payload['weight']) ? (int) round((float) $payload['weight']) : null,
             'payload' => $payload,
-            'hub_modified_at' => isset($payload['date_modified']) ? Carbon::parse($payload['date_modified'], 'UTC') : null,
+            'hub_modified_at' => JalaliPeriod::parseHubGmt($payload['date_modified'] ?? null),
         ];
 
         $existing = ProductMirror::firstWhere('hub_product_id', $payload['id']);

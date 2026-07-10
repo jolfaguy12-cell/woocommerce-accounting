@@ -2,6 +2,7 @@
 
 namespace App\Domain\Sync\Services;
 
+use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Support\Carbon;
 
@@ -55,6 +56,6 @@ class RawOrderUpserter
     {
         $raw = $payload['date_updated_gmt'] ?? $payload['date_modified_gmt'] ?? $payload['date_modified'] ?? $payload['updated_at'] ?? null;
 
-        return $raw ? Carbon::parse($raw, 'UTC') : null;
+        return JalaliPeriod::parseHubGmt($raw);
     }
 }

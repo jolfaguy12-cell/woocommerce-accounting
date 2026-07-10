@@ -9,6 +9,22 @@ class JalaliPeriod
 {
     public const TIMEZONE = 'Asia/Tehran';
 
+    /**
+     * Parse a hub-supplied GMT/UTC timestamp string into the app's storage
+     * timezone (Asia/Tehran). Required, not cosmetic: APP_TIMEZONE=Asia/Tehran
+     * makes Eloquent re-label naive MySQL datetime strings as Tehran wall-clock
+     * on every read (MySQL datetime columns carry no timezone). A Carbon
+     * instance built with an explicit 'UTC' source and stored as-is round-trips
+     * mislabeled — silently shifted by Tehran's +03:30 offset. Converting to
+     * Tehran here, before the value is ever assigned to a model attribute,
+     * keeps write and read symmetric. Never store a hub GMT value without
+     * routing it through this first.
+     */
+    public static function parseHubGmt(?string $raw): ?Carbon
+    {
+        return $raw ? Carbon::parse($raw, 'UTC')->setTimezone(self::TIMEZONE) : null;
+    }
+
     /** Jalali period key for a date, e.g. "1405-04". */
     public static function fromDate(Carbon $date): string
     {
