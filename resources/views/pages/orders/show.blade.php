@@ -84,15 +84,20 @@
                 <thead>
                     <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
                         <th class="py-2 font-normal">کالا</th>
-                        <th class="font-normal">تعداد</th>
-                        <th class="font-normal">فی</th>
-                        <th class="font-normal">جمع</th>
-                        <th class="font-normal">بهای تمام‌شده</th>
+                        <th class="text-center font-normal">تعداد</th>
+                        <th class="text-center font-normal">بهای تمام‌شده</th>
+                        <th class="text-center font-normal">فی</th>
+                        <th class="text-center font-normal">جمع</th>
+                        <th class="text-center font-normal">سود فروش</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($order->items as $item)
-                        @php $cost = $item->productMirror ? $costs->resolveFor($item->productMirror) : null; @endphp
+                        @php
+                            $cost = $item->productMirror ? $costs->resolveFor($item->productMirror) : null;
+                            $lineCost = $cost ? $cost['unit_cost'] * $item->qty : null;
+                            $lineProfit = $lineCost !== null ? $item->line_total - $lineCost : null;
+                        @endphp
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">
                                 @if ($item->product_mirror_id)
@@ -102,14 +107,21 @@
                                     <x-ui.badge color="error" size="sm">بدون نگاشت</x-ui.badge>
                                 @endif
                             </td>
-                            <td class="text-gray-600 dark:text-gray-300">{{ number_format($item->qty) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">
-                                @if ($cost)
-                                    {{ number_format($cost['unit_cost'] * $item->qty) }}
+                            <td class="text-center text-gray-600 dark:text-gray-300">{{ number_format($item->qty) }}</td>
+                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">
+                                @if ($lineCost !== null)
+                                    {{ number_format($lineCost) }}
                                 @else
                                     <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
+                                @endif
+                            </td>
+                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
+                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
+                            <td class="text-center" dir="ltr">
+                                @if ($lineProfit !== null)
+                                    <span class="{{ $lineProfit < 0 ? 'text-error-500' : 'text-success-600 dark:text-success-400' }}">{{ number_format($lineProfit) }}</span>
+                                @else
+                                    <span class="text-error-500 text-base leading-none">✕</span>
                                 @endif
                             </td>
                         </tr>
@@ -174,10 +186,18 @@
                         </div>
                     @endforeach
 
+                    @php
+                        $opProfit = $order->profit->operational_profit;
+                        $opColor = match (true) {
+                            $opProfit === null => 'text-error-500',
+                            $opProfit < 0 => 'text-error-500',
+                            default => 'text-success-600 dark:text-success-400',
+                        };
+                    @endphp
                     <div class="flex justify-between py-2 text-base font-bold">
                         <span>سود عملیاتی</span>
-                        <span dir="ltr" class="{{ ($order->profit->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-success-600 dark:text-success-400' }}">
-                            {{ $order->profit->operational_profit !== null ? number_format($order->profit->operational_profit) : 'مسدود' }}
+                        <span dir="ltr" class="{{ $opColor }}">
+                            {{ $opProfit !== null ? number_format($opProfit) : 'مسدود' }}
                         </span>
                     </div>
 
