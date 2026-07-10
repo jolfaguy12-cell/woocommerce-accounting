@@ -20,6 +20,7 @@ class OrderProfit extends Model
         'shipping_charged' => 'integer',
         'shipping_real' => 'integer',
         'channel_fee' => 'integer',
+        'channel_discount' => 'integer',
         'gateway_fee' => 'integer',
         'package_weight_grams' => 'integer',
         'packaging_cost' => 'integer',

@@ -124,19 +124,23 @@ class ProfitEngine
     private function calculate(Order $order): array
     {
         $gross = (int) $order->items->sum('line_subtotal');
-        $net = (int) $order->items->sum('line_total');
+        $lineNet = (int) $order->items->sum('line_total');
 
         [$cost, $breakdown, $missing] = $this->productCost($order);
         [$shippingReal, $shippingBasis] = $this->shipping($order);
         [$fee, $feeSource, $warnings] = $this->channelFee($order);
+        [$marketplaceDiscount, $discountSource] = $this->channelDiscount($order, $gross, $fee);
         [$packagingCost, $packageWeight, $packagingBasis] = $this->packaging($order);
+
+        $discounts = ($gross - $lineNet) + $marketplaceDiscount;
+        $net = $lineNet - $marketplaceDiscount;
 
         return [
             'blocked' => $missing !== [],
             'missing' => $missing,
             'warnings' => $warnings,
             'gross_sale' => $gross,
-            'discounts' => $gross - $net,
+            'discounts' => $discounts,
             'net_sale' => $net,
             'product_cost' => $missing === [] ? $cost : null,
             'cost_breakdown' => $breakdown,
@@ -145,6 +149,8 @@ class ProfitEngine
             'shipping_basis' => $shippingBasis,
             'channel_fee' => $fee,
             'channel_fee_source' => $feeSource,
+            'channel_discount' => $marketplaceDiscount,
+            'channel_discount_source' => $discountSource,
             'gateway_fee' => 0, // not exposed by the hub yet
             // Tracked for visibility only — not folded into gross/operational profit yet.
             'package_weight_grams' => $packageWeight,
@@ -257,6 +263,41 @@ class ProfitEngine
         return [(int) abs(round((float) $raw)), 'metadata', []];
     }
 
+    /**
+     * Marketplace-level discount (e.g. a Basalam coupon) that never reaches
+     * WooCommerce as a line-item discount — the channel's own WooCommerce-sync
+     * metadata carries the items total, commission, and final settlement
+     * balance, so the gap between them is the discount the marketplace granted
+     * on our behalf. Requires both meta keys and never guesses: no balance
+     * meta key configured, or either value missing, means no discount is
+     * assumed (same "missing data never treated as zero" rule as cost).
+     * Verified against Basalam's own vendor panel figures for a real order.
+     */
+    private function channelDiscount(Order $order, int $itemsTotal, int $fee): array
+    {
+        $balanceKey = $order->channel?->config['balance_meta_key'] ?? null;
+
+        if (! $balanceKey) {
+            return [0, 'none'];
+        }
+
+        $raw = $order->rawOrder->payload['meta'][$balanceKey] ?? null;
+
+        if ($raw === null || $raw === '') {
+            return [0, 'none'];
+        }
+
+        $discount = $itemsTotal - $fee - (int) round((float) $raw);
+
+        // Basalam's own internal rounding can leave a few Toman of noise —
+        // don't report a "discount" for that.
+        if ($discount < 100) {
+            return [0, 'none'];
+        }
+
+        return [$discount, 'metadata'];
+    }
+
     private function postJournal(Order $order, array $r, int $version)
     {
         $lines = [
@@ -324,6 +365,8 @@ class ProfitEngine
             'shipping_basis' => $r['shipping_basis'],
             'channel_fee' => $r['channel_fee'],
             'channel_fee_source' => $r['channel_fee_source'],
+            'channel_discount' => $r['channel_discount'],
+            'channel_discount_source' => $r['channel_discount_source'],
             'gateway_fee' => $r['gateway_fee'],
             'package_weight_grams' => $r['package_weight_grams'],
             'packaging_cost' => $r['packaging_cost'],

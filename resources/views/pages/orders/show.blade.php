@@ -76,6 +76,25 @@
                 @endif
             </div>
         </div>
+        @if ($order->shipping_charged == 0)
+            @php
+                $freeShippingThreshold = $order->channel?->config['free_shipping_threshold'] ?? null;
+                $itemsTotal = (int) $order->items->sum('line_subtotal');
+                $freeShippingReason = $freeShippingThreshold && $itemsTotal > $freeShippingThreshold
+                    ? 'خرید بالای '.number_format($freeShippingThreshold).' تومان'
+                    : null;
+            @endphp
+            <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+                <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15">{!! $icon('box-package') !!}</div>
+                <div class="min-w-0">
+                    <span class="text-gray-500 dark:text-gray-400">هزینه ارسال</span>
+                    <p class="font-medium text-success-600 dark:text-success-400">ارسال رایگان</p>
+                    @if ($freeShippingReason)
+                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ $freeShippingReason }}</p>
+                    @endif
+                </div>
+            </div>
+        @endif
     </div>
 
     <div class="grid gap-4 xl:grid-cols-2">
@@ -88,6 +107,9 @@
                         <th class="text-center font-normal">بهای تمام‌شده</th>
                         <th class="text-center font-normal">فی</th>
                         <th class="text-center font-normal">جمع</th>
+                        @if (($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0)
+                            <th class="text-center font-normal">کارمزد کانال</th>
+                        @endif
                         <th class="text-center font-normal">سود فروش</th>
                     </tr>
                 </thead>
@@ -97,6 +119,14 @@
                             $cost = $item->productMirror ? $costs->resolveFor($item->productMirror) : null;
                             $lineCost = $cost ? $cost['unit_cost'] * $item->qty : null;
                             $lineProfit = $lineCost !== null ? $item->line_total - $lineCost : null;
+                            // Basalam (and its own vendor panel) don't track a true
+                            // independent per-item commission — they allocate the
+                            // order-level fee proportionally by each item's share of
+                            // the order's item total. Same method here, so the sum
+                            // across items always reconciles to profit->channel_fee.
+                            $itemFee = ($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0
+                                ? (int) round($order->profit->channel_fee * $item->line_subtotal / $order->profit->gross_sale)
+                                : null;
                         @endphp
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">
@@ -121,6 +151,11 @@
                             </td>
                             <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
                             <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
+                            @if (($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0)
+                                <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr" title="تخمینی — به نسبت سهم این آیتم از جمع سفارش">
+                                    {{ $itemFee !== null ? '−'.number_format($itemFee) : '—' }}
+                                </td>
+                            @endif
                             <td class="text-center" dir="ltr">
                                 @if ($lineProfit !== null)
                                     <span class="{{ $lineProfit < 0 ? 'text-error-500' : 'text-success-600 dark:text-success-400' }}">{{ number_format($lineProfit) }}</span>
@@ -196,9 +231,10 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">سودی محاسبه نشده (سفارش هنوز معتبر نیست یا در صف است).</p>
             @else
                 @php
+                    $discountLabel = ($order->profit->channel_discount ?? 0) > 0 ? 'تخفیف کوپن (باسلام)' : 'تخفیف';
                     $rows = [
                         ['فروش ناخالص', $order->profit->gross_sale],
-                        ['تخفیف', -$order->profit->discounts],
+                        [$discountLabel, -$order->profit->discounts],
                         ['فروش خالص', $order->profit->net_sale],
                         ['بهای تمام‌شده', $order->profit->product_cost !== null ? -$order->profit->product_cost : null],
                         ['حمل دریافتی', $order->profit->shipping_charged],

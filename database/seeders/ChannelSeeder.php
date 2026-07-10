@@ -23,6 +23,16 @@ class ChannelSeeder extends Seeder
             // order was never actually paid out.
             ['باسلام', 'basalam', 'order_commission', ['bslm-completed', 'bslm-shipping'], ['basalam'], [
                 'commission_meta_key' => '_basalam_fee_amount',
+                // Basalam's own settlement balance for the order — combined with
+                // the items total and the commission above to derive a coupon/
+                // marketplace discount that never reaches WooCommerce as a line
+                // item (see ProfitEngine::channelDiscount()).
+                'balance_meta_key' => '_basalam_balance_amount',
+                // Basalam's known free-shipping-over-threshold policy for this
+                // shop. Only used to label a $0-shipping order's badge with a
+                // reason when the order's item total actually clears it — never
+                // used to assume shipping is free just because the total does.
+                'free_shipping_threshold' => 2_000_000,
                 'payment_prepaid_by_channel' => true,
                 'payment_prepaid_unless_statuses' => ['bslm-rejected', 'cancelled'],
             ]],

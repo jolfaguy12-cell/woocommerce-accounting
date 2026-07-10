@@ -130,6 +130,54 @@ it('reads basalam commission from order metadata', function () {
         ->and($profit->operational_profit)->toBe(281_000 - 81_720);
 });
 
+it('derives a marketplace discount from basalam settlement metadata (a coupon woocommerce never saw)', function () {
+    $order = hubOrder(1007, [
+        'order_source' => 'basalam', 'status' => 'bslm-completed', 'discount_total' => 0,
+        'meta' => [
+            '_sync_basalam_hash_id' => 'X',
+            '_basalam_fee_amount' => '-81720',
+            // gross(691000) - fee(81720) - balance(509280) = 100,000 discount
+            '_basalam_balance_amount' => '509280',
+        ],
+    ]);
+
+    app(OrderIngestPipeline::class)->ingest(1007, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1007)->id);
+
+    expect($profit->channel_discount)->toBe(100_000)
+        ->and($profit->channel_discount_source)->toBe('metadata')
+        // hubOrder()'s default line item already has a 10,000 gap between subtotal
+        // and total (a native woo-level discount) — this adds on top of that.
+        ->and($profit->discounts)->toBe(10_000 + 100_000)
+        ->and($profit->net_sale)->toBe(681_000 - 100_000)
+        ->and($profit->status)->toBe('final');
+
+    $entry = $profit->journalEntry;
+    $revenueLine = $entry->lines->first(fn ($l) => $l->account->code === '4000');
+    expect($entry->lines->sum('debit'))->toBe($entry->lines->sum('credit'))
+        ->and($revenueLine->credit)->toBe($profit->net_sale);
+});
+
+it('ignores sub-100-toman noise in the balance metadata as a real discount', function () {
+    $order = hubOrder(1008, [
+        'order_source' => 'basalam', 'status' => 'bslm-completed',
+        'meta' => [
+            '_sync_basalam_hash_id' => 'X',
+            '_basalam_fee_amount' => '-81720',
+            // gross(691000) - fee(81720) - balance(609260) = 20 toman of rounding noise
+            '_basalam_balance_amount' => '609260',
+        ],
+    ]);
+
+    app(OrderIngestPipeline::class)->ingest(1008, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1008)->id);
+
+    expect($profit->channel_discount)->toBe(0)
+        ->and($profit->channel_discount_source)->toBe('none');
+});
+
 it('warns (not crashes) when a commission channel order lacks commission metadata', function () {
     $order = hubOrder(1006, ['order_source' => 'basalam', 'status' => 'bslm-completed', 'meta' => []]);
 
