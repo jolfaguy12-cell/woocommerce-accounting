@@ -49,11 +49,15 @@ class OrderController extends Controller
         ]);
     }
 
-    public function show(Order $order): View
+    public function show(Order $order, Request $request): View
     {
-        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder');
+        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder', 'notes.author', 'notes.recipients.user');
 
-        return view('pages.orders.show', ['title' => 'سفارش #'.$order->hub_order_id, 'order' => $order]);
+        return view('pages.orders.show', [
+            'title' => 'سفارش #'.$order->hub_order_id,
+            'order' => $order,
+            'noteRecipientOptions' => NoteController::recipientOptions($request->user()->id),
+        ]);
     }
 
     /** Manual real shipping cost (README §13) then re-evaluate profit. */
@@ -84,6 +88,16 @@ class OrderController extends Controller
         $engine->evaluate($order->refresh());
 
         return back()->with('success', 'هزینه بسته‌بندی ثبت و سود بازمحاسبه شد.');
+    }
+
+    /** Drop the manual packaging cost override so it falls back to the weight-tier/default formula again. */
+    public function resetPackaging(Order $order, ProfitEngine $engine): RedirectResponse
+    {
+        $order->packagingCost()->delete();
+
+        $engine->evaluate($order->refresh());
+
+        return back()->with('success', 'هزینه بسته‌بندی به حالت خودکار بازنشانی شد.');
     }
 
     public function recalc(Order $order, ProfitEngine $engine): RedirectResponse

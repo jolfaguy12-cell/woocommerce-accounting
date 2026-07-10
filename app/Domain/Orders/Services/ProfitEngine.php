@@ -100,6 +100,19 @@ class ProfitEngine
         });
     }
 
+    /**
+     * Resolve packaging cost for an order without touching its stored profit,
+     * journal, or inputs_hash — used by one-off backfills to fill the field in
+     * for orders calculated before this feature existed.
+     */
+    public function resolvePackagingSnapshot(Order $order): array
+    {
+        $order->loadMissing('items.productMirror', 'packagingCost');
+        [$cost, $weight, $basis] = $this->packaging($order);
+
+        return ['packaging_cost' => $cost, 'package_weight_grams' => $weight, 'packaging_cost_basis' => $basis];
+    }
+
     private function isFinanciallyValid(Order $order): bool
     {
         $validStatuses = $order->channel?->valid_statuses

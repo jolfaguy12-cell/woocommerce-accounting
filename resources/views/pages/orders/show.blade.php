@@ -144,7 +144,7 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('orders.shipping', $order) }}" class="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <form method="POST" action="{{ route('orders.shipping', $order) }}" class="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
                 @csrf
                 <span class="text-sm text-gray-700 dark:text-gray-300">هزینه حمل واقعی:</span>
                 <input
@@ -153,28 +153,38 @@
                     dir="ltr"
                     value="{{ $order->shippingCost?->real_cost }}"
                     placeholder="تومان"
-                    class="h-9 w-36 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90"
+                    class="h-9 w-28 min-w-0 flex-1 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90 sm:flex-none sm:w-36"
                 >
-                <button type="submit" class="h-9 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">
+                <button type="submit" class="h-9 shrink-0 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">
                     ثبت و بازمحاسبه
                 </button>
             </form>
 
-            <form method="POST" action="{{ route('orders.packaging', $order) }}" class="mt-2 flex items-center gap-2 pt-1">
-                @csrf
-                <span class="text-sm text-gray-700 dark:text-gray-300">هزینه بسته‌بندی این سفارش:</span>
-                <input
-                    type="number"
-                    name="real_cost"
-                    dir="ltr"
-                    value="{{ $order->packagingCost?->real_cost }}"
-                    placeholder="{{ $order->profit?->packaging_cost !== null ? number_format($order->profit->packaging_cost) : 'تومان' }}"
-                    class="h-9 w-36 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90"
-                >
-                <button type="submit" class="h-9 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">
-                    ثبت و بازمحاسبه
-                </button>
-            </form>
+            <div class="mt-2 flex flex-wrap items-center gap-2 pt-1">
+                <form method="POST" action="{{ route('orders.packaging', $order) }}" class="flex flex-wrap items-center gap-2">
+                    @csrf
+                    <span class="text-sm text-gray-700 dark:text-gray-300">هزینه بسته‌بندی این سفارش:</span>
+                    <input
+                        type="number"
+                        name="real_cost"
+                        dir="ltr"
+                        value="{{ $order->packagingCost?->real_cost }}"
+                        placeholder="{{ $order->profit?->packaging_cost !== null ? number_format($order->profit->packaging_cost) : 'تومان' }}"
+                        class="h-9 w-28 min-w-0 flex-1 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90 sm:flex-none sm:w-36"
+                    >
+                    <button type="submit" class="h-9 shrink-0 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">
+                        ثبت و بازمحاسبه
+                    </button>
+                </form>
+                @if ($order->packagingCost)
+                    <form method="POST" action="{{ route('orders.packaging.reset', $order) }}" onsubmit="return confirm('هزینه بسته‌بندی دستی حذف و بر اساس فرمول پله‌ای/پیش‌فرض بازمحاسبه شود؟')">
+                        @csrf
+                        <button type="submit" title="بازنشانی به حالت خودکار (فرمول پله‌ای/پیش‌فرض)" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.4 13a7.97 7.97 0 0 0 0-2l2.1-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.97 7.97 0 0 0-1.73-1l-.38-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42L9.12 5.07a7.97 7.97 0 0 0-1.73 1l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.6 11a7.97 7.97 0 0 0 0 2l-2.1 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .6.22l2.49-1a7.97 7.97 0 0 0 1.73 1l.38 2.65A.5.5 0 0 0 10 22h4a.5.5 0 0 0 .5-.42l.38-2.65a7.97 7.97 0 0 0 1.73-1l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64L19.4 13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"></circle></svg>
+                        </button>
+                    </form>
+                @endif
+            </div>
         </x-common.component-card>
 
         <x-common.component-card title="تفکیک سود">
@@ -211,7 +221,7 @@
                         };
                     @endphp
                     <div class="flex justify-between py-2 text-base font-bold">
-                        <span>سود عملیاتی</span>
+                        <span class="text-gray-500 dark:text-gray-400">سود عملیاتی</span>
                         <span dir="ltr" class="{{ $opColor }}">
                             {{ $opProfit !== null ? number_format($opProfit) : 'مسدود' }}
                         </span>
@@ -255,5 +265,58 @@
             @endif
         </x-common.component-card>
     </div>
+
+    <x-common.component-card title="یادداشت‌ها">
+        <form method="POST" action="{{ route('orders.notes.store', $order) }}" class="space-y-3 border-b border-gray-100 pb-4 dark:border-gray-800">
+            @csrf
+            <textarea name="body" required rows="3" placeholder="یادداشت جدید…"
+                class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"></textarea>
+            @error('body')<p class="text-xs text-error-500">{{ $message }}</p>@enderror
+
+            @if ($noteRecipientOptions->isNotEmpty())
+                <div>
+                    <p class="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-400">ارسال به (اختیاری):</p>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach ($noteRecipientOptions as $user)
+                            <label class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300">
+                                <input type="checkbox" name="recipients[]" value="{{ $user->id }}" class="rounded border-gray-300">
+                                {{ $user->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <button type="submit" class="h-9 rounded-md bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">ثبت یادداشت</button>
+        </form>
+
+        <div class="mt-4 space-y-3">
+            @forelse ($order->notes as $note)
+                <div class="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                    <div class="mb-1.5 flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-800 dark:text-white/90">{{ $note->author?->name ?? 'کاربر حذف‌شده' }}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($note->created_at) }}</span>
+                            @if (auth()->id() === $note->created_by || auth()->user()->hasRole('admin'))
+                                <form method="POST" action="{{ route('notes.destroy', $note) }}" onsubmit="return confirm('این یادداشت حذف شود؟')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs text-error-500 hover:underline">حذف</button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">{{ $note->body }}</p>
+                    @if ($note->recipients->isNotEmpty())
+                        <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                            ارسال‌شده به: {{ $note->recipients->pluck('user.name')->filter()->implode('، ') }}
+                        </p>
+                    @endif
+                </div>
+            @empty
+                <p class="text-sm text-gray-400 dark:text-gray-500">هنوز یادداشتی برای این سفارش ثبت نشده.</p>
+            @endforelse
+        </div>
+    </x-common.component-card>
 </div>
 @endsection

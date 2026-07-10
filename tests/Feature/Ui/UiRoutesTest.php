@@ -110,6 +110,22 @@ it('sets a manual packaging cost override and re-evaluates profit', function () 
         ->and($order->profit->packaging_cost_basis)->toBe('manual');
 });
 
+it('resets a manual packaging cost override back to the automatic tier/default formula', function () {
+    $mirror = ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
+    $item = CostItem::create(['name' => 'اسپری']);
+    $item->costHistory()->create(['unit_cost' => 400_000, 'landed_unit_cost' => 400_000, 'source' => 'manual', 'effective_at' => '2026-07-01']);
+    ProductCostMapping::create(['product_mirror_id' => $mirror->id, 'cost_item_id' => $item->id, 'status' => 'mapped']);
+
+    app(OrderIngestPipeline::class)->ingest(5006, uiOrder(5006), 'manual');
+    $order = Order::firstWhere('hub_order_id', 5006);
+    $this->actingAs($this->admin)->post("/orders/{$order->id}/packaging", ['real_cost' => 45_000]);
+
+    $this->actingAs($this->admin)->post("/orders/{$order->id}/packaging/reset")->assertRedirect();
+
+    expect($order->refresh()->packagingCost)->toBeNull()
+        ->and($order->profit->packaging_cost_basis)->toBe('default');
+});
+
 it('manages packaging cost tiers and defaults from the warehouse settings page (admin only)', function () {
     $this->actingAs($this->partner)->get('/warehouse/packaging-cost')->assertForbidden();
     $this->actingAs($this->admin)->get('/warehouse/packaging-cost')->assertOk();

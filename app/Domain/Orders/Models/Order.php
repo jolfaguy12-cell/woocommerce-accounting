@@ -68,4 +68,9 @@ class Order extends Model
     {
         return $this->hasMany(OrderRefund::class);
     }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(OrderNote::class)->latest();
+    }
 }

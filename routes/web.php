@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\FastFormController;
+use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
 use App\Http\Controllers\Admin\ProductController;
@@ -57,6 +58,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
         Route::get('products', [ProductController::class, 'index'])->name('products.index');
         Route::get('products/{product}', [ProductController::class, 'show'])->name('products.show');
+
+        // Notes are collaborative, not a financial mutation — open to all staff who can see orders.
+        Route::get('notifications/notes', [NoteController::class, 'index'])->name('notifications.notes');
+        Route::post('orders/{order}/notes', [NoteController::class, 'store'])->name('orders.notes.store');
+        Route::delete('notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
     });
 
     // Financial mutations are for admin/accountant only.
@@ -65,6 +71,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('review/sources/{source}/map', [ReviewController::class, 'mapSource'])->name('review.map-source');
         Route::post('orders/{order}/shipping', [OrderController::class, 'setShipping'])->name('orders.shipping');
         Route::post('orders/{order}/packaging', [OrderController::class, 'setPackaging'])->name('orders.packaging');
+        Route::post('orders/{order}/packaging/reset', [OrderController::class, 'resetPackaging'])->name('orders.packaging.reset');
         Route::post('orders/{order}/recalc', [OrderController::class, 'recalc'])->name('orders.recalc');
         Route::post('products/{product}/map', [ProductController::class, 'map'])->name('products.map');
         Route::post('products/{product}/wholesale', [ProductController::class, 'setWholesale'])->name('products.wholesale');
