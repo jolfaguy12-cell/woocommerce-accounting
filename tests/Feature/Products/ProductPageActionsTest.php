@@ -127,6 +127,22 @@ it('does not cascade a wholesale price for a simple product or a lone variation'
     expect(WholesalePrice::count())->toBe(1);
 });
 
+it('cascades a manual cost entered on a variable product to all its current variations', function () {
+    $parent = ProductMirror::create(['hub_product_id' => 9201, 'type' => 'variable', 'name' => 'کیف مدل Z', 'payload' => []]);
+    $variantA = ProductMirror::create(['hub_product_id' => 9202, 'parent_hub_id' => 9201, 'type' => 'variation', 'name' => 'کیف مدل Z - قرمز', 'payload' => []]);
+    $variantB = ProductMirror::create(['hub_product_id' => 9203, 'parent_hub_id' => 9201, 'type' => 'variation', 'name' => 'کیف مدل Z - مشکی', 'payload' => []]);
+
+    $this->actingAs($this->admin)->post("/products/{$parent->id}/cost", [
+        'unit_cost' => 350_000,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    foreach ([$parent, $variantA, $variantB] as $product) {
+        $mapping = $product->fresh()->costMapping;
+        expect($mapping)->not->toBeNull()
+            ->and($mapping->costItem->latestCost()->unit_cost)->toBe(350_000);
+    }
+});
+
 it('never creates a supplier, purchase invoice, or journal entry from the cost-entry form (profit discovery only)', function () {
     $item = CostItem::create(['name' => 'اسپری']);
     ProductCostMapping::create([

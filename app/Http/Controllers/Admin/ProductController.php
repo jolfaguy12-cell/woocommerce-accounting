@@ -177,6 +177,10 @@ class ProductController extends Controller
      * exclusively through PurchaseInvoiceController (/new-buy-order). `qty` is
      * display-only context (e.g. "bought 10 units at this price") and is never
      * used in any calculation.
+     *
+     * Entering a cost on a variable product also applies the same cost to
+     * every variation that exists right now (each keeps its own Cost Item) —
+     * mirrors the same cascade already done for wholesale price.
      */
     public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine, ProductMappingResolver $resolver): RedirectResponse
     {
@@ -186,23 +190,33 @@ class ProductController extends Controller
             'effective_at' => 'nullable|date',
         ]);
 
-        $mapping = $resolver->resolveOrCreate($product);
+        $targets = $product->type === 'variable'
+            ? $product->variations->prepend($product)
+            : collect([$product]);
 
-        $mapping->costItem->costHistory()->create([
-            'unit_cost' => $data['unit_cost'],
-            'qty' => $data['qty'] ?? null,
-            'landed_unit_cost' => $data['unit_cost'],
-            'source' => 'manual',
-            'effective_at' => $data['effective_at'] ?? now()->toDateString(),
-            'created_by' => $request->user()->id,
-        ]);
+        foreach ($targets as $target) {
+            $mapping = $resolver->resolveOrCreate($target);
+
+            $mapping->costItem->costHistory()->create([
+                'unit_cost' => $data['unit_cost'],
+                'qty' => $data['qty'] ?? null,
+                'landed_unit_cost' => $data['unit_cost'],
+                'source' => 'manual',
+                'effective_at' => $data['effective_at'] ?? now()->toDateString(),
+                'created_by' => $request->user()->id,
+            ]);
+        }
 
         // Controlled recalculation: only orders blocked on missing cost re-run.
         Order::where('profit_status', 'blocked_missing_cost')
-            ->whereHas('items', fn ($q) => $q->where('product_mirror_id', $product->id))
+            ->whereHas('items', fn ($q) => $q->whereIn('product_mirror_id', $targets->pluck('id')))
             ->get()->each(fn ($order) => $engine->evaluate($order));
 
-        return back()->with('success', 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.');
+        $message = $product->type === 'variable'
+            ? 'بهای تمام‌شده برای این محصول و همه تنوع‌های آن ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.'
+            : 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.';
+
+        return back()->with('success', $message);
     }
 
     public function storeNote(Request $request, ProductMirror $product): RedirectResponse
