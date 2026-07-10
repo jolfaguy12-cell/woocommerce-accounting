@@ -111,6 +111,10 @@
                             <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">
                                 @if ($lineCost !== null)
                                     {{ number_format($lineCost) }}
+                                @elseif ($item->product_mirror_id)
+                                    <button type="button" onclick="openQuickCostModal({{ $item->product_mirror_id }}, @json($item->name))">
+                                        <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
+                                    </button>
                                 @else
                                     <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
                                 @endif
@@ -319,4 +323,44 @@
         </div>
     </x-common.component-card>
 </div>
+
+{{-- Quick cost/wholesale registration, opened from the "ثبت نشده" badge above. --}}
+<x-ui.modal x-data="{ open: false }" @open-quick-cost-modal.window="open = true" class="max-w-sm p-6">
+    <form method="POST" id="quick-cost-form">
+        @csrf
+        <h4 class="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت سریع بهای تمام‌شده</h4>
+        <p id="quick-cost-product-name" class="mb-4 text-sm text-gray-500 dark:text-gray-400"></p>
+
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">بهای تمام‌شده (تومان)</label>
+        <input type="text" inputmode="numeric" id="quick-cost-unit-cost-display" dir="ltr" autocomplete="off" required
+            oninput="formatTomanInput(this, '#quick-cost-unit-cost-raw')"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        <input type="hidden" id="quick-cost-unit-cost-raw" name="unit_cost">
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">قیمت عمده داخلی (تومان) — اختیاری</label>
+        <input type="text" inputmode="numeric" id="quick-cost-wholesale-display" dir="ltr" autocomplete="off"
+            oninput="formatTomanInput(this, '#quick-cost-wholesale-raw')"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+        <input type="hidden" id="quick-cost-wholesale-raw" name="wholesale_price">
+
+        <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">اگر این کالا تنوع (رنگ/سایز و ...) داشته باشد، مقادیر برای والد و همه تنوع‌های آن هم‌زمان ثبت می‌شود.</p>
+
+        <div class="mt-5 flex justify-end gap-3">
+            <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+            <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت</button>
+        </div>
+    </form>
+</x-ui.modal>
+
+<script>
+    function openQuickCostModal(productId, name) {
+        document.getElementById('quick-cost-form').action = '{{ url('products') }}/' + productId + '/quick-cost';
+        document.getElementById('quick-cost-product-name').textContent = name;
+        document.getElementById('quick-cost-unit-cost-display').value = '';
+        document.getElementById('quick-cost-unit-cost-raw').value = '';
+        document.getElementById('quick-cost-wholesale-display').value = '';
+        document.getElementById('quick-cost-wholesale-raw').value = '';
+        window.dispatchEvent(new CustomEvent('open-quick-cost-modal'));
+    }
+</script>
 @endsection

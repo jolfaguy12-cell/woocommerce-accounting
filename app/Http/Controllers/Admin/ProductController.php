@@ -219,6 +219,56 @@ class ProductController extends Controller
         return back()->with('success', $message);
     }
 
+    /**
+     * One-click cost + wholesale registration, triggered from the order page's
+     * "ثبت نشده" badge so a blocked order can be unblocked without a detour to
+     * the product page. Same ledger boundary as storeCost()/setWholesale() —
+     * profit-discovery only. If the item ordered is a variation, the cascade
+     * still runs from its parent down to every current variation (not just
+     * this one), matching storeCost()'s cascade for the parent-entry case.
+     */
+    public function storeQuickCost(Request $request, ProductMirror $product, ProfitEngine $engine, ProductMappingResolver $resolver): RedirectResponse
+    {
+        $data = $request->validate([
+            'unit_cost' => 'required|integer|min:1',
+            'wholesale_price' => 'nullable|integer|min:0',
+        ]);
+
+        $root = $product->type === 'variation' ? $product->parent : $product;
+        $targets = $root->type === 'variable' ? $root->variations->prepend($root) : collect([$root]);
+
+        foreach ($targets as $target) {
+            $mapping = $resolver->resolveOrCreate($target);
+
+            $mapping->costItem->costHistory()->create([
+                'unit_cost' => $data['unit_cost'],
+                'landed_unit_cost' => $data['unit_cost'],
+                'source' => 'manual',
+                'effective_at' => now()->toDateString(),
+                'created_by' => $request->user()->id,
+            ]);
+
+            if (! empty($data['wholesale_price'])) {
+                WholesalePrice::create([
+                    'cost_item_id' => $mapping->cost_item_id,
+                    'price' => $data['wholesale_price'],
+                    'effective_at' => now()->toDateString(),
+                    'created_by' => $request->user()->id,
+                ]);
+            }
+        }
+
+        Order::where('profit_status', 'blocked_missing_cost')
+            ->whereHas('items', fn ($q) => $q->whereIn('product_mirror_id', $targets->pluck('id')))
+            ->get()->each(fn ($order) => $engine->evaluate($order));
+
+        $message = $root->type === 'variable'
+            ? 'بهای تمام‌شده و قیمت عمده برای این محصول و همه تنوع‌های آن ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.'
+            : 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.';
+
+        return back()->with('success', $message);
+    }
+
     public function storeNote(Request $request, ProductMirror $product): RedirectResponse
     {
         $data = $request->validate([

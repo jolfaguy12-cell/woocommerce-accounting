@@ -81,6 +81,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('products/{product}/map', [ProductController::class, 'map'])->name('products.map');
         Route::post('products/{product}/wholesale', [ProductController::class, 'setWholesale'])->name('products.wholesale');
         Route::post('products/{product}/cost', [ProductController::class, 'storeCost'])->name('products.cost');
+        Route::post('products/{product}/quick-cost', [ProductController::class, 'storeQuickCost'])->name('products.quick-cost');
         Route::post('products/{product}/notes', [ProductController::class, 'storeNote'])->name('products.notes');
         Route::post('products/{product}/sync', [ProductController::class, 'syncFromHub'])->name('products.sync');
 

@@ -143,6 +143,53 @@ it('cascades a manual cost entered on a variable product to all its current vari
     }
 });
 
+it('registers cost and wholesale price in one click from the order page and unblocks the order', function () {
+    app(OrderIngestPipeline::class)->ingest(6101, [
+        'id' => 6101, 'status' => 'completed', 'currency' => 'IRT', 'total' => 771000,
+        'discount_total' => 0, 'shipping_total' => 90000, 'created_via' => 'checkout',
+        'date_created' => '2026-07-08T10:00:00', 'date_modified' => '2026-07-08T10:00:00', 'meta' => [],
+        'line_items' => [['id' => 71, 'name' => 'اسپری', 'quantity' => 1, 'subtotal' => 681000, 'total' => 681000, 'product_id' => 5732, 'variation_id' => null]],
+    ], 'manual');
+
+    expect(Order::firstWhere('hub_order_id', 6101)->profit_status)->toBe('blocked_missing_cost');
+
+    $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/quick-cost", [
+        'unit_cost' => 350_000,
+        'wholesale_price' => 500_000,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $mapping = $this->mirror->fresh()->costMapping;
+
+    expect($mapping->costItem->latestCost()->unit_cost)->toBe(350_000)
+        ->and($mapping->costItem->latestWholesalePrice()->price)->toBe(500_000)
+        ->and(Order::firstWhere('hub_order_id', 6101)->refresh()->profit_status)->toBe('ok');
+});
+
+it('cascades a quick cost registered on an ordered variation to the parent and all sibling variations', function () {
+    $parent = ProductMirror::create(['hub_product_id' => 9301, 'type' => 'variable', 'name' => 'کوله مدل W', 'payload' => []]);
+    $variantA = ProductMirror::create(['hub_product_id' => 9302, 'parent_hub_id' => 9301, 'type' => 'variation', 'name' => 'کوله مدل W - آبی', 'payload' => []]);
+    $variantB = ProductMirror::create(['hub_product_id' => 9303, 'parent_hub_id' => 9301, 'type' => 'variation', 'name' => 'کوله مدل W - قرمز', 'payload' => []]);
+
+    app(OrderIngestPipeline::class)->ingest(6102, [
+        'id' => 6102, 'status' => 'completed', 'currency' => 'IRT', 'total' => 600000,
+        'discount_total' => 0, 'shipping_total' => 0, 'created_via' => 'checkout',
+        'date_created' => '2026-07-08T10:00:00', 'date_modified' => '2026-07-08T10:00:00', 'meta' => [],
+        'line_items' => [['id' => 72, 'name' => 'کوله مدل W - آبی', 'quantity' => 1, 'subtotal' => 600000, 'total' => 600000, 'product_id' => 9301, 'variation_id' => 9302]],
+    ], 'manual');
+
+    $this->actingAs($this->admin)->post("/products/{$variantA->id}/quick-cost", [
+        'unit_cost' => 250_000,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    foreach ([$parent, $variantA, $variantB] as $product) {
+        $mapping = $product->fresh()->costMapping;
+        expect($mapping)->not->toBeNull()
+            ->and($mapping->costItem->latestCost()->unit_cost)->toBe(250_000);
+    }
+
+    expect(Order::firstWhere('hub_order_id', 6102)->refresh()->profit_status)->toBe('ok');
+});
+
 it('never creates a supplier, purchase invoice, or journal entry from the cost-entry form (profit discovery only)', function () {
     $item = CostItem::create(['name' => 'اسپری']);
     ProductCostMapping::create([
