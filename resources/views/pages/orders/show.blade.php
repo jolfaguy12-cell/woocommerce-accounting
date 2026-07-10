@@ -112,7 +112,7 @@
                                 @if ($lineCost !== null)
                                     {{ number_format($lineCost) }}
                                 @elseif ($item->product_mirror_id)
-                                    <button type="button" onclick="openQuickCostModal({{ $item->product_mirror_id }}, @json($item->name))">
+                                    <button type="button" onclick='openQuickCostModal({{ $item->product_mirror_id }}, @json($item->name))'>
                                         <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
                                     </button>
                                 @else
