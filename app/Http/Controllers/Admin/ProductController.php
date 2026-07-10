@@ -6,6 +6,7 @@ use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\ProductCostMapping;
 use App\Domain\Costing\Models\WholesalePrice;
 use App\Domain\Costing\Services\CostResolver;
+use App\Domain\Costing\Services\ProductMappingResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
@@ -133,7 +134,7 @@ class ProductController extends Controller
      * Item — this doesn't merge them). New variations synced later don't
      * inherit it automatically; re-run this on the parent if needed.
      */
-    public function setWholesale(Request $request, ProductMirror $product): RedirectResponse
+    public function setWholesale(Request $request, ProductMirror $product, ProductMappingResolver $resolver): RedirectResponse
     {
         $data = $request->validate([
             'price' => 'required|integer|min:0',
@@ -149,7 +150,7 @@ class ProductController extends Controller
             : collect([$product]);
 
         foreach ($targets as $target) {
-            $mapping = $this->resolveOrCreateMapping($target);
+            $mapping = $resolver->resolveOrCreate($target);
 
             WholesalePrice::create([
                 'cost_item_id' => $mapping->cost_item_id,
@@ -177,7 +178,7 @@ class ProductController extends Controller
      * display-only context (e.g. "bought 10 units at this price") and is never
      * used in any calculation.
      */
-    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine): RedirectResponse
+    public function storeCost(Request $request, ProductMirror $product, ProfitEngine $engine, ProductMappingResolver $resolver): RedirectResponse
     {
         $data = $request->validate([
             'unit_cost' => 'required|integer|min:1',
@@ -185,7 +186,7 @@ class ProductController extends Controller
             'effective_at' => 'nullable|date',
         ]);
 
-        $mapping = $this->resolveOrCreateMapping($product);
+        $mapping = $resolver->resolveOrCreate($product);
 
         $mapping->costItem->costHistory()->create([
             'unit_cost' => $data['unit_cost'],
@@ -202,28 +203,6 @@ class ProductController extends Controller
             ->get()->each(fn ($order) => $engine->evaluate($order));
 
         return back()->with('success', 'بهای تمام‌شده ثبت شد و سفارش‌های مسدود بازمحاسبه شدند.');
-    }
-
-    /**
-     * Every product needs a Cost Item to hang cost history off of, but users never
-     * pick or name one directly (that indirection confused more than it helped) —
-     * the first time a cost/wholesale price is registered for a product, silently
-     * create its own 1:1 Cost Item (multiplier 1) if it doesn't already have one.
-     */
-    private function resolveOrCreateMapping(ProductMirror $product): ProductCostMapping
-    {
-        if ($mapping = $product->costMapping) {
-            return $mapping;
-        }
-
-        $item = CostItem::create(['name' => $product->name, 'sku' => $product->sku]);
-
-        return ProductCostMapping::create([
-            'product_mirror_id' => $product->id,
-            'cost_item_id' => $item->id,
-            'multiplier' => 1,
-            'status' => 'mapped',
-        ]);
     }
 
     public function storeNote(Request $request, ProductMirror $product): RedirectResponse

@@ -89,7 +89,13 @@ Route::middleware(['auth'])->group(function () {
         Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])->name('suppliers.show');
 
         Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
+        Route::get('new-buy-order/create', [PurchaseInvoiceController::class, 'create'])->name('purchases.create');
         Route::post('new-buy-order', [PurchaseInvoiceController::class, 'store'])->name('purchases.store');
+        Route::get('new-buy-order/items/search', [PurchaseInvoiceController::class, 'searchItems'])->name('purchases.items.search');
+        Route::get('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
+        Route::get('new-buy-order/{invoice}/edit', [PurchaseInvoiceController::class, 'edit'])->name('purchases.edit');
+        Route::put('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'update'])->name('purchases.update');
+        Route::post('new-buy-order/{invoice}/finalize', [PurchaseInvoiceController::class, 'finalize'])->name('purchases.finalize');
 
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');

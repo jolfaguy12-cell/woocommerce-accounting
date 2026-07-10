@@ -2,6 +2,7 @@
 
 namespace App\Domain\Costing\Models;
 
+use App\Domain\Products\Models\ProductMirror;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,5 +26,10 @@ class PurchaseInvoiceLine extends Model
     public function costItem(): BelongsTo
     {
         return $this->belongsTo(CostItem::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(ProductMirror::class, 'product_mirror_id');
     }
 }

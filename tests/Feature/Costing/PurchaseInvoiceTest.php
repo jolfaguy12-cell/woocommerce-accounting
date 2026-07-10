@@ -4,6 +4,7 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostHistory;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
+use App\Domain\Products\Models\ProductMirror;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Support\Carbon;
 
@@ -88,4 +89,73 @@ it('supports partial delivery and marks the invoice partial', function () {
 
     expect($invoice->refresh()->status)->toBe('partial')
         ->and($invoice->lines->first()->received_qty)->toBe(4);
+});
+
+it('reallocates shipping across lines when a draft invoice is edited (no journal yet)', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'shipping_cost' => 0,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+
+    // Shipping cost is often only known a day or two later.
+    $service->update($invoice, ['shipping_cost' => 100_000]);
+
+    expect($invoice->refresh()->lines->first()->shipping_allocated)->toBe(100_000)
+        ->and($invoice->lines->first()->landed_unit_cost)->toBe(490_000)
+        ->and($invoice->journal_entry_id)->toBeNull(); // still draft, nothing posted yet
+});
+
+it('reverses and reposts the journal with a corrected total when an already-received invoice is edited', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'shipping_cost' => 0,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+    $service->receive($invoice, [$invoice->lines->first()->id => 10]);
+    $originalEntry = $invoice->refresh()->journalEntry;
+
+    expect($originalEntry->lines->sum('debit'))->toBe(4_800_000);
+
+    // Shipping cost arrives late and gets corrected after the invoice was fully received.
+    $service->update($invoice, ['shipping_cost' => 200_000]);
+    $invoice->refresh();
+
+    expect($originalEntry->refresh()->status)->toBe('reversed')
+        ->and($invoice->journal_entry_id)->not->toBe($originalEntry->id)
+        ->and($invoice->journalEntry->lines->sum('debit'))->toBe(5_000_000)
+        ->and($invoice->lines->first()->landed_unit_cost)->toBe(500_000)
+        // Non-destructive correction: an extra cost_history row for the new landed cost,
+        // the original manual-receipt row is untouched.
+        ->and(CostHistory::where('cost_item_id', $this->spray->id)->count())->toBe(2)
+        ->and(CostHistory::where('cost_item_id', $this->spray->id)->latest('id')->first()->landed_unit_cost)->toBe(500_000);
+});
+
+it('cascades landed cost to every variation when a line is purchased against a variable parent product', function () {
+    $parent = ProductMirror::create(['hub_product_id' => 9001, 'type' => 'variable', 'name' => 'کفش مدل X', 'payload' => []]);
+    $variantA = ProductMirror::create(['hub_product_id' => 9002, 'parent_hub_id' => 9001, 'type' => 'variation', 'name' => 'کفش مدل X - سایز 40', 'payload' => []]);
+    $variantB = ProductMirror::create(['hub_product_id' => 9003, 'parent_hub_id' => 9001, 'type' => 'variation', 'name' => 'کفش مدل X - سایز 41', 'payload' => []]);
+
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'shipping_cost' => 0,
+        'lines' => [['cost_item_id' => $this->spray->id, 'product_mirror_id' => $parent->id, 'qty' => 5, 'unit_price' => 300_000]],
+    ]);
+    $service->receive($invoice, [$invoice->lines->first()->id => 5]);
+
+    foreach ([$variantA, $variantB] as $variant) {
+        $mapping = $variant->fresh()->costMapping;
+        expect($mapping)->not->toBeNull()
+            ->and($mapping->costItem->latestCost()->landed_unit_cost)->toBe(300_000);
+    }
+
+    // The invoice total/journal must only reflect what was actually purchased —
+    // no extra qty or payable was invented for the variations.
+    expect($invoice->journalEntry->lines->sum('debit'))->toBe(1_500_000);
 });

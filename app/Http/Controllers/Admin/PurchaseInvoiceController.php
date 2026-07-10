@@ -6,73 +6,64 @@ use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Services\ProductMappingResolver;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Expenses\Models\Attachment;
+use App\Domain\Products\Models\ProductMirror;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class PurchaseInvoiceController extends Controller
 {
-    public function index(): View
+    private const STATUS_LABELS = ['draft' => 'پیش‌نویس', 'partial' => 'دریافت جزئی', 'received' => 'دریافت‌شده', 'cancelled' => 'لغوشده'];
+
+    public function index(Request $request): View
     {
         $invoices = PurchaseInvoice::with(['supplier', 'lines', 'attachments'])
+            ->when($request->filled('q'), fn ($q) => $q->whereHas('supplier', fn ($s) => $s->where('name', 'like', '%'.$request->string('q').'%'))
+                ->orWhere('invoice_no', 'like', '%'.$request->string('q').'%'))
             ->orderByDesc('invoice_date')->orderByDesc('id')
-            ->paginate(25);
+            ->paginate(25)->withQueryString();
 
         return view('pages.purchases.index', [
             'title' => 'ثبت خرید',
             'invoices' => $invoices,
+            'filters' => $request->only('q'),
+            'statusLabels' => self::STATUS_LABELS,
+        ]);
+    }
+
+    public function create(): View
+    {
+        return view('pages.purchases.create', [
+            'title' => 'خرید جدید',
             'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
-            'costItems' => CostItem::where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']),
         ]);
     }
 
     /**
-     * Records a purchase as fully received right away (no separate receiving step
-     * yet), posting its journal entry immediately. This is the ONLY place real
-     * purchase/accounting documents get created (see CLAUDE.md's Non-Negotiable
-     * Rules) — every field here (qty, unit price, shipping, landed cost) feeds
-     * both the ledger and month-over-month purchasing reports, so keep totals
-     * accurate rather than approximate.
+     * Records a purchase invoice. "ذخیره پیش‌نویس" leaves it as a draft (no
+     * journal, no cost history yet — useful when the shipping cost isn't
+     * known yet). "ثبت نهایی" additionally receives it in full immediately,
+     * which is the only place real purchase/accounting documents get created
+     * (see CLAUDE.md's Non-Negotiable Rules).
      */
-    public function store(Request $request, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    public function store(Request $request, PurchaseInvoiceService $purchaseInvoices, ProductMappingResolver $resolver): RedirectResponse
     {
-        // The "+ تامین‌کننده جدید" option submits this sentinel instead of a real id;
-        // new_supplier_name (not this field) is what actually drives creating it below.
         if ($request->input('supplier_party_id') === '__new__') {
             $request->merge(['supplier_party_id' => null]);
         }
 
-        $data = $request->validate([
-            'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
-            'new_supplier_name' => 'nullable|string|max:150|required_without:supplier_party_id',
-            'invoice_no' => 'nullable|string|max:100',
-            'invoice_date' => 'nullable|date',
-            'shipping_cost' => 'nullable|integer|min:0',
-            'image' => 'nullable|image|max:10240',
-            'lines' => 'required|array|min:1',
-            'lines.*.cost_item_id' => 'nullable|exists:cost_items,id',
-            'lines.*.new_item_name' => 'nullable|string|max:150|required_without:lines.*.cost_item_id',
-            'lines.*.qty' => 'required|integer|min:1',
-            'lines.*.unit_price' => 'required|integer|min:1',
-            'lines.*.note' => 'nullable|string|max:255',
-        ]);
+        $data = $this->validateInvoice($request);
 
         $supplierId = $data['supplier_party_id']
             ?? Party::create(['type' => 'supplier', 'name' => $data['new_supplier_name']])->id;
 
-        // Each line names either an existing Cost Item or a brand-new one (typed
-        // by hand right here) — resolve the new ones to real ids before handing
-        // lines off to the service, which only ever deals in cost_item_id.
-        $lines = collect($data['lines'])->map(function ($line) {
-            $line['cost_item_id'] ??= CostItem::create(['name' => $line['new_item_name']])->id;
-            unset($line['new_item_name']);
-
-            return $line;
-        })->all();
+        $lines = $this->resolveLines($data['lines'], $resolver);
 
         try {
             $invoice = $purchaseInvoices->create([
@@ -84,25 +75,176 @@ class PurchaseInvoiceController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
+            if ($request->input('action') === 'finalize') {
+                $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
+            }
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
+        }
+
+        $this->storeAttachment($request, $invoice);
+
+        $message = $request->input('action') === 'finalize'
+            ? 'فاکتور خرید ثبت، دریافت و سند حسابداری آن صادر شد.'
+            : 'فاکتور خرید به‌صورت پیش‌نویس ذخیره شد.';
+
+        return redirect()->route('purchases.show', $invoice)->with('success', $message);
+    }
+
+    public function show(PurchaseInvoice $invoice): View
+    {
+        $invoice->load(['supplier', 'lines.costItem', 'lines.product', 'attachments', 'journalEntry']);
+
+        return view('pages.purchases.show', [
+            'title' => 'فاکتور خرید #'.$invoice->id,
+            'invoice' => $invoice,
+            'statusLabels' => self::STATUS_LABELS,
+        ]);
+    }
+
+    public function edit(PurchaseInvoice $invoice): View
+    {
+        $invoice->load(['supplier', 'lines.costItem', 'lines.product']);
+
+        return view('pages.purchases.edit', [
+            'title' => 'ویرایش فاکتور خرید #'.$invoice->id,
+            'invoice' => $invoice,
+            'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
+        ]);
+    }
+
+    /**
+     * Edits header fields + existing line prices/notes, reallocating shipping
+     * across every line (see PurchaseInvoiceService::update()'s docblock for
+     * why — shipping is often only known a day or two after the goods went
+     * out, and correcting it after the invoice was already received reverses
+     * the old journal entry and posts a corrected one rather than a silent edit).
+     */
+    public function update(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices, ProductMappingResolver $resolver): RedirectResponse
+    {
+        $data = $request->validate([
+            'invoice_no' => 'nullable|string|max:100',
+            'invoice_date' => 'nullable|date',
+            'shipping_cost' => 'nullable|integer|min:0',
+            'image' => 'nullable|image|max:10240',
+            'lines' => 'nullable|array',
+            'lines.*.id' => 'nullable|exists:purchase_invoice_lines,id',
+            'lines.*.cost_item_id' => 'nullable|exists:cost_items,id',
+            'lines.*.new_item_name' => 'nullable|string|max:150',
+            'lines.*.qty' => 'nullable|integer|min:1',
+            'lines.*.unit_price' => 'nullable|integer|min:1',
+            'lines.*.note' => 'nullable|string|max:255',
+        ]);
+
+        $lines = isset($data['lines']) ? $this->resolveLines($data['lines'], $resolver) : [];
+
+        try {
+            $purchaseInvoices->update($invoice, [
+                'invoice_no' => $data['invoice_no'] ?? null,
+                'invoice_date' => $data['invoice_date'] ?? null,
+                'shipping_cost' => $data['shipping_cost'] ?? null,
+                'lines' => $lines,
+            ], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
+        }
+
+        $this->storeAttachment($request, $invoice);
+
+        return redirect()->route('purchases.show', $invoice)->with('success', 'فاکتور خرید به‌روزرسانی شد.');
+    }
+
+    /** Receives a draft/partial invoice in full, posting its journal entry for the first time. */
+    public function finalize(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    {
+        try {
             $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
         } catch (PeriodLockedException) {
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.']);
         }
 
-        if ($request->hasFile('image')) {
-            $file = $request->file('image');
+        return redirect()->route('purchases.show', $invoice)->with('success', 'فاکتور خرید دریافت و سند حسابداری آن صادر شد.');
+    }
 
-            Attachment::create([
-                'attachable_type' => 'purchase_invoice',
-                'attachable_id' => $invoice->id,
-                'path' => $file->store('attachments', 'local'),
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'size' => $file->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
+    /**
+     * The one approved fetch/AJAX exception in this app (see CLAUDE.md) — a
+     * live combobox for picking which product a purchase line is for. Every
+     * other page stays full-reload/no-fetch.
+     */
+    public function searchItems(Request $request): JsonResponse
+    {
+        $q = $request->string('q');
+
+        $products = ProductMirror::whereIn('type', ['simple', 'variable', 'variation'])
+            ->where(fn ($w) => $w->where('name', 'like', "%{$q}%")->orWhere('sku', 'like', "%{$q}%"))
+            ->orderBy('name')->limit(20)
+            ->get(['id', 'name', 'sku', 'type']);
+
+        return response()->json($products);
+    }
+
+    private function validateInvoice(Request $request): array
+    {
+        return $request->validate([
+            'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
+            'new_supplier_name' => 'nullable|string|max:150|required_without:supplier_party_id',
+            'invoice_no' => 'nullable|string|max:100',
+            'invoice_date' => 'nullable|date',
+            'shipping_cost' => 'nullable|integer|min:0',
+            'image' => 'nullable|image|max:10240',
+            'lines' => 'required|array|min:1',
+            'lines.*.product_mirror_id' => 'nullable|exists:product_mirror,id',
+            'lines.*.cost_item_id' => 'nullable|exists:cost_items,id',
+            'lines.*.new_item_name' => 'nullable|string|max:150',
+            'lines.*.qty' => 'required|integer|min:1',
+            'lines.*.unit_price' => 'required|integer|min:1',
+            'lines.*.note' => 'nullable|string|max:255',
+        ]);
+    }
+
+    /**
+     * Each NEW line (no 'id' — an existing line being edited already has one
+     * and never changes which item it's for) names its item one of three
+     * ways: an existing product (from the search combobox — auto-mapped to
+     * its own Cost Item if it doesn't have one), an existing bare Cost Item,
+     * or a brand-new Cost Item typed by hand (for things with no catalog
+     * product, e.g. packaging).
+     */
+    private function resolveLines(array $lines, ProductMappingResolver $resolver): array
+    {
+        return collect($lines)->map(function ($line) use ($resolver) {
+            if (! empty($line['id'])) {
+                return $line;
+            }
+
+            if (! empty($line['product_mirror_id'])) {
+                $product = ProductMirror::findOrFail($line['product_mirror_id']);
+                $line['cost_item_id'] = $resolver->resolveOrCreate($product)->cost_item_id;
+            } elseif (empty($line['cost_item_id'])) {
+                $line['cost_item_id'] = CostItem::create(['name' => $line['new_item_name']])->id;
+            }
+            unset($line['new_item_name']);
+
+            return $line;
+        })->all();
+    }
+
+    private function storeAttachment(Request $request, PurchaseInvoice $invoice): void
+    {
+        if (! $request->hasFile('image')) {
+            return;
         }
 
-        return back()->with('success', 'فاکتور خرید ثبت، دریافت و سند حسابداری آن صادر شد.');
+        $file = $request->file('image');
+
+        Attachment::create([
+            'attachable_type' => 'purchase_invoice',
+            'attachable_id' => $invoice->id,
+            'path' => $file->store('attachments', 'local'),
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'uploaded_by' => $request->user()->id,
+        ]);
     }
 }

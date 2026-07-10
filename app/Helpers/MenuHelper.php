@@ -69,7 +69,7 @@ class MenuHelper
                 'name' => 'امور خرید کالا',
                 'icon' => 'purchase-cart',
                 'subItems' => [
-                    ['name' => 'ثبت خرید', 'path' => '/new-buy-order', 'pro' => false],
+                    ['name' => 'ثبت خرید', 'path' => '/new-buy-order/create', 'pro' => false],
                     ['name' => 'مشاهده خرید ها', 'path' => '/new-buy-order', 'pro' => false],
                     ['name' => 'مدیریت تامین‌کننده‌ها', 'path' => '/suppliers', 'pro' => false],
                 ],
