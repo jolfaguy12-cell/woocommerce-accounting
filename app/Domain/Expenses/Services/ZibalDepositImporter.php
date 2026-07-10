@@ -52,6 +52,7 @@ class ZibalDepositImporter
             $newCount = 0;
             $duplicateCount = 0;
             $newBankAccountsCount = 0;
+            $dateParseFailedCount = 0;
 
             foreach ($rows as $row) {
                 $reference = trim((string) $row['شناسه مرجع تراکنش']);
@@ -65,12 +66,22 @@ class ZibalDepositImporter
                     continue;
                 }
 
+                // A row whose deposit date we can't parse must never be guessed
+                // (e.g. defaulted to "now") — that would silently corrupt a real
+                // ledger date. Skip it and surface the count instead.
+                $depositedAt = $this->parseJalaliDateTime($row['تاریخ واریز'] ?? null);
+                if (! $depositedAt) {
+                    $dateParseFailedCount++;
+
+                    continue;
+                }
+
                 [$bankAccount, $wasCreated] = $this->resolveBankAccount($row);
                 if ($wasCreated) {
                     $newBankAccountsCount++;
                 }
 
-                $deposit = $this->createDeposit($import, $row, $reference, $bankAccount);
+                $deposit = $this->createDeposit($import, $row, $reference, $bankAccount, $depositedAt);
 
                 if ($deposit->status === self::SUCCESS_STATUS) {
                     $this->postJournal($deposit, $bankAccount);
@@ -90,6 +101,7 @@ class ZibalDepositImporter
                 'new_count' => $newCount,
                 'duplicate_count' => $duplicateCount,
                 'new_bank_accounts_count' => $newBankAccountsCount,
+                'date_parse_failed_count' => $dateParseFailedCount,
             ]);
 
             return $import->fresh();
@@ -139,10 +151,8 @@ class ZibalDepositImporter
         return [$created, true];
     }
 
-    private function createDeposit(BankDepositImport $import, array $row, string $reference, BankAccount $bankAccount): BankDeposit
+    private function createDeposit(BankDepositImport $import, array $row, string $reference, BankAccount $bankAccount, Carbon $depositedAt): BankDeposit
     {
-        $depositedAt = $this->parseJalaliDateTime($row['تاریخ واریز'] ?? null) ?? now(JalaliPeriod::TIMEZONE);
-
         return BankDeposit::create([
             'import_id' => $import->id,
             'source' => self::SOURCE,
@@ -199,7 +209,7 @@ class ZibalDepositImporter
         }
 
         try {
-            return Jalalian::fromFormat('Y/m/d-H:i:s', trim($raw))->toCarbon()->setTimezone(JalaliPeriod::TIMEZONE);
+            return Carbon::instance(Jalalian::fromFormat('Y/m/d-H:i:s', trim($raw))->toCarbon())->setTimezone(JalaliPeriod::TIMEZONE);
         } catch (\Throwable) {
             return null;
         }

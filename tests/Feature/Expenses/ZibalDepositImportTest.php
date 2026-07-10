@@ -54,6 +54,10 @@ it('imports successful rows as balanced journal entries against a matched bank a
     $deposit = BankDeposit::firstWhere('external_reference', '05041341100000001692265308266');
     expect($deposit)->not->toBeNull()
         ->and($deposit->amount_toman)->toBe(460874) // 4,608,740 Rial / 10
+        // Regression guard: deposited_at must come from the sheet's own
+        // "تاریخ واریز" (Jalali 1405/04/13 09:45 -> Gregorian 2026-07-04),
+        // never silently default to "now" (see date-parsing bug fixed 2026-07-10).
+        ->and($deposit->deposited_at->toDateTimeString())->toBe('2026-07-04 09:45:00')
         ->and($deposit->bank_account_id)->toBe($bank->id)
         ->and($deposit->isPosted())->toBeTrue();
 
@@ -111,6 +115,21 @@ it('records non-successful rows without posting a journal entry', function () {
     $deposit = BankDeposit::firstWhere('external_reference', 'ref-failed-1');
     expect($deposit)->not->toBeNull()
         ->and($deposit->isPosted())->toBeFalse();
+});
+
+it('never guesses a deposit date when the source date cannot be parsed', function () {
+    app(BankAccountManager::class)->create([
+        'name' => 'بانک مهر ایران',
+        'iban' => 'IR390600520870014443024001',
+    ]);
+
+    $row = [500000, 'به‌پرداخت ملت', 'موفق', '1405/04/13-00:23:11', 'not-a-date', 'IR390600520870014443024001', 'لطيفه خليلي', 'ref-bad-date', null, 0, null, null];
+
+    $import = app(ZibalDepositImporter::class)->import(makeZibalExportFile([$row]), $this->admin);
+
+    expect($import->new_count)->toBe(0)
+        ->and($import->date_parse_failed_count)->toBe(1)
+        ->and(BankDeposit::where('external_reference', 'ref-bad-date')->exists())->toBeFalse();
 });
 
 it('forbids non admin/accountant roles from importing deposits', function () {

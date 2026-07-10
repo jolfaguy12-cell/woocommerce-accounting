@@ -64,11 +64,17 @@ class BankDepositController extends Controller
 
         $import = $importer->import($request->file('file'), $request->user());
 
-        return redirect()->route('deposits.index')->with('success', sprintf(
+        $message = sprintf(
             'ایمپورت انجام شد: %d ردیف جدید، %d تکراری (نادیده گرفته شد)، %d حساب بانکی جدید شناسایی شد.',
             $import->new_count,
             $import->duplicate_count,
             $import->new_bank_accounts_count,
-        ));
+        );
+
+        if ($import->date_parse_failed_count > 0) {
+            $message .= sprintf(' توجه: تاریخ واریز %d ردیف قابل تشخیص نبود و آن ردیف‌ها ایمپورت نشدند — لطفاً فایل را بررسی کنید.', $import->date_parse_failed_count);
+        }
+
+        return redirect()->route('deposits.index')->with($import->date_parse_failed_count > 0 ? 'warning' : 'success', $message);
     }
 }
