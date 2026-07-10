@@ -132,6 +132,21 @@ it('never guesses a deposit date when the source date cannot be parsed', functio
         ->and(BankDeposit::where('external_reference', 'ref-bad-date')->exists())->toBeFalse();
 });
 
+it('renders the deposits list page for an admin, with and without filters', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک مهر ایران', 'iban' => 'IR390600520870014443024001']);
+    app(ZibalDepositImporter::class)->import(makeZibalExportFile([
+        [4608740, 'پرداخت‌الکترونیک سامان کیش', 'موفق', '1405/04/13-00:23:11', '1405/04/13-09:45:00', 'IR390600520870014443024001', 'لطيفه خليلي', 'ref-render-1', null, 0, null, null],
+    ]), $this->admin);
+
+    $this->actingAs($this->admin)->get('/bank-accounts/deposits')
+        ->assertOk()
+        ->assertSee('ref-render-1', false);
+
+    $this->actingAs($this->admin)->get('/bank-accounts/deposits?'.http_build_query(['bank_account_id' => $bank->id, 'status' => 'موفق']))
+        ->assertOk()
+        ->assertSee('ref-render-1', false);
+});
+
 it('forbids non admin/accountant roles from importing deposits', function () {
     $warehouse = User::factory()->create()->assignRole('warehouse');
 
