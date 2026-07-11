@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AlertController;
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\BankDepositController;
+use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
@@ -85,6 +86,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('products/{product}/quick-cost', [ProductController::class, 'storeQuickCost'])->name('products.quick-cost');
         Route::post('products/{product}/notes', [ProductController::class, 'storeNote'])->name('products.notes');
         Route::post('products/{product}/sync', [ProductController::class, 'syncFromHub'])->name('products.sync');
+
+        // Customer management surfaces per-customer profit/purchase volume — sensitive, admin/accountant only.
+        Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('customers/{party}', [CustomerController::class, 'show'])->name('customers.show');
+        Route::post('customers/{party}/wholesale', [CustomerController::class, 'setWholesale'])->name('customers.wholesale');
 
         Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
         Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');

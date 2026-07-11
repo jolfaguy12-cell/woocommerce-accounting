@@ -13,9 +13,24 @@
                     @foreach ($headers as $header)
                         {{-- Headers may be a plain string (always shown) or ['key' => ..., 'label' => ...]
                              so a page can drive column visibility from an Alpine `visible` object
-                             defined on an ancestor element (see orders/index.blade.php). --}}
-                        <th @if (is_array($header)) x-show="visible['{{ $header['key'] }}']" @endif class="px-5 py-3 text-right sm:px-6">
-                            <p class="font-medium text-gray-500 text-theme-xs dark:text-gray-400">{{ is_array($header) ? $header['label'] : $header }}</p>
+                             defined on an ancestor element (see orders/index.blade.php). A header can
+                             also carry 'sort_url' (+ optional 'sort_dir': 'asc'|'desc'|null) to render
+                             as a sortable link with a direction arrow — see customers/index.blade.php. --}}
+                        <th @if (is_array($header)) x-show="visible['{{ $header['key'] }}']" @endif class="px-5 py-3 text-right sm:px-6 {{ (is_array($header) && ($header['align'] ?? null) === 'center') ? 'text-center' : '' }}">
+                            @if (is_array($header) && isset($header['sort_url']))
+                                <a href="{{ $header['sort_url'] }}" class="inline-flex items-center gap-1 font-medium text-gray-500 text-theme-xs hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                    {{ $header['label'] }}
+                                    @if (($header['sort_dir'] ?? null) === 'asc')
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15l5-5 5 5"/></svg>
+                                    @elseif (($header['sort_dir'] ?? null) === 'desc')
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9l5 5 5-5"/></svg>
+                                    @else
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-40"><path d="M7 10l5-5 5 5M7 14l5 5 5-5"/></svg>
+                                    @endif
+                                </a>
+                            @else
+                                <p class="font-medium text-gray-500 text-theme-xs dark:text-gray-400">{{ is_array($header) ? $header['label'] : $header }}</p>
+                            @endif
                         </th>
                     @endforeach
                 </tr>

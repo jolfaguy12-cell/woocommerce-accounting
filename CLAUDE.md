@@ -4,10 +4,14 @@ Internal WooCommerce accounting/reporting system (not tax accounting). The full 
 
 ## Stack & Commands
 
-- Laravel 12 + Inertia/React (shadcn, Vite), MySQL 8 (`woocommerce_accounting`), Pest, Pint. Domain code lives in `app/Domain/{Accounting,Orders,Channels,Costing,Products,Receivables,Expenses,Reports,Sync}`.
+- Laravel 12, MySQL 8 (`woocommerce_accounting`), Pest, Pint. Domain code lives in `app/Domain/{Accounting,Orders,Channels,Costing,Products,Receivables,Expenses,Reports,Sync}`.
+- **Frontend is mid-migration, off Inertia/React onto Blade + Alpine.js** (the pre-installed TailAdmin template, `resources/views/**`). Interactivity is plain GET/POST forms with full page reloads — no fetch/AJAX, Alpine only for cosmetic client-side bits (dropdowns, modals, column toggles). **Never build a new page in React** (`resources/js/pages/**`); it's being phased out page by page. Migrated to Blade: dashboard shell, orders, products, tools, settings, warehouse (packaging cost), notifications (notes). Still Inertia/React (do not extend, only migrate): review, fast-forms, reports, users. Staged plan: `/root/.claude/plans/glistening-giggling-kernighan.md`.
+- **Data tables** (orders, products, invoices, any list view): always follow the shadcn/ui Data Table pattern, built with Blade + Alpine (never the React component) — rounded bordered card, search input + status-filter dropdown + column-visibility dropdown in the toolbar, sortable column headers with arrow icons, checkbox row selection (with header indeterminate state), status badges (dot + label, semantic color), per-row ⋮ action menu, footer with "N of M rows selected" + pagination. RTL, IRANSansX font, Persian digits. ID and amount columns are center-aligned (not left/right) to keep header and values lined up. The ⋮ row-action menu must open toward the reading direction it has room in (not off the edge of the viewport/table) — verify this per table layout rather than copying a fixed side. Approved by user 2026-07-11; reference implementation: `https://claude.ai/code/artifact/b3db793e-bd90-4ce7-a9f0-d868cee16ad1`.
 - Money is integer Toman (BIGINT); all journal writes go through `App\Domain\Accounting\Services\JournalPoster` (balanced, idempotent, period-lock aware — never insert journal rows directly).
+- Roles (Spatie permission): `admin`, `accountant`, `warehouse`, `partner_viewer`. Convention in `routes/web.php`: reads open to `admin|accountant|warehouse`; financial mutations (shipping/packaging cost, recalc, cost/wholesale mapping) `admin|accountant` only; users/tools/settings/warehouse-config `admin` only; reports readable by `admin|accountant|partner_viewer`, finalize `admin` only.
 - Test: `./vendor/bin/pest` · Lint: `./vendor/bin/pint --dirty` · Frontend: `npm run build` (dev: `composer dev`). Tests must stay green before moving on (TDD).
-- Implementation plan/milestones: `/root/.claude/plans/please-enter-plan-mode-cozy-bonbon.md`.
+- Original build plan/milestones: `/root/.claude/plans/please-enter-plan-mode-cozy-bonbon.md`.
+- Known gap: `DashboardController` has real KPI/trend logic, but the `/dashboard` route currently renders a static Blade view instead of calling it — reconnecting it is pending, not yet scheduled.
 - This server hosts many other services. Before binding ANY port (artisan serve, Vite, queues, docker), check it is free (`ss -tlnp | grep <port>`) and never reuse a port already in use.
 
 ## Data Sources
@@ -24,6 +28,7 @@ Internal WooCommerce accounting/reporting system (not tax accounting). The full 
 - Sensitive financial data (purchase cost, profit, margins, payroll, banks, loans, cheques, partner reports) must never leak via public APIs, webhooks, logs, exports, or WooCommerce. General logs must not contain sensitive values — use protected audit logs.
 - Missing purchase cost or missing Cost Mapping is never treated as zero — such orders go to review queues.
 - Every financial number must be explainable, traceable, and auditable. Use reversal/voiding and adjustments, never silent edits or deletion.
+- Product-page cost/wholesale entry (`ProductController::storeCost`/`setWholesale`) is profit-discovery data only — it feeds `CostResolver`/`ProfitEngine` so order profit/loss can be computed, and must never create a `Party`, `PurchaseInvoice`, or `JournalEntry`. Real purchases (a real supplier, a real accounts-payable entry) are recorded exclusively through `/new-buy-order` (`PurchaseInvoiceController` + `PurchaseInvoiceService`). Don't blur this boundary again.
 
 ## Architecture Principles
 

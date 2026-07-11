@@ -28,6 +28,13 @@ class MenuHelper
                 'path' => '/products',
             ],
             [
+                'icon' => 'user-profile',
+                'name' => 'کاربران',
+                'subItems' => [
+                    ['name' => 'مدیریت مشتریان', 'path' => '/customers'],
+                ],
+            ],
+            [
                 'icon' => 'warehouse',
                 'name' => 'انبار',
                 'subItems' => [
