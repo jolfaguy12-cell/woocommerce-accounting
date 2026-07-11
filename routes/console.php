@@ -17,3 +17,8 @@ Schedule::command('acc:sync:backfill-products')->dailyAt('04:00')->withoutOverla
 // (product_mirror_id is resolved once, not retroactively) — catch up nightly
 // after the product backfill above has had a chance to fill the gap.
 Schedule::command('acc:sync:relink-order-items')->dailyAt('04:30')->withoutOverlapping();
+
+// Exact on-hand stock units + their sell-price value across every product —
+// too expensive to recompute on every dashboard refresh (dashboard/reports
+// just read the latest snapshot instead, see InventorySnapshotService).
+Schedule::command('acc:products:snapshot-inventory')->everyFourHours()->withoutOverlapping();

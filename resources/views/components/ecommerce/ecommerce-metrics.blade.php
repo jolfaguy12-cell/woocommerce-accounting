@@ -78,7 +78,7 @@
     </div>
   </div>
 
-  {{-- 3. کالاهای موجود در انبار --}}
+  {{-- 3. محصول موجود در انبار (تعداد محصولات یکتا با موجودی مثبت) --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-light-50 dark:bg-blue-light-500/15">
       <svg class="stroke-blue-light-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -90,8 +90,8 @@
 
     <div class="flex items-end justify-between mt-5">
       <div>
-        <span class="text-sm text-gray-500 dark:text-gray-400">کالاهای موجود در انبار</span>
-        <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{{ number_format($kpis['stock_count'] ?? 0) }} قلم</h4>
+        <span class="text-sm text-gray-500 dark:text-gray-400">محصول موجود در انبار</span>
+        <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{{ number_format($kpis['stock_count'] ?? 0) }} محصول</h4>
       </div>
 
       <span class="flex items-center gap-1 rounded-full py-0.5 pr-2 pl-2.5 text-sm font-medium {{ $stockTrend['classes'] }}">
@@ -103,8 +103,29 @@
     </div>
   </div>
 
-  {{-- 4. ارزش انبار سایت --}}
-  {{-- TODO(backend): SUM(stock_quantity × latest_landed_cost) از CostResolver برای همه محصولات --}}
+  {{-- 4. کالاهای موجود در انبار (مجموع دقیق واحدهای فیزیکی، شامل تنوع‌ها) — هر چند ساعت یک‌بار محاسبه می‌شود، نه با هر رفرش --}}
+  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+    <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-teal-50 dark:bg-teal-500/15">
+      <svg class="stroke-teal-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="7" width="18" height="13" rx="1.5" />
+        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      </svg>
+    </div>
+
+    <div class="flex items-end justify-between mt-5">
+      <div>
+        <span class="text-sm text-gray-500 dark:text-gray-400">کالاهای موجود در انبار</span>
+        <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
+          {{ $kpis['inventory_units'] !== null ? number_format($kpis['inventory_units']).' عدد' : '—' }}
+        </h4>
+      </div>
+    </div>
+    <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+      {{ $kpis['inventory_computed_at'] ? 'به‌روزرسانی '.\App\Domain\Accounting\Support\JalaliPeriod::humanDiff($kpis['inventory_computed_at']) : 'هنوز محاسبه نشده' }}
+    </p>
+  </div>
+
+  {{-- 5. ارزش انبار سایت (بر مبنای قیمت فروش، نه بهای تمام‌شده) — همراه با کارت قبل محاسبه می‌شود --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800">
       <svg class="stroke-gray-500 dark:stroke-gray-300" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -115,20 +136,18 @@
 
     <div class="flex items-end justify-between mt-5">
       <div>
-        <span class="text-sm text-gray-500 dark:text-gray-400">ارزش انبار سایت</span>
-        <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">۱,۸۶۰,۰۰۰,۰۰۰ تومان</h4>
+        <span class="text-sm text-gray-500 dark:text-gray-400">ارزش انبار سایت (به قیمت فروش)</span>
+        <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90" dir="ltr">
+          {{ $kpis['inventory_value'] !== null ? number_format($kpis['inventory_value']).' تومان' : '—' }}
+        </h4>
       </div>
-
-      <span class="flex items-center gap-1 rounded-full bg-success-50 py-0.5 pr-2 pl-2.5 text-sm font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">
-        <svg class="fill-current" width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M5.56462 1.62393C5.70193 1.47072 5.90135 1.37432 6.12329 1.37432C6.1236 1.37432 6.12391 1.37432 6.12422 1.37432C6.31631 1.37415 6.50845 1.44731 6.65505 1.59381L9.65514 4.5918C9.94814 4.88459 9.94831 5.35947 9.65552 5.65246C9.36273 5.94546 8.88785 5.94562 8.59486 5.65283L6.87329 3.93247L6.87329 10.125C6.87329 10.5392 6.53751 10.875 6.12329 10.875C5.70908 10.875 5.37329 10.5392 5.37329 10.125L5.37329 3.93578L3.65516 5.65282C3.36218 5.94562 2.8873 5.94547 2.5945 5.65248C2.3017 5.35949 2.30185 4.88462 2.59484 4.59182L5.56462 1.62393Z" fill="" />
-        </svg>
-        6.80%
-      </span>
     </div>
+    <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+      {{ $kpis['inventory_computed_at'] ? 'به‌روزرسانی '.\App\Domain\Accounting\Support\JalaliPeriod::humanDiff($kpis['inventory_computed_at']) : 'هنوز محاسبه نشده' }}
+    </p>
   </div>
 
-  {{-- 5. هزینه‌های ماه --}}
+  {{-- 6. هزینه‌های ماه --}}
   {{-- TODO(backend): SUM(Expense.amount) برای دوره جاری (jalali_period فعلی) --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-error-50 dark:bg-error-500/15">
@@ -153,7 +172,7 @@
     </div>
   </div>
 
-  {{-- 6. درآمد ماه --}}
+  {{-- 7. درآمد ماه --}}
   {{-- TODO(backend): جمع net_sale برای دوره جاری (همان fin.kpis.net_sales در DashboardController) --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-success-50 dark:bg-success-500/15">
@@ -178,7 +197,7 @@
     </div>
   </div>
 
-  {{-- 7. مانده حساب --}}
+  {{-- 8. مانده حساب --}}
   {{-- TODO(backend): جمع مانده حساب‌ها (fin.balances.banks_and_cash + receivables - payables ...) --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-500/15">
@@ -205,7 +224,7 @@
     </div>
   </div>
 
-  {{-- 8. درآمد روز --}}
+  {{-- 9. درآمد روز --}}
   {{-- TODO(backend): جمع net_sale سفارش‌های امروز (order_date = امروز به وقت تهران) --}}
   <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-warning-50 dark:bg-warning-500/15">

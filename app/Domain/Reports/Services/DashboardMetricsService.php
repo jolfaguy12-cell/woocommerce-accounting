@@ -122,7 +122,7 @@ class DashboardMetricsService
             'orders_count' => Order::where('jalali_period', $period)->whereIn('financial_state', self::VALID_STATES)->count(),
             'gross_sales' => (int) Order::where('jalali_period', $period)->whereIn('financial_state', self::VALID_STATES)->sum('total'),
             'stock_count' => ProductMirror::whereIn('type', ['simple', 'variation'])
-                ->where('status', '!=', 'trash')
+                ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 'trash'))
                 ->where('stock_quantity', '>', 0)
                 ->count(),
         ];

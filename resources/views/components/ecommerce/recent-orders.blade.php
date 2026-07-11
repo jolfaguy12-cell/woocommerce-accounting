@@ -43,7 +43,7 @@
                         <td class="py-3 whitespace-nowrap">
                             <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ $order['date'] }} - {{ $order['time'] }}</p>
                         </td>
-                        <td class="py-3 whitespace-nowrap">
+                        <td class="py-3 text-center whitespace-nowrap">
                             <p class="text-gray-500 text-theme-sm dark:text-gray-400" dir="ltr">{{ number_format($order['total']) }} تومان</p>
                         </td>
                         <td class="py-3 whitespace-nowrap">

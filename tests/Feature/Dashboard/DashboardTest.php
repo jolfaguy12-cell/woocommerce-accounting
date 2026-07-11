@@ -2,6 +2,8 @@
 
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
+use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Products\Services\InventorySnapshotService;
 use App\Models\User;
 use Database\Seeders\ChannelSeeder;
 use Database\Seeders\ChartOfAccountsSeeder;
@@ -41,6 +43,19 @@ it('hides sales/customer-growth figures from warehouse users but keeps stock and
         ->assertViewHas('kpis', fn ($kpis) => $kpis['new_customers'] === null
             && $kpis['gross_sales'] === null
             && $kpis['stock_count'] !== null);
+});
+
+it('shows the latest inventory snapshot on the dashboard, or "no data yet" before one has ever run', function () {
+    $admin = User::factory()->create()->assignRole('admin');
+
+    $this->actingAs($admin)->get('/dashboard')->assertOk()
+        ->assertViewHas('kpis', fn ($kpis) => $kpis['inventory_units'] === null && $kpis['inventory_value'] === null);
+
+    ProductMirror::create(['hub_product_id' => 51, 'type' => 'simple', 'name' => 'کالا', 'price' => 10_000, 'stock_quantity' => 4, 'payload' => []]);
+    app(InventorySnapshotService::class)->refresh();
+
+    $this->actingAs($admin)->get('/dashboard')->assertOk()
+        ->assertViewHas('kpis', fn ($kpis) => $kpis['inventory_units'] === 4 && $kpis['inventory_value'] === 40_000);
 });
 
 it('shows the 10 most recent orders on the dashboard, linking each to its real order page', function () {
