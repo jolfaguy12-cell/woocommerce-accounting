@@ -3,7 +3,7 @@
 @section('content')
 <x-common.page-breadcrumb pageTitle="حساب‌ها" />
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ visible: { name: true, bank_name: true, card_number: true, iban: true, balance: true, actions: true } }">
     @if (session('success'))
         <x-ui.alert variant="success" :message="session('success')" />
     @endif
@@ -15,26 +15,38 @@
     </div>
 
     <x-tables.data-table
-        :headers="['نام', 'نام بانک', 'شماره کارت', 'شماره شبا', 'موجودی فعلی']"
+        :headers="[
+            ['key' => 'name', 'label' => 'نام'],
+            ['key' => 'bank_name', 'label' => 'نام بانک', 'align' => 'center'],
+            ['key' => 'card_number', 'label' => 'شماره کارت', 'align' => 'center'],
+            ['key' => 'iban', 'label' => 'شماره شبا', 'align' => 'center'],
+            ['key' => 'balance', 'label' => 'موجودی فعلی', 'align' => 'center'],
+            ['key' => 'actions', 'label' => ''],
+        ]"
         :paginator="null"
         emptyMessage="هنوز حسابی ثبت نشده است"
     >
         @forelse ($accounts as $row)
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td class="p-3 sm:px-6">
+                <td x-show="visible.name" class="p-3 sm:px-6">
                     <a href="{{ route('bank-accounts.show', $row['model']) }}" class="text-brand-500 hover:underline">{{ $row['model']->name }}</a>
                     @if ($row['model']->is_cash)
                         <x-ui.badge color="light" size="sm">صندوق</x-ui.badge>
                     @endif
                 </td>
-                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ $row['model']->bank_name ?? '—' }}</td>
-                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->card_number ?? '—' }}</td>
-                <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->iban ?? '—' }}</td>
-                <td class="px-5 sm:px-6 font-medium {{ $row['balance'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">{{ number_format($row['balance']) }} تومان</td>
+                <td x-show="visible.bank_name" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300">{{ $row['model']->bank_name ?? '—' }}</td>
+                <td x-show="visible.card_number" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->card_number ?? '—' }}</td>
+                <td x-show="visible.iban" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->iban ?? '—' }}</td>
+                <td x-show="visible.balance" class="px-5 text-center sm:px-6 font-medium {{ $row['balance'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">{{ number_format($row['balance']) }} تومان</td>
+                <td x-show="visible.actions" class="px-5 text-center sm:px-6">
+                    <button type="button" onclick="editBankAccount({{ $row['model']->id }}, {{ \Illuminate\Support\Js::from($row['model']->name) }}, {{ \Illuminate\Support\Js::from($row['model']->bank_name) }}, {{ \Illuminate\Support\Js::from($row['model']->card_number) }}, {{ \Illuminate\Support\Js::from($row['model']->iban) }})" class="text-sm text-brand-500 hover:underline">
+                        ویرایش
+                    </button>
+                </td>
             </tr>
         @empty
             <tr>
-                <td colspan="5" class="px-5 py-8 text-center text-gray-500 dark:text-gray-400">هنوز حسابی ثبت نشده است</td>
+                <td colspan="6" class="px-5 py-8 text-center text-gray-500 dark:text-gray-400">هنوز حسابی ثبت نشده است</td>
             </tr>
         @endforelse
     </x-tables.data-table>
@@ -79,4 +91,51 @@
         </div>
     </form>
 </x-ui.modal>
+
+{{--
+    Single shared edit modal populated by editBankAccount() below, instead of
+    one modal per row — same pattern as warehouse/packaging-cost.blade.php.
+    is_cash isn't editable here since it decides the ledger account's parent
+    (1000 cash vs 1100 bank) and changing it after the fact is a structural
+    move, not a form edit.
+--}}
+<x-ui.modal x-data="{ open: false }" @open-edit-bank-account-modal.window="open = true" class="max-w-sm p-6">
+    <form method="POST" id="edit-bank-account-form">
+        @csrf
+        @method('PUT')
+        <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">ویرایش حساب</h4>
+
+        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">نام حساب</label>
+        <input type="text" id="edit-bank-account-name" name="name" required
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">نام بانک (اختیاری)</label>
+        <input type="text" id="edit-bank-account-bank-name" name="bank_name"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">شماره کارت (اختیاری)</label>
+        <input type="text" id="edit-bank-account-card-number" name="card_number" dir="ltr"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+
+        <label class="mb-1.5 mt-4 block text-sm font-medium text-gray-700 dark:text-gray-400">شماره شبا (اختیاری)</label>
+        <input type="text" id="edit-bank-account-iban" name="iban" dir="ltr"
+            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+
+        <div class="mt-5 flex justify-end gap-3">
+            <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+            <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ذخیره</button>
+        </div>
+    </form>
+</x-ui.modal>
+
+<script>
+    function editBankAccount(id, name, bankName, cardNumber, iban) {
+        document.getElementById('edit-bank-account-form').action = '{{ url('bank-accounts') }}/' + id;
+        document.getElementById('edit-bank-account-name').value = name ?? '';
+        document.getElementById('edit-bank-account-bank-name').value = bankName ?? '';
+        document.getElementById('edit-bank-account-card-number').value = cardNumber ?? '';
+        document.getElementById('edit-bank-account-iban').value = iban ?? '';
+        window.dispatchEvent(new CustomEvent('open-edit-bank-account-modal'));
+    }
+</script>
 @endsection

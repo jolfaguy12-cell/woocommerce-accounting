@@ -112,6 +112,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');
         Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
+        Route::put('bank-accounts/{bankAccount}', [BankAccountController::class, 'update'])->name('bank-accounts.update');
         Route::get('bank-accounts/deposits', [BankDepositController::class, 'index'])->name('deposits.index');
         Route::post('bank-accounts/deposits/import', [BankDepositController::class, 'import'])->name('deposits.import');
         Route::get('bank-accounts/{bankAccount}', [BankAccountController::class, 'show'])->name('bank-accounts.show');

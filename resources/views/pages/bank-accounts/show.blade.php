@@ -1,5 +1,16 @@
 @extends('layouts.app')
 
+@php
+    $columns = [
+        ['key' => 'date', 'label' => 'تاریخ'],
+        ['key' => 'description', 'label' => 'شرح'],
+        ['key' => 'party', 'label' => 'طرف حساب'],
+        ['key' => 'debit', 'label' => 'بدهکار (واریز)', 'align' => 'center'],
+        ['key' => 'credit', 'label' => 'بستانکار (برداشت)', 'align' => 'center'],
+        ['key' => 'balance_after', 'label' => 'مانده پس از تراکنش', 'align' => 'center'],
+    ];
+@endphp
+
 @section('content')
 <x-common.page-breadcrumb :pageTitle="$bankAccount->name" />
 
@@ -32,34 +43,35 @@
     </x-common.component-card>
 
     <x-common.component-card title="تراکنش‌های حساب">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                        <th class="py-2 text-right font-normal">تاریخ</th>
-                        <th class="text-right font-normal">شرح</th>
-                        <th class="text-right font-normal">طرف حساب</th>
-                        <th class="text-right font-normal">بدهکار</th>
-                        <th class="text-right font-normal">بستانکار</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($transactions as $line)
-                        <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <td class="py-2 text-gray-800 dark:text-white/90" dir="ltr">{{ \Morilog\Jalali\Jalalian::fromCarbon($line->entry->entry_date)->format('Y/m/d') }}</td>
-                            <td class="text-gray-800 dark:text-white/90">{{ $line->entry->description }}</td>
-                            <td class="text-gray-600 dark:text-gray-300">{{ $line->party->name ?? '—' }}</td>
-                            <td class="text-success-600 dark:text-success-400" dir="ltr">{{ $line->debit > 0 ? number_format($line->debit) : '—' }}</td>
-                            <td class="text-error-500" dir="ltr">{{ $line->credit > 0 ? number_format($line->credit) : '—' }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="py-6 text-center text-gray-400">هنوز تراکنشی برای این حساب ثبت نشده است.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <x-tables.pro-table
+            :columns="$columns"
+            :paginator="$transactions"
+            empty-message="تراکنشی برای این حساب یافت نشد"
+            search-value="{{ $filters['search'] ?? '' }}"
+            search-placeholder="جستجوی شرح یا طرف حساب"
+            with-date-range
+            date-from-value="{{ $filters['date_from'] ?? null }}"
+            date-to-value="{{ $filters['date_to'] ?? null }}"
+            :clear-filters-route="array_filter($filters) ? route('bank-accounts.show', $bankAccount) : null"
+            storage-key="bankAccounts.show.visibleColumns"
+        >
+            @foreach ($transactions as $line)
+                <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                    <td x-show="visible.date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($line->entry->entry_date) }}</td>
+                    <td x-show="visible.description" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">{{ $line->entry->description }}</td>
+                    <td x-show="visible.party" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">
+                        @if ($line->party?->type === 'customer')
+                            <a href="{{ route('customers.show', $line->party) }}" class="font-medium text-brand-500 hover:underline">{{ $line->party->name }}</a>
+                        @else
+                            {{ $line->party->name ?? '—' }}
+                        @endif
+                    </td>
+                    <td x-show="visible.debit" class="whitespace-nowrap px-5 py-3 text-center text-success-600 sm:px-6 dark:text-success-400" dir="ltr">{{ $line->debit > 0 ? number_format($line->debit) : '—' }}</td>
+                    <td x-show="visible.credit" class="whitespace-nowrap px-5 py-3 text-center text-error-500 sm:px-6" dir="ltr">{{ $line->credit > 0 ? number_format($line->credit) : '—' }}</td>
+                    <td x-show="visible.balance_after" class="whitespace-nowrap px-5 py-3 text-center text-gray-800 sm:px-6 dark:text-white/90" dir="ltr">{{ number_format($line->balance_after) }}</td>
+                </tr>
+            @endforeach
+        </x-tables.pro-table>
     </x-common.component-card>
 </div>
 @endsection

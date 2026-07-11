@@ -58,7 +58,7 @@ class PaymentRecorder
             }
 
             $lines = [
-                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount],
+                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
                 ['account' => self::AR, 'credit' => $settled, 'party_id' => $party->id],
             ];
             if ($excess > 0) {
@@ -103,7 +103,7 @@ class PaymentRecorder
             $excess = $amount - $settled;
 
             $lines = [
-                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount],
+                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
             ];
             if ($settled > 0) {
                 $lines[] = ['account' => self::AR, 'credit' => $settled, 'party_id' => $party->id];
