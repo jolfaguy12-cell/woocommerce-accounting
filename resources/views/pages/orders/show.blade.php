@@ -110,6 +110,23 @@
                 @endif
             </div>
         </div>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('warehouse') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">استان و شهر</span>
+                <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->province ?? 'ثبت نشده' }}</p>
+                @if ($order->city)
+                    <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $order->city }}</p>
+                @endif
+            </div>
+        </div>
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('box-package') !!}</div>
+            <div class="min-w-0">
+                <span class="text-gray-500 dark:text-gray-400">شیوه ارسال</span>
+                <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->shipping_method_title ?? 'ثبت نشده' }}</p>
+            </div>
+        </div>
         @if ($order->shipping_charged == 0)
             @php
                 $freeShippingThreshold = $order->channel?->config['free_shipping_threshold'] ?? null;

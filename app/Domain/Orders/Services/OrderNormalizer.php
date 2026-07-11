@@ -6,6 +6,7 @@ use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Services\ChannelResolver;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Support\IranProvince;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Support\Carbon;
@@ -32,6 +33,9 @@ class OrderNormalizer
             [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
             $existingPartyId = Order::where('hub_order_id', $raw->hub_order_id)->value('customer_party_id');
 
+            $billing = (array) ($payload['billing'] ?? []);
+            $shippingAddress = (array) ($payload['shipping'] ?? []);
+
             $order = Order::updateOrCreate(['hub_order_id' => $raw->hub_order_id], [
                 'raw_order_id' => $raw->id,
                 'status' => $status,
@@ -45,6 +49,9 @@ class OrderNormalizer
                 'total' => $this->toman($payload['total'] ?? 0),
                 'payment_method' => $payload['payment_method'] ?? null,
                 'payment_method_title' => $payload['payment_method_title'] ?? null,
+                'city' => $shippingAddress['city'] ?? $billing['city'] ?? null,
+                'province' => IranProvince::resolve($shippingAddress['state'] ?? $billing['state'] ?? null),
+                'shipping_method_title' => $payload['shipping_lines'][0]['method_title'] ?? null,
                 'gateway_transaction_id' => $this->gatewayTransactionId($payload),
                 'payment_status' => $paymentStatus,
                 'date_paid' => $datePaid,

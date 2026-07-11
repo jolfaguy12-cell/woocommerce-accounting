@@ -37,10 +37,12 @@ class OrderController extends Controller
             })
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('order_date', '>=', $request->string('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('order_date', '<=', $request->string('date_to')))
+            ->when($request->filled('province'), fn ($q) => $q->where('province', $request->string('province')))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $search = $request->string('search')->trim()->value();
                 $q->where(function ($w) use ($search) {
                     $w->where('hub_order_id', 'like', "%{$search}%")
+                        ->orWhere('city', 'like', "%{$search}%")
                         ->orWhereHas('customerParty', fn ($c) => $c->where('name', 'like', "%{$search}%"));
                 });
             })
@@ -51,7 +53,7 @@ class OrderController extends Controller
         return view('pages.orders.index', [
             'title' => 'سفارش‌ها',
             'orders' => $orders,
-            'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to'),
+            'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to', 'province'),
             'sort' => $sort,
             'dir' => $dir,
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -60,6 +62,7 @@ class OrderController extends Controller
             // (including future/unknown ones from any source) show up here.
             'statuses' => Order::select('status')->selectRaw('count(*) as count')
                 ->groupBy('status')->orderByDesc('count')->get(),
+            'provinces' => Order::whereNotNull('province')->distinct()->orderBy('province')->pluck('province'),
         ]);
     }
 

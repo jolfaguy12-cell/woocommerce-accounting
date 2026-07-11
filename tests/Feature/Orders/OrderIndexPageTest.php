@@ -132,3 +132,29 @@ it('sorts orders by profit via the order_profits join without erroring', functio
 
     $this->actingAs($this->admin)->get('/orders?sort=operational_profit&dir=asc')->assertOk();
 });
+
+it('searches orders by city', function () {
+    app(OrderIngestPipeline::class)->ingest(9001, indexPageOrder(9001, [
+        'billing' => ['first_name' => 'محمد', 'last_name' => 'صادقی', 'phone' => '09120000001', 'city' => 'قم', 'state' => 'QHM'],
+    ]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(9002, indexPageOrder(9002, [
+        'billing' => ['first_name' => 'زهرا', 'last_name' => 'کریمی', 'phone' => '09120000002', 'city' => 'تهران', 'state' => 'THR'],
+    ]), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?search='.urlencode('قم'))->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 9001,
+    );
+});
+
+it('filters orders by province', function () {
+    app(OrderIngestPipeline::class)->ingest(9101, indexPageOrder(9101, [
+        'billing' => ['first_name' => 'محمد', 'last_name' => 'صادقی', 'phone' => '09120000003', 'city' => 'قم', 'state' => 'QHM'],
+    ]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(9102, indexPageOrder(9102, [
+        'billing' => ['first_name' => 'زهرا', 'last_name' => 'کریمی', 'phone' => '09120000004', 'city' => 'تهران', 'state' => 'THR'],
+    ]), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?province='.urlencode('قم'))->assertViewHas(
+        'orders', fn ($orders) => $orders->count() === 1 && $orders->items()[0]->hub_order_id === 9101,
+    )->assertViewHas('provinces', fn ($provinces) => $provinces->sort()->values()->all() === ['تهران', 'قم']);
+});

@@ -122,3 +122,33 @@ it('leaves an unparseable multi-number phone field untouched instead of mangling
 
     expect(Party::find($order->customer_party_id)->phone)->toBe('09172990309 - 09366225858');
 });
+
+it('stores city/province and shipping method from billing when there is no separate shipping address', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2008, normalizerHubOrder(2008, [
+        'billing' => ['first_name' => 'الف', 'last_name' => 'ب', 'city' => 'قم', 'state' => 'QHM'],
+        'shipping_lines' => [['method_title' => 'پست پیشتاز']],
+    ]), 'manual');
+
+    expect($order->city)->toBe('قم')
+        ->and($order->province)->toBe('قم')
+        ->and($order->shipping_method_title)->toBe('پست پیشتاز');
+});
+
+it('prefers the shipping address over billing when both are present', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2009, normalizerHubOrder(2009, [
+        'billing' => ['first_name' => 'الف', 'last_name' => 'ب', 'city' => 'قم', 'state' => 'QHM'],
+        'shipping' => ['city' => 'تهران', 'state' => 'THR'],
+    ]), 'manual');
+
+    expect($order->city)->toBe('تهران')
+        ->and($order->province)->toBe('تهران');
+});
+
+it('does not guess a province from an unrecognized channel-specific state code, but still keeps the city', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2010, normalizerHubOrder(2010, [
+        'billing' => ['first_name' => 'الف', 'last_name' => 'ب', 'city' => 'تهران', 'state' => '607'],
+    ]), 'manual');
+
+    expect($order->city)->toBe('تهران')
+        ->and($order->province)->toBeNull();
+});

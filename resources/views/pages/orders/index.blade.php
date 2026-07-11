@@ -30,7 +30,7 @@
     :paginator="$orders"
     empty-message="سفارشی با این فیلترها یافت نشد"
     search-value="{{ $filters['search'] ?? '' }}"
-    search-placeholder="جستجوی شماره سفارش یا نام مشتری"
+    search-placeholder="جستجوی شماره سفارش، نام مشتری یا شهر"
     with-date-range
     date-from-value="{{ $filters['date_from'] ?? null }}"
     date-to-value="{{ $filters['date_to'] ?? null }}"
@@ -61,6 +61,13 @@
             <option value="">وضعیت پرداخت</option>
             <option value="paid" @selected(($filters['payment_status'] ?? null) === 'paid')>پرداخت‌شده</option>
             <option value="unpaid" @selected(($filters['payment_status'] ?? null) === 'unpaid')>پرداخت‌نشده</option>
+        </select>
+
+        <select name="province" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="">همه استان‌ها</option>
+            @foreach ($provinces as $province)
+                <option value="{{ $province }}" @selected(($filters['province'] ?? null) === $province)>{{ $province }}</option>
+            @endforeach
         </select>
 
         <select name="profit_status" onchange="this.form.submit()" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
