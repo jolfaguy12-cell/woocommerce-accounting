@@ -64,10 +64,14 @@ class OrderNormalizer
 
     private function syncItems(Order $order, array $items): void
     {
+        $seenItemIds = [];
+
         foreach ($items as $item) {
             if (! isset($item['id'])) {
                 continue;
             }
+
+            $seenItemIds[] = $item['id'];
 
             $hubProductId = $item['variation_id'] ?: ($item['product_id'] ?? null);
             $qty = max(1, (int) ($item['quantity'] ?? 1));
@@ -87,6 +91,12 @@ class OrderNormalizer
                 'line_total' => $this->toman($item['total'] ?? 0),
             ]);
         }
+
+        // WooCommerce order edits can remove line items entirely (not just
+        // change quantities) — a hub_item_id no longer present in the payload
+        // means it was deleted upstream, so drop it here too rather than
+        // leaving a stale item on an otherwise up-to-date order.
+        $order->items()->whereNotIn('hub_item_id', $seenItemIds)->delete();
     }
 
     /**

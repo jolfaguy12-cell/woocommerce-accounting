@@ -8,6 +8,7 @@ use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -77,5 +78,10 @@ class Order extends Model
     public function gatewayChecks(): HasMany
     {
         return $this->hasMany(OrderGatewayCheck::class);
+    }
+
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(OrderLabel::class, 'order_label_order');
     }
 }

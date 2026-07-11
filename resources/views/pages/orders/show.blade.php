@@ -14,6 +14,40 @@
         <x-orders.status-badge type="profit" :value="$order->profit_status" />
         <x-orders.status-badge type="payment" :value="$order->payment_status" />
 
+        @foreach ($order->labels as $label)
+            <x-ui.badge :color="$label->color" size="sm">{{ $label->name }}</x-ui.badge>
+        @endforeach
+
+        <div x-data="{ open: false }" class="relative">
+            <button type="button" @click="open = !open" @click.outside="open = false"
+                class="rounded-md border border-dashed border-gray-300 px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5">
+                + لیبل
+            </button>
+            <div x-show="open" x-cloak
+                class="absolute z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                <form method="POST" action="{{ route('orders.labels', $order) }}" class="space-y-3">
+                    @csrf
+                    <div class="space-y-1.5 text-sm">
+                        @forelse ($availableLabels as $label)
+                            <label class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                <input type="checkbox" name="label_ids[]" value="{{ $label->id }}"
+                                    @checked($order->labels->contains('id', $label->id))>
+                                {{ $label->name }}
+                            </label>
+                        @empty
+                            <p class="text-xs text-gray-400">لیبلی ثبت نشده.</p>
+                        @endforelse
+                    </div>
+                    <input type="text" name="new_label_name" placeholder="لیبل جدید..."
+                        class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                    <button type="submit"
+                        class="w-full rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600">
+                        ذخیره
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <form method="POST" action="{{ route('orders.recalc', $order) }}" class="mr-auto">
             @csrf
             <button type="submit" class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">

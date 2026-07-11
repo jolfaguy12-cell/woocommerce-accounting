@@ -11,6 +11,7 @@ use App\Domain\Costing\Services\CostResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderProfit;
 use App\Domain\Sync\Models\ReviewItem;
+use App\Domain\Sync\Support\RawOrderMeta;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -254,7 +255,7 @@ class ProfitEngine
         }
 
         $metaKey = $order->channel->config['commission_meta_key'] ?? null;
-        $raw = $metaKey ? ($order->rawOrder->payload['meta'][$metaKey] ?? null) : null;
+        $raw = $metaKey ? RawOrderMeta::get($order->rawOrder->payload, $metaKey) : null;
 
         // A literal zero is indistinguishable from "Basalam hasn't settled this
         // order yet" — a real settled order's commission is never actually 0.
@@ -286,7 +287,7 @@ class ProfitEngine
             return [0, 'none'];
         }
 
-        $raw = $order->rawOrder->payload['meta'][$balanceKey] ?? null;
+        $raw = RawOrderMeta::get($order->rawOrder->payload, $balanceKey);
 
         if ($raw === null || $raw === '' || (float) $raw === 0.0) {
             return [0, 'none'];

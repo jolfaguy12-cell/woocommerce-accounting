@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Models\OrderLabel;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -51,13 +52,34 @@ class OrderController extends Controller
 
     public function show(Order $order, Request $request): View
     {
-        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder', 'notes.author', 'notes.recipients.user');
+        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder', 'notes.author', 'notes.recipients.user', 'labels');
 
         return view('pages.orders.show', [
             'title' => 'سفارش #'.$order->hub_order_id,
             'order' => $order,
             'noteRecipientOptions' => NoteController::recipientOptions($request->user()->id),
+            'availableLabels' => OrderLabel::orderBy('name')->get(),
         ]);
+    }
+
+    /** Attach/detach organizational labels (e.g. "سفارش عمده") — informational only, never affects profit/journal. */
+    public function syncLabels(Request $request, Order $order): RedirectResponse
+    {
+        $data = $request->validate([
+            'label_ids' => ['array'],
+            'label_ids.*' => ['integer', 'exists:order_labels,id'],
+            'new_label_name' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $labelIds = $data['label_ids'] ?? [];
+
+        if (filled($data['new_label_name'] ?? null)) {
+            $labelIds[] = OrderLabel::findOrCreateByName($data['new_label_name'])->id;
+        }
+
+        $order->labels()->sync($labelIds);
+
+        return back()->with('success', 'لیبل‌های سفارش به‌روزرسانی شد.');
     }
 
     /** Manual real shipping cost (README §13) then re-evaluate profit. */

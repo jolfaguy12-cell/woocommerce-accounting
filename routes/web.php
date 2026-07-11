@@ -68,6 +68,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('notifications/notes', [NoteController::class, 'index'])->name('notifications.notes');
         Route::post('orders/{order}/notes', [NoteController::class, 'store'])->name('orders.notes.store');
         Route::delete('notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
+        Route::post('orders/{order}/labels', [OrderController::class, 'syncLabels'])->name('orders.labels');
     });
 
     // Financial mutations are for admin/accountant only.

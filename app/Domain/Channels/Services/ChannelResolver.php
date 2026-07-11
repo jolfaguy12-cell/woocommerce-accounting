@@ -4,6 +4,7 @@ namespace App\Domain\Channels\Services;
 
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Sync\Models\ReviewItem;
+use App\Domain\Sync\Support\RawOrderMeta;
 
 /**
  * Data-driven source→channel resolution. Never throws for a new source:
@@ -54,7 +55,7 @@ class ChannelResolver
         }
 
         foreach (self::META_SOURCE_KEYS as $key) {
-            $value = $payload['meta'][$key] ?? null;
+            $value = RawOrderMeta::get($payload, $key);
             if (is_string($value) && trim($value) !== '') {
                 return [mb_strtolower(trim($value)), "meta.{$key}"];
             }
