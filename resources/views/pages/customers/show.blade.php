@@ -147,9 +147,9 @@
         </div>
     </div>
 
-    <x-common.component-card title="تاریخچه تسویه‌ها">
+    <x-common.component-card title="تاریخچه تسویه‌ها و بدهی‌های ایجادشده">
         @if ($settlementHistory->isEmpty())
-            <p class="text-sm text-gray-500 dark:text-gray-400">هنوز پرداخت یا سوخت مطالباتی برای این مشتری ثبت نشده است.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">هنوز پرداخت، بدهی دستی یا سوخت مطالباتی برای این مشتری ثبت نشده است.</p>
         @else
             <table class="w-full text-sm">
                 <thead>
@@ -171,27 +171,34 @@
                                     @if ($model->bankAccount)
                                         <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->bankAccount->name }}</span>
                                     @endif
+                                @elseif ($entry['kind'] === 'credit_sale')
+                                    <x-ui.badge color="warning" size="sm">بدهی ایجادشده (فروش اعتباری)</x-ui.badge>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->description }}</span>
                                 @else
                                     <x-ui.badge color="error" size="sm">سوخت مطالبات</x-ui.badge>
                                     <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->description }}</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap text-center text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($model->amount) }}</td>
+                            <td class="whitespace-nowrap text-center text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($entry['kind'] === 'credit_sale' ? $model->total_due : $model->amount) }}</td>
                             <td class="text-xs text-gray-500 dark:text-gray-400">
-                                @forelse ($model->settlements as $s)
-                                    <div>
-                                        @if ($s->creditOrder?->order)
-                                            <a href="{{ route('orders.show', $s->creditOrder->order) }}" class="text-brand-500 hover:underline">سفارش #{{ $s->creditOrder->order->hub_order_id }}</a>
-                                        @else
-                                            فروش اعتباری دستی
-                                        @endif
-                                        <span dir="ltr">({{ number_format($s->amount) }})</span>
-                                    </div>
-                                @empty
-                                    —
-                                @endforelse
-                                @if ($entry['kind'] === 'payment' && $model->amount > $model->settlements->sum('amount'))
-                                    <div>اعتبار نزد فروشگاه <span dir="ltr">({{ number_format($model->amount - $model->settlements->sum('amount')) }})</span></div>
+                                @if ($entry['kind'] === 'credit_sale')
+                                    {{ $model->status === 'settled' ? 'تسویه‌شده' : 'باز — مانده '.number_format($model->remaining()) }}
+                                @else
+                                    @forelse ($model->settlements as $s)
+                                        <div>
+                                            @if ($s->creditOrder?->order)
+                                                <a href="{{ route('orders.show', $s->creditOrder->order) }}" class="text-brand-500 hover:underline">سفارش #{{ $s->creditOrder->order->hub_order_id }}</a>
+                                            @else
+                                                فروش اعتباری دستی
+                                            @endif
+                                            <span dir="ltr">({{ number_format($s->amount) }})</span>
+                                        </div>
+                                    @empty
+                                        —
+                                    @endforelse
+                                    @if ($entry['kind'] === 'payment' && $model->amount > $model->settlements->sum('amount'))
+                                        <div>اعتبار نزد فروشگاه <span dir="ltr">({{ number_format($model->amount - $model->settlements->sum('amount')) }})</span></div>
+                                    @endif
                                 @endif
                             </td>
                         </tr>

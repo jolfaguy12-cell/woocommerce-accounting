@@ -85,6 +85,11 @@ it('records a manual credit sale increasing the customer balance', function () {
         ->assertRedirect();
 
     expect(app(ReceivablesService::class)->partyOpenBalance($party))->toBe(700000);
+
+    $this->actingAs($this->admin)->get(route('customers.show', $party))->assertOk()
+        ->assertSee('تاریخچه تسویه‌ها و بدهی‌های ایجادشده')
+        ->assertSee('بدهی ایجادشده (فروش اعتباری)')
+        ->assertSee('فروش حضوری');
 });
 
 it('rejects a write-off larger than the open balance', function () {
