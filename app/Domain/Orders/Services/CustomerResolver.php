@@ -4,6 +4,7 @@ namespace App\Domain\Orders\Services;
 
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Orders\Support\BillingAddressFormatter;
+use App\Domain\Sync\Models\ReviewItem;
 
 /**
  * Resolves the hub's customer/billing data on an order payload to a Party.
@@ -53,6 +54,8 @@ class CustomerResolver
             return $existingPartyId; // payload lost its identifying info on a resync — keep whatever it already resolved to
         }
 
+        $isNewParty = false;
+
         if ($phone) {
             $party = Party::where('type', 'customer')->where('phone', $phone)->first();
 
@@ -63,7 +66,10 @@ class CustomerResolver
                 }
             }
 
-            $party ??= new Party(['type' => 'customer']);
+            if (! $party) {
+                $party = new Party(['type' => 'customer']);
+                $isNewParty = true;
+            }
         } else {
             $party = Party::firstOrNew(['type' => 'customer', 'phone' => null, 'name' => $name]);
         }
@@ -75,7 +81,53 @@ class CustomerResolver
         $party->address = $address ?: $party->address;
         $party->save();
 
+        // Two orders under the exact same name but two different phone
+        // numbers might be the same person checking out from a different
+        // channel (marketplaces often only pass the number used on that
+        // platform) — or two different real people who share a common name.
+        // Never guess: flag it for a human to decide instead of silently
+        // scattering one customer's history across parties (see order 6632 /
+        // party 1092 vs 1093).
+        if ($isNewParty && $name) {
+            $this->flagPossibleDuplicate($party, $name, $phone);
+        }
+
         return $party->id;
+    }
+
+    private function flagPossibleDuplicate(Party $newParty, string $name, string $phone): void
+    {
+        $existing = Party::where('type', 'customer')
+            ->where('name', $name)
+            ->where('id', '!=', $newParty->id)
+            ->whereNotNull('phone')
+            ->where('phone', '!=', $phone)
+            ->first();
+
+        if (! $existing) {
+            return;
+        }
+
+        // $newParty is only ever "new" the moment it's first created (every
+        // later resolve() call finds it by phone instead), so subject_id
+        // alone is enough to guarantee this fires at most once per party.
+        $alreadyOpen = ReviewItem::where('type', 'possible_duplicate_customer')
+            ->where('subject_type', 'party')
+            ->where('subject_id', $newParty->id)
+            ->where('status', 'open')
+            ->exists();
+
+        if ($alreadyOpen) {
+            return;
+        }
+
+        ReviewItem::open('possible_duplicate_customer', $newParty, [
+            'name' => $name,
+            'new_party_id' => $newParty->id,
+            'new_party_phone' => $phone,
+            'existing_party_id' => $existing->id,
+            'existing_party_phone' => $existing->phone,
+        ]);
     }
 
     private function normalizeName(string $name): ?string

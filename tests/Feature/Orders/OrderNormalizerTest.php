@@ -5,6 +5,7 @@ use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Receivables\Models\CreditOrder;
+use App\Domain\Sync\Models\ReviewItem;
 use Database\Seeders\ChannelSeeder;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Support\Str;
@@ -107,6 +108,49 @@ it('resolves different phone formats of the same number to one customer', functi
 
     expect(Party::where('type', 'customer')->count())->toBe(1)
         ->and($order2->customer_party_id)->toBe($order1->customer_party_id);
+});
+
+it('flags a possible duplicate when the same name shows up under a different phone', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+
+    $order1 = $pipeline->ingest(2020, normalizerHubOrder(2020, [
+        'billing' => ['first_name' => 'فاطمه', 'last_name' => 'رضوانی', 'phone' => '09336062749'],
+    ]), 'manual');
+
+    $order2 = $pipeline->ingest(2021, normalizerHubOrder(2021, [
+        'billing' => ['first_name' => 'فاطمه', 'last_name' => 'رضوانی', 'phone' => '09027544956'],
+    ]), 'manual');
+
+    expect(Party::where('type', 'customer')->count())->toBe(2)
+        ->and($order2->customer_party_id)->not->toBe($order1->customer_party_id);
+
+    $review = ReviewItem::where('type', 'possible_duplicate_customer')
+        ->where('subject_id', $order2->customer_party_id)->first();
+
+    expect($review)->not->toBeNull()
+        ->and($review->payload['existing_party_id'])->toBe($order1->customer_party_id)
+        ->and($review->status)->toBe('open');
+});
+
+it('does not flag a duplicate for two different names, or repeat the flag on a resync', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+
+    $pipeline->ingest(2022, normalizerHubOrder(2022, [
+        'billing' => ['first_name' => 'علی', 'last_name' => 'رضوانی', 'phone' => '09336062749'],
+    ]), 'manual');
+
+    $order2 = $pipeline->ingest(2023, normalizerHubOrder(2023, [
+        'billing' => ['first_name' => 'مریم', 'last_name' => 'کریمی', 'phone' => '09027544956'],
+    ]), 'manual');
+
+    expect(ReviewItem::where('type', 'possible_duplicate_customer')->count())->toBe(0);
+
+    // Resyncing order2 again must not re-flag its own already-existing party.
+    $pipeline->ingest(2023, normalizerHubOrder(2023, [
+        'billing' => ['first_name' => 'مریم', 'last_name' => 'کریمی', 'phone' => '09027544956'],
+    ]), 'manual');
+
+    expect(ReviewItem::where('type', 'possible_duplicate_customer')->count())->toBe(0);
 });
 
 it('normalizes a Persian-digit phone number instead of stripping it to nothing', function () {

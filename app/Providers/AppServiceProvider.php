@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
@@ -62,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
             'bank_account' => BankAccount::class,
             'bad_debt_write_off' => BadDebtWriteOff::class,
             'credit_order_settlement' => CreditOrderSettlement::class,
+            'party' => Party::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.

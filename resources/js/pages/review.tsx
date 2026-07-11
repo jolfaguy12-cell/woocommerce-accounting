@@ -17,6 +17,7 @@ const typeLabels: Record<string, string> = {
     missing_commission: 'کارمزد ناموجود',
     sync_error: 'خطای همگام‌سازی',
     late_entry: 'ثبت دیرهنگام',
+    possible_duplicate_customer: 'احتمال مشتری تکراری',
 };
 
 type Item = {
