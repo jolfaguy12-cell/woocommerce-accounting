@@ -208,3 +208,31 @@ it('preserves payment_status=paid once a linked credit order is settled, even wi
 
     expect($order->payment_status)->toBe('paid');
 });
+
+it('never treats a manual-channel order as paid, even when the hub payload carries a date_paid', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2015, normalizerHubOrder(2015, [
+        'created_via' => 'admin',
+        'date_paid' => '2026-07-08T16:05:00',
+    ]), 'manual');
+
+    // WooCommerce stamps date_paid the moment a manually-created order is
+    // saved as processing/completed, regardless of whether money actually
+    // changed hands — 'paid' can only ever come from our own settlement panel.
+    expect($order->payment_status)->toBe('unpaid')
+        ->and($order->date_paid)->toBeNull();
+});
+
+it('treats a real gateway transaction id as paid even with no date_paid in the payload', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2016, normalizerHubOrder(2016, [
+        'order_source' => 'torob',
+        'payment_method' => 'WC_Zibal',
+        'payment_method_title' => 'زیبال',
+        'transaction_id' => '4675288251',
+    ]), 'manual');
+
+    // Some gateway-integration plugins move the order straight to processing
+    // without ever calling WooCommerce's payment_complete(), so date_paid
+    // never gets stamped even though Zibal already confirmed the payment.
+    expect($order->payment_status)->toBe('paid')
+        ->and($order->gateway_transaction_id)->toBe('4675288251');
+});

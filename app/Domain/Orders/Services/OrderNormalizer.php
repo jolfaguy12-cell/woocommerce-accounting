@@ -161,6 +161,17 @@ class OrderNormalizer
      */
     private function paymentStatus(array $payload, string $status, Carbon $orderDate, ?Channel $channel): array
     {
+        // A channel's own date_paid can be a false signal, not just a missing
+        // one — e.g. a manually-created WooCommerce order gets date_paid
+        // stamped by WooCommerce itself the moment it's saved as
+        // processing/completed, regardless of whether any money actually
+        // changed hands. Such a channel is never trusted for payment status;
+        // 'paid' can only come from our own settlement panel from then on
+        // (see paymentStatusPreservingSettlement).
+        if ($channel && ($channel->config['payment_never_prepaid_by_channel'] ?? false)) {
+            return ['unpaid', null];
+        }
+
         if ($channel && ($channel->config['payment_prepaid_by_channel'] ?? false)) {
             $unpaidStatuses = $channel->config['payment_prepaid_unless_statuses'] ?? [];
             if (in_array($status, $unpaidStatuses, true)) {
@@ -171,7 +182,14 @@ class OrderNormalizer
         }
 
         if (empty($payload['date_paid'])) {
-            return ['unpaid', null];
+            // A real gateway transaction id (Zibal) is itself proof of a
+            // completed payment even when date_paid is missing — some
+            // gateway-integration plugins move the order straight to
+            // processing without ever calling WooCommerce's payment_complete(),
+            // so date_paid never gets stamped even though the money is real.
+            return $this->gatewayTransactionId($payload)
+                ? ['paid', $orderDate]
+                : ['unpaid', null];
         }
 
         return ['paid', JalaliPeriod::parseHubGmt($payload['date_paid'])];

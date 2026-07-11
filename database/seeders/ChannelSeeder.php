@@ -16,7 +16,14 @@ class ChannelSeeder extends Seeder
     {
         $channels = [
             ['وب‌سایت', 'website', 'none', ['completed'], ['checkout', 'website', 'woocommerce_checkout', 'store-api'], null],
-            ['ثبت دستی', 'manual', 'none', ['completed'], ['admin', 'manual'], null],
+            // A manually-created WooCommerce order gets date_paid stamped the
+            // moment staff save it as processing/completed (for stock-keeping
+            // reasons), regardless of whether any money actually changed
+            // hands — it's always a credit sale until settled through our own
+            // panel (see OrderNormalizer::paymentStatus()).
+            ['ثبت دستی', 'manual', 'none', ['completed'], ['admin', 'manual'], [
+                'payment_never_prepaid_by_channel' => true,
+            ]],
             // Basalam settles payment with the vendor upfront; a bslm-* order is
             // paid the moment it exists, not when WooCommerce's date_paid fires
             // (the hub never sets it for Basalam). Only a rejected/cancelled
