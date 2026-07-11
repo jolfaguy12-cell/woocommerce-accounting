@@ -35,7 +35,7 @@
                     @endforeach
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="[&>tr:hover]:bg-gray-50 dark:[&>tr:hover]:bg-white/[0.03]">
                 {{ $slot }}
 
                 @if ($paginator !== null && $paginator->isEmpty())

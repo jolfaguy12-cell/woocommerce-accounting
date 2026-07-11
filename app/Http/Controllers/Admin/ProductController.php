@@ -22,6 +22,14 @@ class ProductController extends Controller
 {
     public function index(Request $request, CostResolver $resolver): View
     {
+        $sort = $request->string('sort', 'hub_modified_at')->value();
+        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
+
+        $sortable = ['name', 'price', 'stock_quantity', 'hub_modified_at'];
+        if (! in_array($sort, $sortable, true)) {
+            $sort = 'hub_modified_at';
+        }
+
         $products = ProductMirror::with('costMapping')
             ->whereIn('type', ['simple', 'variation', 'variable'])
             ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w
@@ -31,10 +39,16 @@ class ProductController extends Controller
             ->when($request->input('mapping') === 'unmapped', fn ($q) => $q
                 ->whereIn('type', ['simple', 'variation'])
                 ->whereDoesntHave('costMapping', fn ($m) => $m->where('status', 'mapped')))
-            ->orderByDesc('hub_modified_at')
+            ->orderBy($sort, $dir)
             ->paginate(25)->withQueryString();
 
-        return view('pages.products.index', ['title' => 'محصولات', 'products' => $products, 'filters' => $request->only('q', 'mapping')]);
+        return view('pages.products.index', [
+            'title' => 'محصولات',
+            'products' => $products,
+            'filters' => $request->only('q', 'mapping'),
+            'sort' => $sort,
+            'dir' => $dir,
+        ]);
     }
 
     public function show(ProductMirror $product, CostResolver $resolver): View

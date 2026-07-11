@@ -15,7 +15,18 @@ class OrderController extends Controller
 {
     public function index(Request $request): View
     {
-        $orders = Order::with('channel', 'profit', 'customerParty')
+        $sort = $request->string('sort', 'order_date')->value();
+        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
+
+        $sortable = ['hub_order_id', 'total', 'shipping_charged', 'order_date', 'updated_at', 'operational_profit'];
+        if (! in_array($sort, $sortable, true)) {
+            $sort = 'order_date';
+        }
+
+        $orders = Order::query()
+            ->select('orders.*')
+            ->when($sort === 'operational_profit', fn ($q) => $q->leftJoin('order_profits', 'order_profits.order_id', '=', 'orders.id'))
+            ->with('channel', 'profit', 'customerParty')
             ->when($request->filled('profit_status'), fn ($q) => $q->where('profit_status', $request->string('profit_status')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('payment_status'), fn ($q) => $q->where('payment_status', $request->string('payment_status')))
@@ -33,7 +44,7 @@ class OrderController extends Controller
                         ->orWhereHas('customerParty', fn ($c) => $c->where('name', 'like', "%{$search}%"));
                 });
             })
-            ->orderByDesc('order_date')
+            ->orderBy($sort === 'operational_profit' ? 'order_profits.operational_profit' : "orders.$sort", $dir)
             ->paginate(25)
             ->withQueryString();
 
@@ -41,6 +52,8 @@ class OrderController extends Controller
             'title' => 'سفارش‌ها',
             'orders' => $orders,
             'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to'),
+            'sort' => $sort,
+            'dir' => $dir,
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'unmappedCount' => Order::whereNull('channel_id')->count(),
             // Data-driven, never hard-coded: whatever statuses actually exist

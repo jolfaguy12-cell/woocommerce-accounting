@@ -106,3 +106,29 @@ it('blocks partner viewers from the orders list', function () {
 
     $this->actingAs($partner)->get('/orders')->assertForbidden();
 });
+
+it('sorts orders by total ascending and descending', function () {
+    app(OrderIngestPipeline::class)->ingest(8701, indexPageOrder(8701, ['total' => 300000]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8702, indexPageOrder(8702, ['total' => 100000]), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8703, indexPageOrder(8703, ['total' => 200000]), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?sort=total&dir=asc')->assertViewHas(
+        'orders', fn ($orders) => $orders->pluck('hub_order_id')->all() === [8702, 8703, 8701],
+    );
+
+    $this->actingAs($this->admin)->get('/orders?sort=total&dir=desc')->assertViewHas(
+        'orders', fn ($orders) => $orders->pluck('hub_order_id')->all() === [8701, 8703, 8702],
+    );
+});
+
+it('falls back to the default sort for an unrecognized sort key', function () {
+    app(OrderIngestPipeline::class)->ingest(8801, indexPageOrder(8801), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?sort=some_unknown_column')->assertOk();
+});
+
+it('sorts orders by profit via the order_profits join without erroring', function () {
+    app(OrderIngestPipeline::class)->ingest(8901, indexPageOrder(8901), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?sort=operational_profit&dir=asc')->assertOk();
+});
