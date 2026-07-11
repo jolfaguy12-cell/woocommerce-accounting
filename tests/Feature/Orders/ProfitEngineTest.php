@@ -159,6 +159,53 @@ it('derives a marketplace discount from basalam settlement metadata (a coupon wo
         ->and($revenueLine->credit)->toBe($profit->net_sale);
 });
 
+it('treats a literal-zero commission as missing, not a real 100%-off coupon', function () {
+    // Real production case: Basalam hadn't settled this order yet, so both
+    // meta values were literally "0" — not an actual $0 commission and $0
+    // payout. Reading that at face value would derive a "discount" equal to
+    // the entire order (items_total - 0 - 0), which is nonsense.
+    $order = hubOrder(1009, [
+        'order_source' => 'basalam', 'status' => 'bslm-completed',
+        'meta' => [
+            '_sync_basalam_hash_id' => 'X',
+            '_basalam_fee_amount' => '0',
+            '_basalam_balance_amount' => '0',
+        ],
+    ]);
+
+    app(OrderIngestPipeline::class)->ingest(1009, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1009)->id);
+
+    expect($profit->channel_fee)->toBe(0)
+        ->and($profit->channel_fee_source)->toBe('none')
+        ->and($profit->channel_discount)->toBe(0)
+        ->and($profit->channel_discount_source)->toBe('none')
+        ->and($profit->status)->toBe('provisional')
+        ->and(ReviewItem::where('type', 'missing_commission')->count())->toBe(1);
+});
+
+it('does not derive a discount when the balance is present but the commission is still unconfirmed', function () {
+    // A real settlement balance with a literal-zero (unsettled) commission —
+    // the gap can't be trusted as a genuine discount since we don't actually
+    // know the real commission yet.
+    $order = hubOrder(1010, [
+        'order_source' => 'basalam', 'status' => 'bslm-completed',
+        'meta' => [
+            '_sync_basalam_hash_id' => 'X',
+            '_basalam_fee_amount' => '0',
+            '_basalam_balance_amount' => '550000',
+        ],
+    ]);
+
+    app(OrderIngestPipeline::class)->ingest(1010, $order, 'manual');
+
+    $profit = OrderProfit::firstWhere('order_id', Order::firstWhere('hub_order_id', 1010)->id);
+
+    expect($profit->channel_discount)->toBe(0)
+        ->and($profit->channel_discount_source)->toBe('none');
+});
+
 it('ignores sub-100-toman noise in the balance metadata as a real discount', function () {
     $order = hubOrder(1008, [
         'order_source' => 'basalam', 'status' => 'bslm-completed',

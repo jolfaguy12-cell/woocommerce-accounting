@@ -129,7 +129,7 @@ class ProfitEngine
         [$cost, $breakdown, $missing] = $this->productCost($order);
         [$shippingReal, $shippingBasis] = $this->shipping($order);
         [$fee, $feeSource, $warnings] = $this->channelFee($order);
-        [$marketplaceDiscount, $discountSource] = $this->channelDiscount($order, $gross, $fee);
+        [$marketplaceDiscount, $discountSource] = $this->channelDiscount($order, $gross, $fee, $feeSource);
         [$packagingCost, $packageWeight, $packagingBasis] = $this->packaging($order);
 
         $discounts = ($gross - $lineNet) + $marketplaceDiscount;
@@ -256,7 +256,10 @@ class ProfitEngine
         $metaKey = $order->channel->config['commission_meta_key'] ?? null;
         $raw = $metaKey ? ($order->rawOrder->payload['meta'][$metaKey] ?? null) : null;
 
-        if ($raw === null || $raw === '') {
+        // A literal zero is indistinguishable from "Basalam hasn't settled this
+        // order yet" — a real settled order's commission is never actually 0.
+        // Treat it the same as missing rather than silently understating it.
+        if ($raw === null || $raw === '' || (float) $raw === 0.0) {
             return [0, 'none', ['missing_commission']];
         }
 
@@ -269,21 +272,23 @@ class ProfitEngine
      * metadata carries the items total, commission, and final settlement
      * balance, so the gap between them is the discount the marketplace granted
      * on our behalf. Requires both meta keys and never guesses: no balance
-     * meta key configured, or either value missing, means no discount is
-     * assumed (same "missing data never treated as zero" rule as cost).
-     * Verified against Basalam's own vendor panel figures for a real order.
+     * meta key configured, either value missing, or the commission itself
+     * isn't confirmed real yet (see channelFee()) all mean no discount is
+     * assumed (same "missing data never treated as zero" rule as cost) —
+     * otherwise an unsettled order's unknown commission gets misread as a
+     * 100%-off coupon. Verified against Basalam's own vendor panel figures.
      */
-    private function channelDiscount(Order $order, int $itemsTotal, int $fee): array
+    private function channelDiscount(Order $order, int $itemsTotal, int $fee, string $feeSource): array
     {
         $balanceKey = $order->channel?->config['balance_meta_key'] ?? null;
 
-        if (! $balanceKey) {
+        if (! $balanceKey || $feeSource !== 'metadata') {
             return [0, 'none'];
         }
 
         $raw = $order->rawOrder->payload['meta'][$balanceKey] ?? null;
 
-        if ($raw === null || $raw === '') {
+        if ($raw === null || $raw === '' || (float) $raw === 0.0) {
             return [0, 'none'];
         }
 
