@@ -14,7 +14,7 @@ class MenuHelper
                 'name' => 'پیشخوان',
                 'subItems' => [
                     ['name' => 'داشبورد', 'path' => '/dashboard'],
-                    ['name' => 'گزارشات', 'path' => '/more-records'],
+                    ['name' => 'گزارشات', 'path' => '/reports'],
                 ],
             ],
             [
