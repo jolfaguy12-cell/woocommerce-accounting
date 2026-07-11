@@ -4,10 +4,21 @@ export const initChartOne = () => {
     const chartElement = document.querySelector('#chartOne');
     if (!chartElement) return;
 
+    // Real dashboard data comes in via data-categories/data-series (see
+    // monthly-sale.blade.php + DashboardMetricsService::yearlyOrderCounts);
+    // falls back to the static demo values when absent (e.g. the standalone
+    // chart demo page).
+    const categories = chartElement.dataset.categories
+        ? JSON.parse(chartElement.dataset.categories)
+        : ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+    const series = chartElement.dataset.series
+        ? JSON.parse(chartElement.dataset.series)
+        : [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112];
+
     const chartOneOptions = {
         series: [{
-            name: "Sales",
-            data: [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112],
+            name: "سفارش‌ها",
+            data: series,
         },],
         colors: ["#465fff"],
         chart: {
@@ -35,20 +46,7 @@ export const initChartOne = () => {
             colors: ["transparent"],
         },
         xaxis: {
-            categories: [
-                "فروردین",
-                "اردیبهشت",
-                "خرداد",
-                "تیر",
-                "مرداد",
-                "شهریور",
-                "مهر",
-                "آبان",
-                "آذر",
-                "دی",
-                "بهمن",
-                "اسفند",
-            ],
+            categories: categories,
             axisBorder: {
                 show: false,
             },

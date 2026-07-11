@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\BankDepositController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
@@ -28,9 +29,7 @@ Route::post('webhooks/hub', HubWebhookController::class)
     ->name('webhooks.hub');
 
 Route::middleware(['auth'])->group(function () {
-    // TailAdmin static dashboard (template data only — backend wiring comes later;
-    // DashboardController is kept for that reconnection).
-    Route::get('dashboard', fn () => view('pages.dashboard.ecommerce', ['title' => 'داشبورد']))->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     // TailAdmin demo pages, kept while the new UI is being customized.
     foreach ([

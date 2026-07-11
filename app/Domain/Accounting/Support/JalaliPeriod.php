@@ -76,6 +76,27 @@ class JalaliPeriod
         return ((int) $date->diffInYears($now)).' سال پیش';
     }
 
+    /** The period key immediately before $period, e.g. "1405-01" for "1405-02". */
+    public static function previous(string $period): string
+    {
+        [$year, $month] = array_map('intval', explode('-', $period));
+        $month--;
+        if ($month < 1) {
+            $month = 12;
+            $year--;
+        }
+
+        return sprintf('%04d-%02d', $year, $month);
+    }
+
+    /** All 12 period keys of the Jalali year that $period falls in, in order (Farvardin..Esfand). */
+    public static function monthsOfYear(string $period): array
+    {
+        [$year] = array_map('intval', explode('-', $period));
+
+        return array_map(fn ($m) => sprintf('%04d-%02d', $year, $m), range(1, 12));
+    }
+
     /** Gregorian [start, end] dates of the Jalali month containing $date (Tehran time). */
     public static function bounds(Carbon $date): array
     {
