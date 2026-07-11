@@ -30,6 +30,7 @@ class OrderNormalizer
                 : $raw->received_at;
             $status = (string) ($payload['status'] ?? 'unknown');
             [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
+            $existingPartyId = Order::where('hub_order_id', $raw->hub_order_id)->value('customer_party_id');
 
             $order = Order::updateOrCreate(['hub_order_id' => $raw->hub_order_id], [
                 'raw_order_id' => $raw->id,
@@ -37,7 +38,7 @@ class OrderNormalizer
                 'created_via' => $payload['created_via'] ?? null,
                 'order_date' => $orderDate,
                 'jalali_period' => JalaliPeriod::fromDate($orderDate),
-                'customer_party_id' => $this->customers->resolve($payload),
+                'customer_party_id' => $this->customers->resolve($payload, $existingPartyId),
                 'currency_raw' => $payload['currency'] ?? null,
                 'discount_total' => $this->toman($payload['discount_total'] ?? 0),
                 'shipping_charged' => $this->toman($payload['shipping_total'] ?? 0),

@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
@@ -65,4 +66,59 @@ it('reads channel-source meta from WooCommerce raw meta_data shape, not just the
 
     expect($order->raw_source_value)->toBe('admin')
         ->and(ChannelSource::where('raw_value', 'admin')->exists())->toBeTrue();
+});
+
+it('updates the same customer in place when a phone number is added later via an order edit, instead of creating a duplicate', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+
+    $order = $pipeline->ingest(2003, normalizerHubOrder(2003, [
+        'billing' => ['first_name' => 'رضا', 'last_name' => 'احمدی', 'phone' => ''],
+    ]), 'manual');
+    $originalPartyId = $order->customer_party_id;
+
+    expect(Party::where('type', 'customer')->count())->toBe(1)
+        ->and(Party::find($originalPartyId)->phone)->toBeNull();
+
+    // Order edited in WooCommerce: a phone number is added, nothing else changes.
+    $edited = normalizerHubOrder(2003, [
+        'billing' => ['first_name' => 'رضا', 'last_name' => 'احمدی', 'phone' => '09121234567'],
+    ]);
+    $edited['date_modified'] = '2026-07-08T16:10:00';
+
+    $order = $pipeline->ingest(2003, $edited, 'manual');
+
+    expect(Party::where('type', 'customer')->count())->toBe(1)
+        ->and($order->customer_party_id)->toBe($originalPartyId)
+        ->and(Party::find($originalPartyId)->phone)->toBe('09121234567');
+});
+
+it('resolves different phone formats of the same number to one customer', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+
+    $order1 = $pipeline->ingest(2004, normalizerHubOrder(2004, [
+        'billing' => ['first_name' => 'سارا', 'last_name' => 'محمدی', 'phone' => '09121234567'],
+    ]), 'manual');
+
+    $order2 = $pipeline->ingest(2005, normalizerHubOrder(2005, [
+        'billing' => ['first_name' => 'سارا', 'last_name' => 'محمدی', 'phone' => '+989121234567'],
+    ]), 'manual');
+
+    expect(Party::where('type', 'customer')->count())->toBe(1)
+        ->and($order2->customer_party_id)->toBe($order1->customer_party_id);
+});
+
+it('normalizes a Persian-digit phone number instead of stripping it to nothing', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2006, normalizerHubOrder(2006, [
+        'billing' => ['first_name' => 'مریم', 'last_name' => 'رضایی', 'phone' => '۰۹۱۲۱۲۳۴۵۶۷'],
+    ]), 'manual');
+
+    expect(Party::find($order->customer_party_id)->phone)->toBe('09121234567');
+});
+
+it('leaves an unparseable multi-number phone field untouched instead of mangling it', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2007, normalizerHubOrder(2007, [
+        'billing' => ['first_name' => 'حسین', 'last_name' => 'کریمی', 'phone' => '09172990309 - 09366225858'],
+    ]), 'manual');
+
+    expect(Party::find($order->customer_party_id)->phone)->toBe('09172990309 - 09366225858');
 });
