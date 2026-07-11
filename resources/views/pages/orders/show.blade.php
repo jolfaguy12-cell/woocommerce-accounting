@@ -95,10 +95,31 @@
                 </div>
             </div>
         @endif
+        @if (($order->profit->channel_discount ?? 0) > 0)
+            {{-- Channel-agnostic: any channel whose config derives a settlement
+                discount (see ProfitEngine::channelDiscount()) gets this card,
+                not just Basalam — works unchanged for a future coupon type. --}}
+            <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+                <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15">{!! $icon('expense-minus') !!}</div>
+                <div class="min-w-0">
+                    <span class="text-gray-500 dark:text-gray-400">کوپن تخفیف</span>
+                    <p class="font-medium text-success-600 dark:text-success-400">اعمال شده</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500" dir="ltr">{{ number_format($order->profit->channel_discount) }} تومان</p>
+                </div>
+            </div>
+        @endif
     </div>
 
     <div class="grid gap-4 xl:grid-cols-2">
         <x-common.component-card title="اقلام سفارش">
+            @php
+                // Per-item commission is Basalam-specific display (its own vendor
+                // panel shows the same breakdown) — hidden entirely for any other
+                // channel, even if it also happened to use cost_model=order_commission.
+                $showChannelFeeColumn = $order->channel?->slug === 'basalam'
+                    && ($order->profit->channel_fee ?? 0) > 0
+                    && ($order->profit->gross_sale ?? 0) > 0;
+            @endphp
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
@@ -107,8 +128,8 @@
                         <th class="text-center font-normal">بهای تمام‌شده</th>
                         <th class="text-center font-normal">فی</th>
                         <th class="text-center font-normal">جمع</th>
-                        @if (($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0)
-                            <th class="text-center font-normal">کارمزد کانال</th>
+                        @if ($showChannelFeeColumn)
+                            <th class="text-center font-normal">کارمزد باسلام</th>
                         @endif
                         <th class="text-center font-normal">سود فروش</th>
                     </tr>
@@ -124,7 +145,7 @@
                             // order-level fee proportionally by each item's share of
                             // the order's item total. Same method here, so the sum
                             // across items always reconciles to profit->channel_fee.
-                            $itemFee = ($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0
+                            $itemFee = $showChannelFeeColumn
                                 ? (int) round($order->profit->channel_fee * $item->line_subtotal / $order->profit->gross_sale)
                                 : null;
                         @endphp
@@ -151,9 +172,9 @@
                             </td>
                             <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
                             <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
-                            @if (($order->profit->channel_fee ?? 0) > 0 && ($order->profit->gross_sale ?? 0) > 0)
-                                <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr" title="تخمینی — به نسبت سهم این آیتم از جمع سفارش">
-                                    {{ $itemFee !== null ? '−'.number_format($itemFee) : '—' }}
+                            @if ($showChannelFeeColumn)
+                                <td class="text-center text-error-500" dir="ltr" title="تخمینی — به نسبت سهم این آیتم از جمع سفارش">
+                                    {{ $itemFee !== null ? number_format($itemFee) : '—' }}
                                 </td>
                             @endif
                             <td class="text-center" dir="ltr">
