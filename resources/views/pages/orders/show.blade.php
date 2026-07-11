@@ -72,7 +72,13 @@
             <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('user-profile') !!}</div>
             <div class="min-w-0">
                 <span class="text-gray-500 dark:text-gray-400">مشتری</span>
-                <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->customerParty?->name ?? 'ثبت نشده' }}</p>
+                @if ($order->customerParty && auth()->user()->hasAnyRole(['admin', 'accountant']))
+                    <p class="truncate font-medium">
+                        <a href="{{ route('customers.show', $order->customerParty) }}" class="text-brand-500 hover:underline">{{ $order->customerParty->name }}</a>
+                    </p>
+                @else
+                    <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->customerParty?->name ?? 'ثبت نشده' }}</p>
+                @endif
                 @if ($order->customerParty?->phone)
                     <p class="text-xs text-gray-500 dark:text-gray-400" dir="ltr">{{ $order->customerParty->phone }}</p>
                 @endif

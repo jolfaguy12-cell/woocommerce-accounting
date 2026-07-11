@@ -126,6 +126,20 @@ it('shows the "ثبت پرداخت" action and payment-method field on a manual 
         ->assertSee('شیوه پرداخت ثبت نشده');
 });
 
+it('links the customer name on the order page to their profile for admin/accountant but not warehouse', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(8010, receivablesUiOrder(8010), 'manual');
+    $party = $order->customerParty;
+    $warehouse = User::factory()->create()->assignRole('warehouse');
+    $link = 'href="'.route('customers.show', $party).'"';
+
+    $this->actingAs($this->admin)->get(route('orders.show', $order))->assertOk()
+        ->assertSee($link, false);
+
+    $this->actingAs($warehouse)->get(route('orders.show', $order))->assertOk()
+        ->assertDontSee($link, false)
+        ->assertSee($party->name);
+});
+
 it('flips the order to paid and shows the settlement on both the order and customer pages', function () {
     $order = app(OrderIngestPipeline::class)->ingest(8009, receivablesUiOrder(8009), 'manual');
     $party = $order->customerParty;
