@@ -152,3 +152,19 @@ it('does not guess a province from an unrecognized channel-specific state code, 
     expect($order->city)->toBe('تهران')
         ->and($order->province)->toBeNull();
 });
+
+it('defaults to Qom when no address was given at all', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2011, normalizerHubOrder(2011), 'manual');
+
+    expect($order->city)->toBe('قم')
+        ->and($order->province)->toBe('قم');
+});
+
+it('defaults to Qom when billing has no city even if a state code is present', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(2012, normalizerHubOrder(2012, [
+        'billing' => ['first_name' => 'الف', 'last_name' => 'ب', 'state' => 'THR'],
+    ]), 'manual');
+
+    expect($order->city)->toBe('قم')
+        ->and($order->province)->toBe('قم');
+});

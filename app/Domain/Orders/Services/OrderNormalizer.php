@@ -33,8 +33,7 @@ class OrderNormalizer
             [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
             $existingPartyId = Order::where('hub_order_id', $raw->hub_order_id)->value('customer_party_id');
 
-            $billing = (array) ($payload['billing'] ?? []);
-            $shippingAddress = (array) ($payload['shipping'] ?? []);
+            [$city, $province] = $this->location($payload);
 
             $order = Order::updateOrCreate(['hub_order_id' => $raw->hub_order_id], [
                 'raw_order_id' => $raw->id,
@@ -49,8 +48,8 @@ class OrderNormalizer
                 'total' => $this->toman($payload['total'] ?? 0),
                 'payment_method' => $payload['payment_method'] ?? null,
                 'payment_method_title' => $payload['payment_method_title'] ?? null,
-                'city' => $shippingAddress['city'] ?? $billing['city'] ?? null,
-                'province' => IranProvince::resolve($shippingAddress['state'] ?? $billing['state'] ?? null),
+                'city' => $city,
+                'province' => $province,
                 'shipping_method_title' => $payload['shipping_lines'][0]['method_title'] ?? null,
                 'gateway_transaction_id' => $this->gatewayTransactionId($payload),
                 'payment_status' => $paymentStatus,
@@ -68,6 +67,27 @@ class OrderNormalizer
 
             return $order->load('items');
         });
+    }
+
+    /**
+     * Shipping address preferred over billing (where the order actually
+     * goes), falling back to billing when no separate shipping address was
+     * given. Orders with no address at all (e.g. an in-person/local sale)
+     * default to the shop's own city — Qom — rather than showing blank.
+     */
+    private function location(array $payload): array
+    {
+        $billing = (array) ($payload['billing'] ?? []);
+        $shippingAddress = (array) ($payload['shipping'] ?? []);
+
+        $city = trim((string) ($shippingAddress['city'] ?? $billing['city'] ?? ''));
+        $rawState = $shippingAddress['state'] ?? $billing['state'] ?? null;
+
+        if ($city === '') {
+            return ['قم', 'قم'];
+        }
+
+        return [$city, IranProvince::resolve($rawState)];
     }
 
     private function syncItems(Order $order, array $items): void
