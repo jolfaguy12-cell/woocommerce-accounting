@@ -78,6 +78,17 @@ class ProfitEngine
             $existing = OrderProfit::firstWhere('order_id', $order->id);
 
             if (! $force && $existing && $existing->inputs_hash === $hash && $existing->status !== 'reversed') {
+                // OrderNormalizer::normalize() resets orders.profit_status to
+                // 'pending' on every call, expecting this method to restore it —
+                // that still has to happen here even though nothing financial
+                // changed, or a same-data resync leaves the order stuck showing
+                // "pending" despite already having a final, posted profit.
+                $order->update(['profit_status' => match ($existing->status) {
+                    'blocked' => 'blocked_missing_cost',
+                    'final' => 'ok',
+                    default => 'needs_review',
+                }]);
+
                 // Eligibility for receivables tracking (payment_status, in
                 // particular) can change even when nothing financial did —
                 // re-check it every time, not just when the amounts change.

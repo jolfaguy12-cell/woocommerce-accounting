@@ -280,6 +280,19 @@ it('recalculation with unchanged inputs does not bump the version', function () 
         ->and(JournalEntry::where('status', 'posted')->count())->toBe(1);
 });
 
+it('restores profit_status after a same-data resync resets it to pending', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(1010, hubOrder(1010), 'manual');
+    expect($order->fresh()->profit_status)->toBe('ok');
+
+    // OrderNormalizer::normalize() always resets profit_status to 'pending'
+    // before ProfitEngine re-evaluates — simulate a resync whose payload is
+    // byte-for-byte the same as before, which used to leave it stuck there
+    // because the inputs-hash short-circuit skipped the profit_status write.
+    app(OrderIngestPipeline::class)->ingest(1010, hubOrder(1010), 'manual');
+
+    expect($order->fresh()->profit_status)->toBe('ok');
+});
+
 it('recognizes profit for a completed or shipping basalam order but not one still in preparation', function () {
     app(OrderIngestPipeline::class)->ingest(1011, hubOrder(1011, ['order_source' => 'basalam', 'status' => 'bslm-completed', 'meta' => ['_basalam_fee_amount' => '-1000']]), 'manual');
     app(OrderIngestPipeline::class)->ingest(1012, hubOrder(1012, ['order_source' => 'basalam', 'status' => 'bslm-shipping', 'meta' => ['_basalam_fee_amount' => '-1000']]), 'manual');
