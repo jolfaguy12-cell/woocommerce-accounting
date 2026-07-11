@@ -33,6 +33,14 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // Never bounce back to a guest-only page (login/forgot-password/etc.) even if
+        // a stale "intended" URL pointing there is sitting in the session.
+        $intended = $request->session()->get('url.intended');
+        $guestOnlyPaths = ['login', 'forgot-password', 'reset-password'];
+        if ($intended && collect($guestOnlyPaths)->contains(fn ($path) => str_contains($intended, "/{$path}"))) {
+            $request->session()->forget('url.intended');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

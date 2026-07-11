@@ -8,6 +8,7 @@
 
     <title>{{ $title ?? 'داشبورد' }} | {{ config('app.name') }}</title>
 
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="preload" href="/fonts/iransansx/IRANSansXFaNum-regular.woff2" as="font" type="font/woff2" crossorigin>
 
     <!-- Scripts -->
