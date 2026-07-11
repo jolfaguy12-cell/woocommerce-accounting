@@ -13,8 +13,10 @@ use App\Domain\Expenses\Models\BankDeposit;
 use App\Domain\Expenses\Models\Expense;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Receivables\Models\BadDebtWriteOff;
 use App\Domain\Receivables\Models\Cheque;
 use App\Domain\Receivables\Models\CreditOrder;
+use App\Domain\Receivables\Models\CreditOrderSettlement;
 use App\Domain\Receivables\Models\Loan;
 use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Models\PayrollRun;
@@ -58,6 +60,8 @@ class AppServiceProvider extends ServiceProvider
             'partner_report' => PartnerReport::class,
             'bank_deposit' => BankDeposit::class,
             'bank_account' => BankAccount::class,
+            'bad_debt_write_off' => BadDebtWriteOff::class,
+            'credit_order_settlement' => CreditOrderSettlement::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.

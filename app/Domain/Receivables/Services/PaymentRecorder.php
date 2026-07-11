@@ -7,6 +7,7 @@ use App\Domain\Accounting\Services\JournalPoster;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Models\CreditOrder;
+use App\Domain\Receivables\Models\CreditOrderSettlement;
 use App\Domain\Receivables\Models\PartyPayment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,10 @@ class PaymentRecorder
 
     private const CUSTOMER_CREDIT = '2400';
 
-    public function __construct(private readonly JournalPoster $poster) {}
+    public function __construct(
+        private readonly JournalPoster $poster,
+        private readonly CreditOrderAllocator $allocator,
+    ) {}
 
     /**
      * Customer payment in: settles AR up to what is owed; any excess is held
@@ -71,6 +75,67 @@ class PaymentRecorder
             $payment->update(['journal_entry_id' => $entry->id]);
 
             return $payment->load('journalEntry.lines');
+        });
+    }
+
+    /**
+     * Customer payment in, allocated across ALL their open orders oldest-first
+     * (see CreditOrderAllocator) rather than one specific order — this is the
+     * "one-click settle a customer's balance" action, usable from either the
+     * order page or the customer page since it's the same underlying party.
+     */
+    public function receiveForCustomer(Party $party, int $amount, int $bankAccountId, ?int $by = null): PartyPayment
+    {
+        return DB::transaction(function () use ($party, $amount, $bankAccountId, $by) {
+            $payment = PartyPayment::create([
+                'uuid' => (string) Str::uuid(),
+                'party_id' => $party->id,
+                'direction' => 'in',
+                'amount' => $amount,
+                'bank_account_id' => $bankAccountId,
+                'paid_at' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
+                'created_by' => $by,
+            ]);
+
+            $allocation = $this->allocator->apply($party, $amount);
+            $settled = $allocation['applied'];
+            $excess = $amount - $settled;
+
+            $lines = [
+                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount],
+            ];
+            if ($settled > 0) {
+                $lines[] = ['account' => self::AR, 'credit' => $settled, 'party_id' => $party->id];
+            }
+            if ($excess > 0) {
+                $lines[] = ['account' => self::CUSTOMER_CREDIT, 'credit' => $excess, 'party_id' => $party->id];
+            }
+
+            // A payment is always dated today, never backdated — if the current
+            // period is itself locked, that's a real "an accountant closed the
+            // books mid-month" situation with no safe automatic fix, so this is
+            // left to throw PeriodLockedException and surface to the caller
+            // (see CustomerController) rather than silently retrying the same date.
+            $entry = $this->poster->post([
+                'entry_date' => Carbon::now(JalaliPeriod::TIMEZONE),
+                'description' => "دریافت از {$party->name}",
+                'idempotency_key' => "payment:{$payment->uuid}",
+                'source' => $payment,
+                'created_by' => $by,
+            ], $lines);
+
+            foreach ($allocation['lines'] as $line) {
+                CreditOrderSettlement::create([
+                    'credit_order_id' => $line['credit_order']->id,
+                    'source_type' => $payment->getMorphClass(),
+                    'source_id' => $payment->id,
+                    'amount' => $line['amount'],
+                ]);
+            }
+
+            $payment->update(['journal_entry_id' => $entry->id]);
+
+            return $payment->load('journalEntry.lines', 'settlements.creditOrder');
         });
     }
 }

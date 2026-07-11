@@ -79,6 +79,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('orders/{order}/packaging', [OrderController::class, 'setPackaging'])->name('orders.packaging');
         Route::post('orders/{order}/packaging/reset', [OrderController::class, 'resetPackaging'])->name('orders.packaging.reset');
         Route::post('orders/{order}/recalc', [OrderController::class, 'recalc'])->name('orders.recalc');
+        Route::post('orders/{order}/payment-method', [OrderController::class, 'setPaymentMethod'])->name('orders.payment-method');
         Route::post('products/{product}/map', [ProductController::class, 'map'])->name('products.map');
         Route::post('products/{product}/wholesale', [ProductController::class, 'setWholesale'])->name('products.wholesale');
         Route::post('products/{product}/cost', [ProductController::class, 'storeCost'])->name('products.cost');
@@ -91,6 +92,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customers/{party}', [CustomerController::class, 'show'])->name('customers.show');
         Route::post('customers/{party}/wholesale', [CustomerController::class, 'setWholesale'])->name('customers.wholesale');
         Route::post('customers/{party}/phone', [CustomerController::class, 'setPhone'])->name('customers.phone');
+        Route::post('customers/{party}/settlement', [CustomerController::class, 'recordSettlement'])->name('customers.settlement');
+        Route::post('customers/{party}/credit-sale', [CustomerController::class, 'storeCreditSale'])->name('customers.credit-sale');
+        Route::post('customers/{party}/write-off', [CustomerController::class, 'storeWriteOff'])->name('customers.write-off');
 
         Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
         Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');

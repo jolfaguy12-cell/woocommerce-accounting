@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Channels\Models\Channel;
+use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderLabel;
 use App\Domain\Orders\Services\ProfitEngine;
@@ -75,7 +76,20 @@ class OrderController extends Controller
             'order' => $order,
             'noteRecipientOptions' => NoteController::recipientOptions($request->user()->id),
             'availableLabels' => OrderLabel::orderBy('name')->get(),
+            'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name']),
         ]);
+    }
+
+    /** Manual payment-method entry for manually-created orders — WooCommerce never gives the hub one for these. */
+    public function setPaymentMethod(Request $request, Order $order): RedirectResponse
+    {
+        abort_if($order->channel?->slug !== 'manual', 404);
+
+        $data = $request->validate(['payment_method_title' => ['required', 'string', 'max:191']]);
+
+        $order->update(['payment_method_title' => $data['payment_method_title']]);
+
+        return back()->with('success', 'شیوه پرداخت ثبت شد.');
     }
 
     /** Attach/detach organizational labels (e.g. "سفارش عمده") — informational only, never affects profit/journal. */

@@ -41,4 +41,17 @@ class ReceivablesService
 
         return (int) $lines->sum('credit') - (int) $lines->sum('debit');
     }
+
+    /** This party's total open receivable balance — computed in PHP via remaining() so the clamp semantics never drift from CreditOrder's own. */
+    public function partyOpenBalance(Party $party): int
+    {
+        return (int) CreditOrder::where('party_id', $party->id)->where('status', 'open')->get()
+            ->sum(fn (CreditOrder $c) => $c->remaining());
+    }
+
+    /** >0: the customer owes the store (debtor). <0: the store owes the customer (creditor, held credit exceeds open debt). 0: settled. */
+    public function partyNetBalance(Party $party): int
+    {
+        return $this->partyOpenBalance($party) - $this->customerCreditBalance($party);
+    }
 }

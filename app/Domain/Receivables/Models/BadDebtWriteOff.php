@@ -7,15 +7,13 @@ use App\Domain\Accounting\Models\Party;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 
-class PartyPayment extends Model
+class BadDebtWriteOff extends Model
 {
     protected $guarded = [];
 
     protected $casts = [
         'amount' => 'integer',
-        'paid_at' => 'date',
     ];
 
     public function party(): BelongsTo
@@ -26,11 +24,6 @@ class PartyPayment extends Model
     public function journalEntry(): BelongsTo
     {
         return $this->belongsTo(JournalEntry::class);
-    }
-
-    public function applied(): MorphTo
-    {
-        return $this->morphTo();
     }
 
     public function settlements(): MorphMany

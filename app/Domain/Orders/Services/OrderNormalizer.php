@@ -8,6 +8,7 @@ use App\Domain\Channels\Services\ChannelResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Support\IranProvince;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +31,11 @@ class OrderNormalizer
                 ? JalaliPeriod::parseHubGmt($payload['date_created'])
                 : $raw->received_at;
             $status = (string) ($payload['status'] ?? 'unknown');
-            [$paymentStatus, $datePaid] = $this->paymentStatus($payload, $status, $orderDate, $source->channel);
-            $existingPartyId = Order::where('hub_order_id', $raw->hub_order_id)->value('customer_party_id');
+            $existing = Order::where('hub_order_id', $raw->hub_order_id)
+                ->first(['id', 'customer_party_id', 'payment_method', 'payment_method_title', 'payment_status', 'date_paid']);
+            $existingPartyId = $existing?->customer_party_id;
+
+            [$paymentStatus, $datePaid] = $this->paymentStatusPreservingSettlement($payload, $status, $orderDate, $source->channel, $existing);
 
             [$city, $province] = $this->location($payload);
 
@@ -46,8 +50,11 @@ class OrderNormalizer
                 'discount_total' => $this->toman($payload['discount_total'] ?? 0),
                 'shipping_charged' => $this->toman($payload['shipping_total'] ?? 0),
                 'total' => $this->toman($payload['total'] ?? 0),
-                'payment_method' => $payload['payment_method'] ?? null,
-                'payment_method_title' => $payload['payment_method_title'] ?? null,
+                // A blank/absent hub value never erases a previously-known one —
+                // whether that value came from a manual edit (e.g. a manual
+                // order's payment method set by hand) or an earlier real sync.
+                'payment_method' => $payload['payment_method'] ?? $existing?->payment_method,
+                'payment_method_title' => $payload['payment_method_title'] ?? $existing?->payment_method_title,
                 'city' => $city,
                 'province' => $province,
                 'shipping_method_title' => $payload['shipping_lines'][0]['method_title'] ?? null,
@@ -125,6 +132,24 @@ class OrderNormalizer
         // means it was deleted upstream, so drop it here too rather than
         // leaving a stale item on an otherwise up-to-date order.
         $order->items()->whereNotIn('hub_item_id', $seenItemIds)->delete();
+    }
+
+    /**
+     * Once a linked CreditOrder reaches 'settled' via the receivables
+     * mechanism (a customer paying off their balance), a resync must not
+     * flip payment_status back to 'unpaid' just because the hub payload has
+     * no date_paid — most channels (manual, often website) never carry one
+     * at all. Preserve the settled 'paid' state instead of recomputing.
+     */
+    private function paymentStatusPreservingSettlement(array $payload, string $status, Carbon $orderDate, ?Channel $channel, ?Order $existing): array
+    {
+        $settled = $existing && CreditOrder::where('order_id', $existing->id)->where('status', 'settled')->exists();
+
+        if ($settled) {
+            return ['paid', $existing->date_paid ?? $orderDate];
+        }
+
+        return $this->paymentStatus($payload, $status, $orderDate, $channel);
     }
 
     /**

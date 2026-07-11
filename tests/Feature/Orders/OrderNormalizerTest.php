@@ -4,8 +4,10 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\OrderIngestPipeline;
+use App\Domain\Receivables\Models\CreditOrder;
 use Database\Seeders\ChannelSeeder;
 use Database\Seeders\ChartOfAccountsSeeder;
+use Illuminate\Support\Str;
 
 beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
@@ -167,4 +169,42 @@ it('defaults to Qom when billing has no city even if a state code is present', f
 
     expect($order->city)->toBe('قم')
         ->and($order->province)->toBe('قم');
+});
+
+it('keeps a manually-set payment method through a resync whose payload has none', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+    $order = $pipeline->ingest(2013, normalizerHubOrder(2013), 'manual');
+    $order->update(['payment_method_title' => 'کارت به کارت (دستی)']);
+
+    $edited = normalizerHubOrder(2013);
+    $edited['date_modified'] = '2026-07-08T16:10:00';
+    $order = $pipeline->ingest(2013, $edited, 'manual');
+
+    expect($order->payment_method_title)->toBe('کارت به کارت (دستی)');
+});
+
+it('preserves payment_status=paid once a linked credit order is settled, even with no date_paid in the payload', function () {
+    $pipeline = app(OrderIngestPipeline::class);
+    $order = $pipeline->ingest(2014, normalizerHubOrder(2014, [
+        'billing' => ['first_name' => 'رضا', 'last_name' => 'احمدی', 'phone' => '09121110000'],
+    ]), 'manual');
+
+    expect($order->payment_status)->toBe('unpaid');
+
+    CreditOrder::create([
+        'uuid' => (string) Str::uuid(),
+        'order_id' => $order->id,
+        'party_id' => $order->customer_party_id,
+        'total_due' => 200000,
+        'paid_total' => 200000,
+        'status' => 'settled',
+    ]);
+
+    $edited = normalizerHubOrder(2014, [
+        'billing' => ['first_name' => 'رضا', 'last_name' => 'احمدی', 'phone' => '09121110000'],
+    ]);
+    $edited['date_modified'] = '2026-07-08T16:10:00';
+    $order = $pipeline->ingest(2014, $edited, 'manual');
+
+    expect($order->payment_status)->toBe('paid');
 });

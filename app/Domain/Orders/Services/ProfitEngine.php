@@ -10,6 +10,7 @@ use App\Domain\Costing\Models\PackagingCostTier;
 use App\Domain\Costing\Services\CostResolver;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderProfit;
+use App\Domain\Receivables\Services\CreditOrderSync;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Support\RawOrderMeta;
 use Illuminate\Support\Carbon;
@@ -41,6 +42,7 @@ class ProfitEngine
     public function __construct(
         private readonly CostResolver $costs,
         private readonly JournalPoster $poster,
+        private readonly CreditOrderSync $creditOrders,
     ) {}
 
     /** Entry point after every (re)normalization. */
@@ -76,6 +78,13 @@ class ProfitEngine
             $existing = OrderProfit::firstWhere('order_id', $order->id);
 
             if (! $force && $existing && $existing->inputs_hash === $hash && $existing->status !== 'reversed') {
+                // Eligibility for receivables tracking (payment_status, in
+                // particular) can change even when nothing financial did —
+                // re-check it every time, not just when the amounts change.
+                if ($existing->status !== 'blocked') {
+                    $this->creditOrders->sync($order, $result, $existing->journal_entry_id);
+                }
+
                 return $existing; // nothing changed
             }
 
@@ -89,6 +98,7 @@ class ProfitEngine
                 $profit = $this->storeProfit($order, $result, $version, 'blocked', null, $hash);
                 $order->update(['profit_status' => 'blocked_missing_cost']);
                 $this->openOnce('missing_cost', $order, ['missing' => $result['missing']]);
+                $this->creditOrders->reverse($order);
 
                 return $profit;
             }
@@ -102,6 +112,8 @@ class ProfitEngine
             foreach ($result['warnings'] as $warning) {
                 $this->openOnce($warning, $order, []);
             }
+
+            $this->creditOrders->sync($order, $result, $entry?->id);
 
             return $profit;
         });
@@ -400,6 +412,8 @@ class ProfitEngine
             $this->poster->reverse($profit->journalEntry, $reason, null, Carbon::now(JalaliPeriod::TIMEZONE));
             $profit->update(['status' => 'reversed']);
         }
+
+        $this->creditOrders->reverse($order);
     }
 
     private function openOnce(string $type, Order $order, array $payload): void

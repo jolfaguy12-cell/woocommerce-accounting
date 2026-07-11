@@ -48,6 +48,12 @@
             </div>
         </div>
 
+        @if ($order->customerParty)
+            <button type="button" @click="$dispatch('open-settlement-modal')" class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                ثبت پرداخت
+            </button>
+        @endif
+
         <form method="POST" action="{{ route('orders.recalc', $order) }}" class="mr-auto">
             @csrf
             <button type="submit" class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
@@ -100,12 +106,23 @@
                 <p class="text-xs text-gray-400 dark:text-gray-500">{{ $jp::humanDiff($order->updated_at) }}</p>
             </div>
         </div>
-        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]" x-data="{ editingPayment: false }">
             <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-500 dark:bg-brand-500/15">{!! $icon('shopping-cart') !!}</div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
                 <span class="text-gray-500 dark:text-gray-400">کانال فروش</span>
                 <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->channel?->name ?? $order->raw_source_value ?? '—' }}</p>
-                @if ($order->payment_method_title)
+                @if ($order->channel?->slug === 'manual')
+                    <div x-show="!editingPayment" class="flex items-center gap-2">
+                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $order->payment_method_title ?: 'شیوه پرداخت ثبت نشده' }}</p>
+                        <button type="button" @click="editingPayment = true" class="shrink-0 text-xs text-brand-500 hover:underline">{{ $order->payment_method_title ? 'ویرایش' : 'ثبت' }}</button>
+                    </div>
+                    <form x-show="editingPayment" x-cloak method="POST" action="{{ route('orders.payment-method', $order) }}" class="mt-1 flex items-center gap-2">
+                        @csrf
+                        <input type="text" name="payment_method_title" value="{{ $order->payment_method_title }}" placeholder="مثلاً کارت به کارت" class="h-8 w-full min-w-0 rounded-md border border-gray-300 bg-transparent px-2 text-xs text-gray-800 dark:border-gray-700 dark:text-white/90">
+                        <button type="submit" class="shrink-0 text-xs text-brand-500 hover:underline">ذخیره</button>
+                        <button type="button" @click="editingPayment = false" class="shrink-0 text-xs text-gray-500 hover:underline dark:text-gray-400">انصراف</button>
+                    </form>
+                @elseif ($order->payment_method_title)
                     <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $order->payment_method_title }}</p>
                 @endif
             </div>
@@ -471,4 +488,8 @@
         window.dispatchEvent(new CustomEvent('open-quick-cost-modal'));
     }
 </script>
+
+@if ($order->customerParty)
+    <x-receivables.settlement-modal :party="$order->customerParty" :bank-accounts="$bankAccounts" />
+@endif
 @endsection

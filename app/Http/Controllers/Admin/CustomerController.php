@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
+use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Receivables\Services\CreditOrderService;
+use App\Domain\Receivables\Services\PaymentRecorder;
+use App\Domain\Receivables\Services\ReceivablesService;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 /**
  * Customer management: a read view over `parties` (type=customer) derived
@@ -74,7 +79,7 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function show(Party $party): View
+    public function show(Party $party, ReceivablesService $receivables): View
     {
         abort_if($party->type !== 'customer', 404);
 
@@ -113,6 +118,12 @@ class CustomerController extends Controller
             'party' => $party,
             'orders' => $orders,
             'summary' => $summary,
+            'balance' => [
+                'open' => $receivables->partyOpenBalance($party),
+                'credit' => $receivables->customerCreditBalance($party),
+                'net' => $receivables->partyNetBalance($party),
+            ],
+            'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name']),
         ]);
     }
 
@@ -142,5 +153,62 @@ class CustomerController extends Controller
         $party->update(['phone' => $data['phone']]);
 
         return back()->with('success', 'شماره تماس ثبت شد.');
+    }
+
+    /**
+     * One-click "record a settlement" — allocates across the customer's open
+     * orders oldest-first (CreditOrderAllocator), same action from both the
+     * order page and this customer page since it's the same underlying party.
+     */
+    public function recordSettlement(Request $request, Party $party, PaymentRecorder $recorder): RedirectResponse
+    {
+        abort_if($party->type !== 'customer', 404);
+
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:1'],
+            'bank_account_id' => ['required', 'exists:bank_accounts,id'],
+        ]);
+
+        $recorder->receiveForCustomer($party, $data['amount'], $data['bank_account_id'], $request->user()->id);
+
+        return back()->with('success', 'تسویه با مشتری ثبت شد.');
+    }
+
+    /** Manual balance increase — a real credit sale (goods/service given, payment expected later). */
+    public function storeCreditSale(Request $request, Party $party, CreditOrderService $service): RedirectResponse
+    {
+        abort_if($party->type !== 'customer', 404);
+
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:1'],
+            'description' => ['required', 'string', 'max:255'],
+        ]);
+
+        $service->openManual($party, $data['amount'], $data['description'], null, $request->user()->id);
+
+        return back()->with('success', 'فروش اعتباری ثبت شد.');
+    }
+
+    /** Manual balance decrease — forgiving/writing off part of what the customer owes, never silently. */
+    public function storeWriteOff(Request $request, Party $party, CreditOrderService $service, ReceivablesService $receivables): RedirectResponse
+    {
+        abort_if($party->type !== 'customer', 404);
+
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:1'],
+            'description' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($data['amount'] > $receivables->partyOpenBalance($party)) {
+            return back()->withErrors(['amount' => 'بیش از مانده بدهکاری این مشتری قابل سوخت‌کردن نیست.'])->withInput();
+        }
+
+        try {
+            $service->writeOff($party, $data['amount'], $data['description'], $request->user()->id);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
+        }
+
+        return back()->with('success', 'مطالبات سوخت‌شده ثبت شد.');
     }
 }

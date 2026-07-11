@@ -5,6 +5,7 @@ namespace App\Domain\Orders\Models;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelSource;
+use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Sync\Models\RawOrder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -83,5 +84,10 @@ class Order extends Model
     public function labels(): BelongsToMany
     {
         return $this->belongsToMany(OrderLabel::class, 'order_label_order');
+    }
+
+    public function creditOrder(): HasOne
+    {
+        return $this->hasOne(CreditOrder::class);
     }
 }
