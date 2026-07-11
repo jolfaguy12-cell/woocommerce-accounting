@@ -91,6 +91,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
         Route::get('customers/{party}', [CustomerController::class, 'show'])->name('customers.show');
         Route::post('customers/{party}/wholesale', [CustomerController::class, 'setWholesale'])->name('customers.wholesale');
+        Route::post('customers/{party}/phone', [CustomerController::class, 'setPhone'])->name('customers.phone');
 
         Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
         Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');

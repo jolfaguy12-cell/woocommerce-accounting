@@ -7,9 +7,6 @@
     <x-common.component-card :title="$party->name">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                @if ($party->phone)
-                    <span dir="ltr">{{ $party->phone }}</span>
-                @endif
                 @foreach ($summary['channels'] as $channelName)
                     <x-ui.badge color="light" size="sm">{{ $channelName }}</x-ui.badge>
                 @endforeach
@@ -37,7 +34,34 @@
         </div>
     </x-common.component-card>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]" x-data="{ editingPhone: false }">
+            <h3 class="mb-3 text-base font-medium text-gray-800 dark:text-white/90">اطلاعات تماس</h3>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                <div class="flex items-center justify-between py-1.5 text-sm">
+                    <span class="text-gray-500 dark:text-gray-400">شماره تماس</span>
+                    <div x-show="!editingPhone" class="flex items-center gap-2">
+                        <span class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ $party->phone ?: '—' }}</span>
+                        <button type="button" @click="editingPhone = true" class="text-xs text-brand-500 hover:underline">{{ $party->phone ? 'ویرایش' : 'ثبت شماره' }}</button>
+                    </div>
+                    <form x-show="editingPhone" x-cloak method="POST" action="{{ route('customers.phone', $party) }}" class="flex items-center gap-2">
+                        @csrf
+                        <input type="text" name="phone" value="{{ $party->phone }}" dir="ltr" placeholder="09xxxxxxxxx" class="h-8 w-36 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                        <button type="submit" class="text-xs text-brand-500 hover:underline">ذخیره</button>
+                        <button type="button" @click="editingPhone = false" class="text-xs text-gray-500 hover:underline dark:text-gray-400">انصراف</button>
+                    </form>
+                </div>
+                <div class="flex items-center justify-between py-1.5 text-sm">
+                    <span class="text-gray-500 dark:text-gray-400">ایمیل</span>
+                    <span class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ $party->email ?: '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
+                    <span class="shrink-0 text-gray-500 dark:text-gray-400">آدرس</span>
+                    <span class="font-medium text-gray-800 dark:text-white/90">{{ $party->address ?: '—' }}</span>
+                </div>
+            </div>
+        </div>
+
         <x-common.component-card title="خلاصه خرید">
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
                 <div class="flex items-center justify-between py-1.5 text-sm">

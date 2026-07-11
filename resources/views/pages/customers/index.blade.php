@@ -98,6 +98,8 @@
                     <a href="{{ route('customers.show', $customer) }}" class="font-medium text-gray-800 hover:text-brand-500 hover:underline dark:text-white/90">{{ $customer->name }}</a>
                     @if ($customer->phone)
                         <p class="text-xs text-gray-500 dark:text-gray-400" dir="ltr">{{ $customer->phone }}</p>
+                    @else
+                        <a href="{{ route('customers.show', $customer) }}" class="text-xs text-brand-500 hover:underline">بدون شماره — ثبت شماره</a>
                     @endif
                 </td>
                 <td x-show="visible.channel" class="px-5 py-3 sm:px-6">

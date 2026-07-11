@@ -60,16 +60,22 @@ class ProfitEngine
         $this->recalculate($order);
     }
 
-    public function recalculate(Order $order): ?OrderProfit
+    /**
+     * $force skips the inputs-unchanged short-circuit — for corrections that don't
+     * affect the calculated amounts but do affect the journal (e.g. an order was
+     * reassigned to a different customer party after a duplicate-customer merge,
+     * so the posted AR line's party_id needs a reversal + repost to stay correct).
+     */
+    public function recalculate(Order $order, bool $force = false): ?OrderProfit
     {
-        return DB::transaction(function () use ($order) {
+        return DB::transaction(function () use ($order, $force) {
             $order->loadMissing('items.productMirror', 'channel');
             $result = $this->calculate($order);
             $hash = hash('sha256', json_encode($result));
 
             $existing = OrderProfit::firstWhere('order_id', $order->id);
 
-            if ($existing && $existing->inputs_hash === $hash && $existing->status !== 'reversed') {
+            if (! $force && $existing && $existing->inputs_hash === $hash && $existing->status !== 'reversed') {
                 return $existing; // nothing changed
             }
 

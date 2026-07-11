@@ -107,3 +107,17 @@ it('blocks warehouse staff and partner viewers from customer management', functi
     $this->actingAs($warehouse)->get('/customers')->assertForbidden();
     $this->actingAs($partner)->get('/customers')->assertForbidden();
 });
+
+it('lets staff quickly enter a phone number for a name-only guest customer', function () {
+    app(OrderIngestPipeline::class)->ingest(9601, customerOrder(9601, ['billing' => [
+        'first_name' => 'یاسمن', 'last_name' => 'کریمی', 'phone' => '',
+    ]]), 'manual');
+    $party = Party::where('name', 'یاسمن کریمی')->firstOrFail();
+    expect($party->phone)->toBeNull();
+
+    $this->actingAs($this->admin)
+        ->post("/customers/{$party->id}/phone", ['phone' => '09123334455'])
+        ->assertRedirect();
+
+    expect($party->fresh()->phone)->toBe('09123334455');
+});

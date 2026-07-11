@@ -39,6 +39,7 @@ class CustomerController extends Controller
 
         $customers = Party::query()
             ->where('type', 'customer')
+            ->whereHas('orders') // hide order-less duplicates left behind by acc:customers:merge-duplicates (never deleted, just emptied)
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%")))
@@ -129,5 +130,17 @@ class CustomerController extends Controller
         ]);
 
         return back()->with('success', $data['is_wholesale'] ? 'مشتری به‌عنوان «مشتری عمده» علامت‌گذاری شد.' : 'برچسب «مشتری عمده» حذف شد.');
+    }
+
+    /** Quick manual phone entry for guest customers CustomerResolver could only identify by name. */
+    public function setPhone(Request $request, Party $party): RedirectResponse
+    {
+        abort_if($party->type !== 'customer', 404);
+
+        $data = $request->validate(['phone' => ['required', 'string', 'max:32']]);
+
+        $party->update(['phone' => $data['phone']]);
+
+        return back()->with('success', 'شماره تماس ثبت شد.');
     }
 }
