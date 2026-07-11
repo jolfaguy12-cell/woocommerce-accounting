@@ -11,7 +11,7 @@ Internal WooCommerce accounting/reporting system (not tax accounting). The full 
 - Roles (Spatie permission): `admin`, `accountant`, `warehouse`, `partner_viewer`. Convention in `routes/web.php`: reads open to `admin|accountant|warehouse`; financial mutations (shipping/packaging cost, recalc, cost/wholesale mapping) `admin|accountant` only; users/tools/settings/warehouse-config `admin` only; reports readable by `admin|accountant|partner_viewer`, finalize `admin` only.
 - Test: `./vendor/bin/pest` · Lint: `./vendor/bin/pint --dirty` · Frontend: `npm run build` (dev: `composer dev`). Tests must stay green before moving on (TDD).
 - Original build plan/milestones: `/root/.claude/plans/please-enter-plan-mode-cozy-bonbon.md`.
-- Known gap: `DashboardController` has real KPI/trend logic, but the `/dashboard` route currently renders a static Blade view instead of calling it — reconnecting it is pending, not yet scheduled.
+- `/dashboard` (`DashboardController` + `DashboardMetricsService`) is reconnected to real data for: recent orders, the monthly order-count chart, and 3 of 8 KPI cards (new customers, gross sales, stock on hand) — each "vs last month" via `monthly_dashboard_snapshots` (past closed months frozen, current month always live). The other 5 KPI cards and the `monthly-target`/`statistics-chart` widgets are still static placeholders, not yet scheduled.
 - This server hosts many other services. Before binding ANY port (artisan serve, Vite, queues, docker), check it is free (`ss -tlnp | grep <port>`) and never reuse a port already in use.
 
 ## Data Sources
