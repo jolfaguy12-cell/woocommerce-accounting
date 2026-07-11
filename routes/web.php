@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\SearchController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\ShowcaseController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\ToolsController;
 use App\Http\Controllers\Admin\UserController;
@@ -135,6 +136,12 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin')->name('reports.finalize');
 
     // User management: only admins may create/update accounts (public registration is disabled).
+    // Internal component showcase: admin-only dev/admin reference tool.
+    Route::middleware('role:admin')->group(function () {
+        Route::get('components', [ShowcaseController::class, 'overview'])->name('components.overview');
+        Route::get('components/{category}', [ShowcaseController::class, 'category'])->name('components.category');
+    });
+
     Route::middleware('role:admin')->group(function () {
         Route::get('users', [UserController::class, 'index'])->name('users.index');
         Route::post('users', [UserController::class, 'store'])->name('users.store');

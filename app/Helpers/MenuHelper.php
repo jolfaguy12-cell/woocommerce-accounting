@@ -126,11 +126,38 @@ class MenuHelper
 
     public static function getMenuGroups()
     {
-        return [
+        $groups = [
             [
                 'title' => 'Menu',
                 'items' => self::getMainNavItems(),
             ],
+        ];
+
+        // Component showcase group — admin only, matching the /components
+        // route gating. Built from config/showcase.php so it never drifts
+        // from the registered categories.
+        if (auth()->check() && auth()->user()->hasRole('admin')) {
+            $groups[] = [
+                'title' => 'کامپوننت‌ها',
+                'items' => [self::componentShowcaseItem()],
+            ];
+        }
+
+        return $groups;
+    }
+
+    private static function componentShowcaseItem(): array
+    {
+        $subItems = [['name' => 'نمای کلی', 'path' => '/components']];
+
+        foreach (config('showcase.categories', []) as $key => $category) {
+            $subItems[] = ['name' => $category['title'], 'path' => '/components/'.$key];
+        }
+
+        return [
+            'icon' => 'ui-elements',
+            'name' => 'کامپوننت‌ها',
+            'subItems' => $subItems,
         ];
     }
 
