@@ -29,7 +29,7 @@
 @endphp
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="$product['name']" />
+<x-common.page-breadcrumb :pageTitle="$product['name']" parentLabel="محصولات" :parentUrl="route('products.index')" />
 
 <div class="space-y-4">
     <x-common.component-card :title="$product['name']">

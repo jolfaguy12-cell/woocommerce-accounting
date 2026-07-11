@@ -5,7 +5,7 @@
 @endphp
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="$supplier->name" />
+<x-common.page-breadcrumb :pageTitle="$supplier->name" parentLabel="تامین‌کننده‌ها" :parentUrl="route('suppliers.index')" />
 
 <div class="space-y-4">
     <x-common.component-card :title="$supplier->name">

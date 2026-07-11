@@ -12,7 +12,7 @@
 @endphp
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="$bankAccount->name" />
+<x-common.page-breadcrumb :pageTitle="$bankAccount->name" parentLabel="حساب‌ها" :parentUrl="route('bank-accounts.index')" />
 
 <div class="mb-4 flex justify-end">
     <a href="{{ route('deposits.index', ['bank_account_id' => $bankAccount->id]) }}" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="'مشتری: '.$party->name" />
+<x-common.page-breadcrumb :pageTitle="'مشتری: '.$party->name" parentLabel="مدیریت مشتریان" :parentUrl="route('customers.index')" />
 
 <div class="space-y-4">
     <x-common.component-card :title="$party->name">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="'ویرایش فاکتور خرید #'.$invoice->id" />
+<x-common.page-breadcrumb :pageTitle="'ویرایش فاکتور خرید #'.$invoice->id" parentLabel="ثبت خرید" :parentUrl="route('purchases.index')" />
 
 <div x-data="{
         newLines: [],

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<x-common.page-breadcrumb :pageTitle="'سفارش #'.$order->hub_order_id" />
+<x-common.page-breadcrumb :pageTitle="'سفارش #'.$order->hub_order_id" parentLabel="سفارش‌ها" :parentUrl="route('orders.index')" />
 
 @if (session('success'))
     <div class="mb-4"><x-ui.alert variant="success" :message="session('success')" /></div>
