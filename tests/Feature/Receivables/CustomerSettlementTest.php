@@ -45,6 +45,35 @@ it('settles the oldest order first, then the next, exactly as PaymentRecorder::r
         ->and($payment->settlements->firstWhere('credit_order_id', $newerCredit->id)->amount)->toBe(100);
 });
 
+it('flips the linked order to paid once its credit order is fully settled by a real payment', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(7110, settlementTestOrder(7110, '2026-07-01'), 'manual');
+    CreditOrder::create(['uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'party_id' => $this->customer->id, 'total_due' => 500000, 'paid_total' => 0]);
+    expect($order->fresh()->payment_status)->not->toBe('paid');
+
+    app(PaymentRecorder::class)->receiveForCustomer($this->customer, 500000, $this->bank->id);
+
+    expect($order->fresh()->payment_status)->toBe('paid')
+        ->and($order->fresh()->date_paid)->not->toBeNull();
+});
+
+it('does not flip the order to paid on a partial settlement', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(7111, settlementTestOrder(7111, '2026-07-01'), 'manual');
+    CreditOrder::create(['uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'party_id' => $this->customer->id, 'total_due' => 500000, 'paid_total' => 0]);
+
+    app(PaymentRecorder::class)->receiveForCustomer($this->customer, 200000, $this->bank->id);
+
+    expect($order->fresh()->payment_status)->not->toBe('paid');
+});
+
+it('does not flip the order to paid on a write-off, only a real payment', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(7112, settlementTestOrder(7112, '2026-07-01'), 'manual');
+    CreditOrder::create(['uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'party_id' => $this->customer->id, 'total_due' => 500000, 'paid_total' => 0]);
+
+    app(CreditOrderService::class)->writeOff($this->customer, 500000, 'مشتری غیرقابل دسترس');
+
+    expect($order->fresh()->payment_status)->not->toBe('paid');
+});
+
 it('routes leftover past all open orders to customer credit', function () {
     $order = app(OrderIngestPipeline::class)->ingest(7103, settlementTestOrder(7103, '2026-07-01'), 'manual');
     CreditOrder::create(['uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'party_id' => $this->customer->id, 'total_due' => 100, 'paid_total' => 0]);

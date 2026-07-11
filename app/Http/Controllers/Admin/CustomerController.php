@@ -6,6 +6,8 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Receivables\Models\BadDebtWriteOff;
+use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Services\CreditOrderService;
 use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Domain\Receivables\Services\ReceivablesService;
@@ -113,6 +115,19 @@ class CustomerController extends Controller
             'channels' => $party->orders()->with('channel:id,name')->get()->pluck('channel.name')->filter()->unique()->values(),
         ];
 
+        $payments = PartyPayment::where('party_id', $party->id)
+            ->where('direction', 'in')
+            ->with('bankAccount', 'settlements.creditOrder.order')
+            ->get()
+            ->map(fn (PartyPayment $p) => ['kind' => 'payment', 'at' => $p->created_at, 'model' => $p]);
+
+        $writeOffs = BadDebtWriteOff::where('party_id', $party->id)
+            ->with('settlements.creditOrder.order')
+            ->get()
+            ->map(fn (BadDebtWriteOff $w) => ['kind' => 'write_off', 'at' => $w->created_at, 'model' => $w]);
+
+        $settlementHistory = $payments->concat($writeOffs)->sortByDesc('at')->values();
+
         return view('pages.customers.show', [
             'title' => 'مشتری: '.$party->name,
             'party' => $party,
@@ -124,6 +139,7 @@ class CustomerController extends Controller
                 'net' => $receivables->partyNetBalance($party),
             ],
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name']),
+            'settlementHistory' => $settlementHistory,
         ]);
     }
 

@@ -147,6 +147,60 @@
         </div>
     </div>
 
+    <x-common.component-card title="تاریخچه تسویه‌ها">
+        @if ($settlementHistory->isEmpty())
+            <p class="text-sm text-gray-500 dark:text-gray-400">هنوز پرداخت یا سوخت مطالباتی برای این مشتری ثبت نشده است.</p>
+        @else
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                        <th class="py-2 text-right font-normal">تاریخ</th>
+                        <th class="text-right font-normal">نوع</th>
+                        <th class="text-center font-normal">مبلغ (تومان)</th>
+                        <th class="text-right font-normal">بابت</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($settlementHistory as $entry)
+                        @php $model = $entry['model']; @endphp
+                        <tr class="border-b border-gray-50 last:border-0 dark:border-gray-800/50">
+                            <td class="py-2 text-xs text-gray-500 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($model->created_at) }}</td>
+                            <td class="text-gray-600 dark:text-gray-300">
+                                @if ($entry['kind'] === 'payment')
+                                    <x-ui.badge color="success" size="sm">دریافت وجه</x-ui.badge>
+                                    @if ($model->bankAccount)
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->bankAccount->name }}</span>
+                                    @endif
+                                @else
+                                    <x-ui.badge color="error" size="sm">سوخت مطالبات</x-ui.badge>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->description }}</span>
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap text-center text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($model->amount) }}</td>
+                            <td class="text-xs text-gray-500 dark:text-gray-400">
+                                @forelse ($model->settlements as $s)
+                                    <div>
+                                        @if ($s->creditOrder?->order)
+                                            <a href="{{ route('orders.show', $s->creditOrder->order) }}" class="text-brand-500 hover:underline">سفارش #{{ $s->creditOrder->order->hub_order_id }}</a>
+                                        @else
+                                            فروش اعتباری دستی
+                                        @endif
+                                        <span dir="ltr">({{ number_format($s->amount) }})</span>
+                                    </div>
+                                @empty
+                                    —
+                                @endforelse
+                                @if ($entry['kind'] === 'payment' && $model->amount > $model->settlements->sum('amount'))
+                                    <div>اعتبار نزد فروشگاه <span dir="ltr">({{ number_format($model->amount - $model->settlements->sum('amount')) }})</span></div>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </x-common.component-card>
+
     <x-common.component-card title="سفارش‌های این مشتری">
         <x-tables.data-table
             :headers="['سفارش', 'کانال', 'وضعیت سفارش', 'وضعیت پرداخت', 'مبلغ (تومان)', 'سود', 'تاریخ ثبت']"

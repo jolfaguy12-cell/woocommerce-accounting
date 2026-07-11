@@ -4,6 +4,7 @@ namespace App\Domain\Receivables\Models;
 
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Expenses\Models\BankAccount;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -21,6 +22,11 @@ class PartyPayment extends Model
     public function party(): BelongsTo
     {
         return $this->belongsTo(Party::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
     }
 
     public function journalEntry(): BelongsTo

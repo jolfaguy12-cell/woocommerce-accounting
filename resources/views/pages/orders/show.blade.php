@@ -178,6 +178,50 @@
         @endif
     </div>
 
+    @if ($order->creditOrder)
+        <x-common.component-card title="وضعیت تسویه">
+            <div class="mb-4 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">مبلغ قابل پرداخت</span>
+                    <p class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($order->creditOrder->total_due) }} تومان</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">پرداخت‌شده</span>
+                    <p class="font-medium text-success-600 dark:text-success-400" dir="ltr">{{ number_format($order->creditOrder->paid_total) }} تومان</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">مانده</span>
+                    <p class="font-medium {{ $order->creditOrder->remaining() > 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">{{ number_format($order->creditOrder->remaining()) }} تومان</p>
+                </div>
+            </div>
+
+            @if ($order->creditOrder->settlements->isEmpty())
+                <p class="text-sm text-gray-500 dark:text-gray-400">هنوز پرداختی برای این سفارش ثبت نشده است.</p>
+            @else
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            <th class="py-2 text-right font-normal">تاریخ</th>
+                            <th class="text-right font-normal">نوع</th>
+                            <th class="text-center font-normal">مبلغ (تومان)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($order->creditOrder->settlements->sortByDesc('created_at') as $settlement)
+                            <tr class="border-b border-gray-50 last:border-0 dark:border-gray-800/50">
+                                <td class="py-2 text-xs text-gray-500 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($settlement->created_at) }}</td>
+                                <td class="text-gray-600 dark:text-gray-300">
+                                    {{ $settlement->source instanceof \App\Domain\Receivables\Models\PartyPayment ? 'دریافت وجه'.($settlement->source->bankAccount ? ' — '.$settlement->source->bankAccount->name : '') : 'سوخت مطالبات' }}
+                                </td>
+                                <td class="whitespace-nowrap text-center text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($settlement->amount) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </x-common.component-card>
+    @endif
+
     <div class="grid gap-4 xl:grid-cols-2">
         <x-common.component-card title="اقلام سفارش">
             @php

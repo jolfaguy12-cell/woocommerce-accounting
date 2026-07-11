@@ -125,3 +125,22 @@ it('shows the "ثبت پرداخت" action and payment-method field on a manual 
         ->assertSee('ثبت پرداخت')
         ->assertSee('شیوه پرداخت ثبت نشده');
 });
+
+it('flips the order to paid and shows the settlement on both the order and customer pages', function () {
+    $order = app(OrderIngestPipeline::class)->ingest(8009, receivablesUiOrder(8009), 'manual');
+    $party = $order->customerParty;
+
+    $this->actingAs($this->admin)
+        ->post(route('customers.settlement', $party), ['amount' => 500000, 'bank_account_id' => $this->bank->id])
+        ->assertRedirect();
+
+    expect($order->fresh()->payment_status)->toBe('paid');
+
+    $this->actingAs($this->admin)->get(route('orders.show', $order))->assertOk()
+        ->assertSee('وضعیت تسویه')
+        ->assertSee('دریافت وجه');
+
+    $this->actingAs($this->admin)->get(route('customers.show', $party))->assertOk()
+        ->assertSee('تاریخچه تسویه‌ها')
+        ->assertSee('دریافت وجه');
+});

@@ -69,7 +69,7 @@ class OrderController extends Controller
 
     public function show(Order $order, Request $request): View
     {
-        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder', 'notes.author', 'notes.recipients.user', 'labels');
+        $order->load('items.productMirror', 'channel', 'profit.journalEntry', 'shippingCost', 'packagingCost', 'refunds', 'customerParty', 'rawOrder', 'notes.author', 'notes.recipients.user', 'labels', 'creditOrder.settlements.source');
 
         return view('pages.orders.show', [
             'title' => 'سفارش #'.$order->hub_order_id,

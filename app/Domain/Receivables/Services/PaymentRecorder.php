@@ -6,6 +6,7 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Services\JournalPoster;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Expenses\Models\BankAccount;
+use App\Domain\Orders\Models\Order;
 use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Models\CreditOrderSettlement;
 use App\Domain\Receivables\Models\PartyPayment;
@@ -131,6 +132,17 @@ class PaymentRecorder
                     'source_id' => $payment->id,
                     'amount' => $line['amount'],
                 ]);
+
+                // The allocator already flipped credit_orders.status to 'settled' in
+                // memory when fully paid — mirror that onto the linked order so the
+                // order page stops showing "پرداخت نشده" once its debt is actually paid.
+                $creditOrder = $line['credit_order'];
+                if ($creditOrder->status === 'settled' && $creditOrder->order_id) {
+                    Order::whereKey($creditOrder->order_id)->update([
+                        'payment_status' => 'paid',
+                        'date_paid' => $payment->paid_at,
+                    ]);
+                }
             }
 
             $payment->update(['journal_entry_id' => $entry->id]);
