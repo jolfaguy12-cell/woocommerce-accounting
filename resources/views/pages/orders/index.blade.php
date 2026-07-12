@@ -89,11 +89,9 @@
             <td x-show="visible.channel" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->channel?->name ?? 'نامشخص' }}</td>
             <td x-show="visible.status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="order" :value="$order->status" /></td>
             <td x-show="visible.payment_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="payment" :value="$order->payment_status" /></td>
-            <td x-show="visible.total" class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($order->total) }}</td>
-            <td x-show="visible.shipping" class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ number_format($order->shipping_charged) }}</td>
-            <td x-show="visible.profit" class="whitespace-nowrap px-5 py-3 sm:px-6 {{ ($order->profit?->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-gray-600 dark:text-gray-300' }}" dir="ltr">
-                {{ $order->profit?->operational_profit !== null ? number_format($order->profit->operational_profit) : '—' }}
-            </td>
+            <x-tables.num x-show="visible.total" :value="$order->total" class="text-gray-600 dark:text-gray-300" />
+            <x-tables.num x-show="visible.shipping" :value="$order->shipping_charged" class="text-gray-600 dark:text-gray-300" />
+            <x-tables.num x-show="visible.profit" :value="$order->profit?->operational_profit" :signed="true" />
             <td x-show="visible.profit_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="profit" :value="$order->profit_status" /></td>
             <td x-show="visible.order_date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->order_date) }}</td>
             <td x-show="visible.updated_at" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($order->updated_at) }}</td>

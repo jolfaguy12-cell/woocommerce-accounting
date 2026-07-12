@@ -1,5 +1,5 @@
 <div
-    class="rounded-2xl border border-gray-200 bg-white px-5 pb-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
+    class="rounded-card border border-gray-200 bg-white px-5 pb-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
     <div class="flex flex-col gap-5 mb-6 sm:flex-row sm:justify-between">
         <div class="w-full">
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -67,7 +67,17 @@
         </div>
     </div>
     <div class="max-w-full overflow-x-auto custom-scrollbar">
-        <div id="chartThree" class="-mr-4 min-w-[700px] pr-2 xl:min-w-full"></div>
+        {{-- Placeholder series — not yet wired to real data (see CLAUDE.md).
+             Migrated onto the shared `area` preset. --}}
+        <x-charts.chart
+            preset="area"
+            height="md"
+            class="min-w-[700px] xl:min-w-full"
+            :categories="['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند']"
+            :series="[
+                ['name' => 'فروش', 'data' => [180, 190, 170, 160, 175, 165, 170, 205, 230, 210, 240, 235]],
+                ['name' => 'درآمد', 'data' => [40, 30, 50, 40, 55, 40, 70, 100, 110, 120, 150, 140]],
+            ]" />
     </div>
 </div>
 

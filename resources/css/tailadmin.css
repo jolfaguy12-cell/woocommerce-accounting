@@ -198,6 +198,161 @@
   --z-index-9999: 9999;
   --z-index-99999: 99999;
   --z-index-999999: 999999;
+
+  /* ===================================================================
+     REPORTING DESIGN SYSTEM — semantic tokens (Phase 2)
+     -------------------------------------------------------------------
+     These are ALIASES over the TailAdmin primitives above, never new
+     palettes. Tailwind 4 compiles `text-profit` to `color: var(--color-profit)`,
+     so re-declaring a token inside `.dark {}` (see below) re-themes every
+     utility built from it automatically — no dark: variant needed.
+
+     Use these instead of raw palette colors in reporting UI:
+       text-profit / bg-status-failed / rounded-card / shadow-card / h-chart-md
+     See CLAUDE.md → "Reporting Design System".
+     =================================================================== */
+
+  /* --- Financial semantics --- */
+  --color-profit: #039855;      /* success-600 */
+  --color-loss: #d92d20;        /* error-600   */
+  --color-income: #12b76a;      /* success-500 */
+  --color-expense: #f79009;     /* warning-500 */
+  --color-trend-up: #12b76a;
+  --color-trend-down: #f04438;
+  --color-trend-flat: #98a2b3;  /* gray-400 */
+
+  /* --- Status semantics (fg + subtle bg). Always paired with a dot/icon +
+         label in markup: never convey status by color alone (WCAG). --- */
+  --color-status-draft: #667085;
+  --color-status-draft-bg: #f2f4f7;
+  --color-status-pending: #dc6803;
+  --color-status-pending-bg: #fffaeb;
+  --color-status-processing: #0086c9;
+  --color-status-processing-bg: #f0f9ff;
+  --color-status-approved: #3641f5;
+  --color-status-approved-bg: #ecf3ff;
+  --color-status-completed: #039855;
+  --color-status-completed-bg: #ecfdf3;
+  --color-status-cancelled: #98a2b3;
+  --color-status-cancelled-bg: #f9fafb;
+  --color-status-failed: #d92d20;
+  --color-status-failed-bg: #fef3f2;
+  --color-status-needs-review: #e04f16;
+  --color-status-needs-review-bg: #fff4ed;
+  --color-status-archived: #98a2b3;
+  --color-status-archived-bg: #f2f4f7;
+
+  /* --- Surfaces & borders --- */
+  --color-surface: #ffffff;
+  --color-surface-raised: #f9fafb;
+  --color-border-subtle: #f2f4f7;
+
+  /* --- Radius --- */
+  --radius-card: 1rem;      /* == rounded-2xl, the established card radius */
+  --radius-control: 0.5rem; /* inputs, buttons */
+  --radius-badge: 9999px;
+
+  /* --- Elevation (semantic aliases over --shadow-theme-*) --- */
+  --shadow-card: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-dropdown: 0px 12px 16px -4px rgba(16, 24, 40, 0.08), 0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-dialog: 0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+
+  /* --- Dashboard grid & density --- */
+  --spacing-widget: 1.5rem;         /* gap between widgets/cards */
+
+  /* --- Typography roles for reporting --- */
+  --text-kpi: 30px;
+  --text-kpi--line-height: 38px;
+  --text-table-header: 12px;
+  --text-table-header--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+}
+
+/* Tokens consumed via var() (inline styles / component CSS) rather than as
+   Tailwind utilities. They live in :root because Tailwind 4 tree-shakes @theme
+   variables it can't see used as a class, which would silently drop these. */
+:root {
+  --height-chart-xs: 48px;   /* KPI sparklines */
+  --height-chart-sm: 180px;
+  --height-chart-md: 310px;
+  --height-chart-lg: 420px;
+  --height-row-compact: 2.25rem;
+  --height-row-default: 3rem;
+  --height-row-comfortable: 3.75rem;
+
+  /* Motion (150–300ms; prefers-reduced-motion honoured below) */
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark-mode token overrides. Because every semantic utility resolves through
+   var(), redefining the token here re-themes the whole design system at once. */
+.dark {
+  --color-profit: #32d583;
+  --color-loss: #f97066;
+  --color-income: #32d583;
+  --color-expense: #fdb022;
+  --color-trend-up: #32d583;
+  --color-trend-down: #f97066;
+  --color-trend-flat: #667085;
+
+  --color-status-draft: #98a2b3;
+  --color-status-draft-bg: rgba(152, 162, 179, 0.15);
+  --color-status-pending: #fdb022;
+  --color-status-pending-bg: rgba(247, 144, 9, 0.15);
+  --color-status-processing: #36bffa;
+  --color-status-processing-bg: rgba(11, 165, 236, 0.15);
+  --color-status-approved: #7592ff;
+  --color-status-approved-bg: rgba(70, 95, 255, 0.15);
+  --color-status-completed: #32d583;
+  --color-status-completed-bg: rgba(18, 183, 106, 0.15);
+  --color-status-cancelled: #667085;
+  --color-status-cancelled-bg: rgba(102, 112, 133, 0.15);
+  --color-status-failed: #f97066;
+  --color-status-failed-bg: rgba(240, 68, 56, 0.15);
+  --color-status-needs-review: #ff9c66;
+  --color-status-needs-review-bg: rgba(224, 79, 22, 0.15);
+  --color-status-archived: #667085;
+  --color-status-archived-bg: rgba(102, 112, 133, 0.15);
+
+  --color-surface: #171f2f;          /* gray-900-ish card surface */
+  --color-surface-raised: rgba(255, 255, 255, 0.03);
+  --color-border-subtle: #1d2939;
+}
+
+/* Financial/report figures must line up by place value. IRANSansXFaNum is
+   proportional by default, so force tabular figures wherever numbers are
+   columnar (tables, KPI values). Paired with dir="ltr" + text-right in
+   <x-tables.num>. */
+@utility tabular-fig {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Table density. <x-tables.pro-table> puts one of these on a wrapper and the
+   row padding follows the --height-row-* tokens. Cosmetic + per-user only. */
+.pro-table-compact td,
+.pro-table-compact th {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.pro-table-comfortable td,
+.pro-table-comfortable th {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /*

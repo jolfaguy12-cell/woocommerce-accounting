@@ -27,7 +27,7 @@
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
 
   {{-- 1. تعداد مشتریان جدید این ماه --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-brand-50 dark:bg-brand-500/15">
       <svg class="stroke-brand-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="8" r="4" />
@@ -53,7 +53,7 @@
   </div>
 
   {{-- 2. فروش کل (ناخالص) این ماه --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-success-50 dark:bg-success-500/15">
       <svg class="stroke-success-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 17l6-6 4 4 8-8" />
@@ -79,7 +79,7 @@
   </div>
 
   {{-- 3. محصول موجود در انبار (تعداد محصولات یکتا با موجودی مثبت) --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-light-50 dark:bg-blue-light-500/15">
       <svg class="stroke-blue-light-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 8l-9-5-9 5 9 5 9-5z" />
@@ -104,7 +104,7 @@
   </div>
 
   {{-- 4. کالاهای موجود در انبار (مجموع دقیق واحدهای فیزیکی، شامل تنوع‌ها) — هر چند ساعت یک‌بار محاسبه می‌شود، نه با هر رفرش --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-teal-50 dark:bg-teal-500/15">
       <svg class="stroke-teal-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="18" height="13" rx="1.5" />
@@ -126,7 +126,7 @@
   </div>
 
   {{-- 5. ارزش انبار سایت (بر مبنای قیمت فروش، نه بهای تمام‌شده) — همراه با کارت قبل محاسبه می‌شود --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800">
       <svg class="stroke-gray-500 dark:stroke-gray-300" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 21V10l9-6 9 6v11" />
@@ -149,7 +149,7 @@
 
   {{-- 6. هزینه‌های ماه --}}
   {{-- TODO(backend): SUM(Expense.amount) برای دوره جاری (jalali_period فعلی) --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-error-50 dark:bg-error-500/15">
       <svg class="stroke-error-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="9" />
@@ -174,7 +174,7 @@
 
   {{-- 7. درآمد ماه --}}
   {{-- TODO(backend): جمع net_sale برای دوره جاری (همان fin.kpis.net_sales در DashboardController) --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-success-50 dark:bg-success-500/15">
       <svg class="stroke-success-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="9" />
@@ -199,7 +199,7 @@
 
   {{-- 8. مانده حساب --}}
   {{-- TODO(backend): جمع مانده حساب‌ها (fin.balances.banks_and_cash + receivables - payables ...) --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-500/15">
       <svg class="stroke-orange-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3v18" />
@@ -226,7 +226,7 @@
 
   {{-- 9. درآمد روز --}}
   {{-- TODO(backend): جمع net_sale سفارش‌های امروز (order_date = امروز به وقت تهران) --}}
-  <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+  <div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
     <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-warning-50 dark:bg-warning-500/15">
       <svg class="stroke-warning-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="5" width="18" height="16" rx="2" />

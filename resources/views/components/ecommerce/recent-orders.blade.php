@@ -1,6 +1,6 @@
 @props(['orders' => []])
 
-<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
+<div class="overflow-hidden rounded-card border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
     <div class="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">سفارش‌های اخیر</h3>

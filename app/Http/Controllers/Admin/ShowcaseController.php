@@ -84,6 +84,68 @@ class ShowcaseController extends Controller
                 'future' => ['غنی‌سازی کانال از API', 'اپلیکیشن موبایل'],
                 'missing' => ['نمودار زیان محصولات'],
             ],
+
+            // ---- Phase 3 -------------------------------------------------
+            'profitRows' => [
+                ['label' => 'فروش خالص', 'value' => 84_500_000],
+                ['label' => 'بهای تمام‌شده کالا', 'value' => -52_300_000],
+                ['label' => 'کارمزد کانال‌ها', 'value' => -3_100_000],
+                ['label' => 'هزینه حمل', 'value' => -4_800_000],
+            ],
+            'cashflowRows' => [
+                ['label' => 'موجودی بانک و صندوق', 'value' => 128_400_000],
+                ['label' => 'مطالبات از مشتریان', 'value' => 42_900_000],
+                ['label' => 'بدهی به تأمین‌کنندگان', 'value' => -31_500_000],
+                ['label' => 'چک‌های پرداختنی', 'value' => -12_000_000, 'status' => 'pending'],
+            ],
+            'revenueByChannel' => [
+                ['label' => 'وب‌سایت', 'value' => 48_200_000],
+                ['label' => 'باسلام', 'value' => 21_500_000],
+                ['label' => 'ترب', 'value' => 9_800_000],
+                ['label' => 'دیجی‌کالا', 'value' => 5_000_000],
+            ],
+            'expenseByCategory' => [
+                ['label' => 'تبلیغات', 'value' => 12_500_000],
+                ['label' => 'حقوق و دستمزد', 'value' => 28_000_000],
+                ['label' => 'اجاره', 'value' => 8_000_000],
+                ['label' => 'حمل و بسته‌بندی', 'value' => 4_800_000],
+            ],
+            'bridgeSteps' => [
+                ['label' => 'سود ناخالص', 'value' => 32_200_000],
+                ['label' => 'هزینه‌های عملیاتی', 'value' => -12_500_000],
+                ['label' => 'حقوق', 'value' => -8_000_000],
+                ['label' => 'کارمزد کانال', 'value' => -3_100_000],
+                ['label' => 'تعدیلات', 'value' => 1_200_000],
+            ],
+            'topProducts' => [
+                ['label' => 'اسپری ضدعفونی‌کننده ۵۰۰ml', 'value' => 18_400_000, 'meta' => '۲۴۰ فروش'],
+                ['label' => 'ژل شست‌وشوی دست', 'value' => 12_100_000, 'meta' => '۱۸۵ فروش'],
+                ['label' => 'ماسک سه‌لایه (بسته ۵۰ عددی)', 'value' => 7_900_000, 'meta' => '۱۴۰ فروش'],
+                ['label' => 'دستکش نیتریل', 'value' => 4_200_000, 'meta' => '۹۵ فروش'],
+            ],
+            'topCustomers' => [
+                ['label' => 'داروخانه مرکزی', 'value' => 22_500_000, 'meta' => '۱۸ سفارش', 'status' => 'completed'],
+                ['label' => 'زهرا کریمی', 'value' => 9_300_000, 'meta' => '۷ سفارش'],
+                ['label' => 'محمد صادقی', 'value' => 6_100_000, 'meta' => '۵ سفارش', 'status' => 'pending'],
+            ],
+            'activities' => [
+                ['title' => 'گزارش دوره ۱۴۰۵-۰۳ نهایی شد', 'meta' => 'علی خلیلی', 'time' => '۱۴۰۵/۰۴/۱۲ ۱۴:۳۰', 'tone' => 'success', 'status' => 'completed'],
+                ['title' => 'فاکتور خرید #۱۰۴ ثبت شد', 'meta' => 'مبلغ ۱۲٬۸۰۰٬۰۰۰ تومان', 'time' => '۱۴۰۵/۰۴/۱۲ ۱۱:۰۵', 'tone' => 'default'],
+                ['title' => 'منبع ناشناخته در سفارش #۱۰۴۸۲', 'meta' => 'نیازمند نگاشت کانال', 'time' => '۱۴۰۵/۰۴/۱۱ ۰۹:۴۸', 'tone' => 'warning', 'status' => 'needs_review'],
+                ['title' => 'همگام‌سازی سفارش‌ها ناموفق بود', 'meta' => 'خطای اتصال به هاب', 'time' => '۱۴۰۵/۰۴/۱۰ ۲۳:۱۵', 'tone' => 'error', 'status' => 'failed'],
+            ],
+            'quickStats' => [
+                ['label' => 'سفارش امروز', 'value' => 24, 'type' => 'int', 'change' => 8.3],
+                ['label' => 'فروش امروز', 'value' => 4_820_000, 'type' => 'toman', 'change' => -2.1],
+                ['label' => 'میانگین سبد', 'value' => 200_800, 'type' => 'toman', 'change' => 1.4],
+                ['label' => 'در انتظار بازبینی', 'value' => 3, 'type' => 'int', 'status' => 'needs_review'],
+            ],
+            'todos' => [
+                ['id' => 1, 'title' => 'بستن گزارش دوره ۱۴۰۵-۰۴', 'done' => false, 'priority' => 'high', 'due' => '۱۴۰۵/۰۴/۳۱', 'overdue' => false, 'status' => 'processing', 'assignee' => 'علی خلیلی'],
+                ['id' => 2, 'title' => 'نگاشت کانال منبع ناشناخته', 'done' => false, 'priority' => 'high', 'due' => '۱۴۰۵/۰۴/۱۰', 'overdue' => true, 'status' => 'needs_review'],
+                ['id' => 3, 'title' => 'ثبت بهای تمام‌شده ۵ محصول', 'done' => false, 'priority' => 'medium', 'due' => '۱۴۰۵/۰۵/۰۵', 'overdue' => false],
+                ['id' => 4, 'title' => 'بارگذاری واریزی‌های زیبال', 'done' => true, 'priority' => 'low', 'due' => '۱۴۰۵/۰۴/۰۸', 'overdue' => false, 'status' => 'completed'],
+            ],
         ];
     }
 }

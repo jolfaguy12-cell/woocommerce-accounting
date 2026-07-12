@@ -3,21 +3,39 @@
     'paginator' => null,
     'emptyMessage' => 'موردی یافت نشد',
     'totals' => null, // optional array of ['label' => ..., 'value' => ...] rendered as a summary footer row
+    'stickyHeader' => false,
 ])
 
-<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+<div class="overflow-hidden rounded-card border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
     <div class="max-w-full overflow-x-auto custom-scrollbar">
         <table class="w-full">
-            <thead>
+            <thead @class(['sticky top-0 z-10 bg-white dark:bg-gray-900' => $stickyHeader])>
                 <tr class="border-b border-gray-100 dark:border-gray-800">
                     @foreach ($headers as $header)
-                        {{-- Headers may be a plain string (always shown) or ['key' => ..., 'label' => ...]
-                             so a page can drive column visibility from an Alpine `visible` object
-                             defined on an ancestor element (see orders/index.blade.php). A header can
-                             also carry 'sort_url' (+ optional 'sort_dir': 'asc'|'desc'|null) to render
-                             as a sortable link with a direction arrow — see customers/index.blade.php. --}}
-                        <th @if (is_array($header)) x-show="visible['{{ $header['key'] }}']" @endif class="px-5 py-3 text-right sm:px-6 {{ (is_array($header) && ($header['align'] ?? null) === 'center') ? 'text-center' : '' }}">
-                            @if (is_array($header) && isset($header['sort_url']))
+                        {{-- Headers may be a plain string (always shown) or an array:
+                               'label'    (required in array form)
+                               'key'      OPTIONAL — opt in to Alpine column-visibility
+                                          (needs a `visible` object on an ancestor; see pro-table)
+                               'align'    OPTIONAL — 'start' (default) | 'center' | 'end'
+                               'sort_url' OPTIONAL (+ 'sort_dir': 'asc'|'desc'|null) → sortable link
+
+                             `align` is deliberately INDEPENDENT of `key`: a column must be
+                             alignable without opting into the column-visibility machinery.
+                             Numeric/money columns use align => 'end' and <x-tables.num>, which
+                             pins header and value to the same edge (see CLAUDE.md → numeric
+                             alignment). --}}
+                        @php
+                            $isArr = is_array($header);
+                            $align = $isArr ? ($header['align'] ?? 'start') : 'start';
+                            $alignClass = match ($align) {
+                                'center' => 'text-center',
+                                'end' => 'text-left',   // RTL page: logical "end" of a row is the left edge
+                                default => 'text-right',
+                            };
+                        @endphp
+                        <th @if ($isArr && isset($header['key'])) x-show="visible['{{ $header['key'] }}']" @endif
+                            class="px-5 py-3 sm:px-6 {{ $alignClass }}">
+                            @if ($isArr && isset($header['sort_url']))
                                 <a href="{{ $header['sort_url'] }}" class="inline-flex items-center gap-1 font-medium text-gray-500 text-theme-xs hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                                     {{ $header['label'] }}
                                     @if (($header['sort_dir'] ?? null) === 'asc')

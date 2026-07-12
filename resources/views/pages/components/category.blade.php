@@ -4,12 +4,14 @@
 <x-common.page-breadcrumb pageTitle="{{ $meta['title'] }}" parentLabel="کامپوننت‌ها" parentUrl="{{ route('components.overview') }}" />
 
 <div class="space-y-6">
-    {{-- Category switcher --}}
-    <div class="flex flex-wrap gap-2">
+    {{-- Category switcher. Scrolls horizontally rather than wrapping: with 16
+         categories a wrapped pile is unreadable, and on a phone the wrapped
+         chips pushed the page into a horizontal scroll. --}}
+    <div class="custom-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         @foreach ($categories as $key => $category)
             <a href="{{ route('components.category', $key) }}"
                 @class([
-                    'rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                    'shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition',
                     'bg-brand-500 text-white' => $key === $categoryKey,
                     'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10' => $key !== $categoryKey,
                 ])>

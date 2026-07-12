@@ -118,7 +118,11 @@
         @include('layouts.backdrop')
         @include('layouts.sidebar')
 
-        <div class="flex-1 transition-all duration-300 ease-in-out"
+        {{-- min-w-0: a flex item defaults to min-width:auto, which stops flex-1
+             from shrinking to make room for its own margin — the content box
+             stayed full-width and the 290px sidebar margin pushed it past the
+             viewport, giving every page a horizontal scrollbar. --}}
+        <div class="min-w-0 flex-1 transition-all duration-300 ease-in-out"
             :class="{
                 'xl:mr-[290px]': $store.sidebar.isExpanded || $store.sidebar.isHovered,
                 'xl:mr-[90px]': !$store.sidebar.isExpanded && !$store.sidebar.isHovered,

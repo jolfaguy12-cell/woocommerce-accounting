@@ -19,7 +19,7 @@
     $countriesList = !empty($countries) ? $countries : $defaultCountries;
 @endphp
 
-<div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
+<div class="rounded-card border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
     <div class="flex justify-between">
         <div>
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -35,7 +35,7 @@
          <!-- End Dropdown Menu -->
     </div>
 
-    <div class="border-gary-200 my-6 overflow-hidden rounded-2xl border bg-gray-50 px-4 py-6 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
+    <div class="border-gary-200 my-6 overflow-hidden rounded-card border bg-gray-50 px-4 py-6 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
         <div id="mapOne" class="mapOne map-btn -mx-4 -my-6 h-[212px] w-[252px] 2xsm:w-[307px] xsm:w-[358px] sm:-mx-6 md:w-[668px] lg:w-[634px] xl:w-[393px] 2xl:w-[554px]"></div>
     </div>
 

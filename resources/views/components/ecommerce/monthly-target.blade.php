@@ -1,5 +1,5 @@
-<div class="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03]">
-    <div class="shadow-default rounded-2xl bg-white px-5 pb-11 pt-5 dark:bg-gray-900 sm:px-6 sm:pt-6">
+<div class="rounded-card border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="shadow-default rounded-card bg-white px-5 pb-11 pt-5 dark:bg-gray-900 sm:px-6 sm:pt-6">
         <div class="flex justify-between">
             <div>
                 <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -16,7 +16,9 @@
         </div>
         <div class="relative max-h-[195px]">
             {{-- Chart --}}
-            <div id="chartTwo" class="h-full"></div>
+            {{-- Placeholder target (75.55%) — this widget is not yet wired to real
+                 data (see CLAUDE.md). Migrated onto the shared `radial` preset. --}}
+            <x-charts.chart preset="radial" height="md" :series="[75.55]" />
             <span class="absolute right-1/2 top-[85%] -translate-x-1/2 -translate-y-[85%] rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">+10%</span>
         </div>
         <p class="mx-auto mt-1.5 w-full max-w-[380px] text-center text-sm text-gray-500 sm:text-base">
