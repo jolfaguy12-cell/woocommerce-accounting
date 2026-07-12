@@ -1,6 +1,9 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 import ApexCharts from 'apexcharts';
+// <x-common.table-dropdown> calls createPopper() as a global to position its
+// row-action menu; without this it was an undefined global (silently broken).
+import { createPopper } from '@popperjs/core';
 
 // flatpickr
 import flatpickr from 'flatpickr';
@@ -16,6 +19,7 @@ window.Alpine = Alpine;
 window.ApexCharts = ApexCharts;
 window.flatpickr = flatpickr;
 window.FullCalendar = Calendar;
+window.createPopper = createPopper;
 
 window.jalaliDatepicker.startWatch({
     minWidth: false,

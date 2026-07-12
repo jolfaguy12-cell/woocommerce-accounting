@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -11,17 +12,16 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class NewPasswordController extends Controller
 {
     /**
      * Show the password reset page.
      */
-    public function create(Request $request): Response
+    public function create(Request $request): View
     {
-        return Inertia::render('auth/reset-password', [
+        return view('pages.auth.reset-password', [
+            'title' => 'بازنشانی رمز عبور',
             'email' => $request->email,
             'token' => $request->route('token'),
         ]);

@@ -7,17 +7,17 @@ use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Channels\Services\ChannelMapper;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class ReviewController extends Controller
 {
-    public function index(): Response
+    public function index(): View
     {
-        return Inertia::render('review', [
+        return view('pages.review.index', [
+            'title' => 'مرکز بازبینی',
             'items' => ReviewItem::with('subject')->where('status', 'open')->latest()->limit(200)->get()
                 ->map(fn ($item) => [
                     'id' => $item->id,
@@ -30,7 +30,7 @@ class ReviewController extends Controller
                         'raw_value' => $item->subject?->raw_value,
                         'order_count' => $item->subject?->order_count,
                     ] : null,
-                    'created_at' => $item->created_at->toIso8601String(),
+                    'created_at' => $item->created_at,
                 ]),
             'channels' => Channel::where('is_active', true)->get(['id', 'name', 'slug', 'cost_model']),
         ]);

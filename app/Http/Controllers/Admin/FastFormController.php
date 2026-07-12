@@ -13,17 +13,17 @@ use App\Domain\Expenses\Services\ExpenseRecorder;
 use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class FastFormController extends Controller
 {
-    public function index(): Response
+    public function index(): View
     {
-        return Inertia::render('fast-forms', [
+        return view('pages.fast-forms.index', [
+            'title' => 'فرم‌های سریع',
             'categories' => ExpenseCategory::where('is_active', true)->get(['id', 'name']),
             'cost_centers' => CostCenter::where('is_active', true)->get(['id', 'name']),
             'banks' => BankAccount::where('is_active', true)->get(['id', 'name', 'is_cash']),

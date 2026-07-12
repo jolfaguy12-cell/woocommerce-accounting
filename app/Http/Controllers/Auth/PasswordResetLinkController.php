@@ -3,22 +3,21 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class PasswordResetLinkController extends Controller
 {
     /**
      * Show the password reset link request page.
      */
-    public function create(Request $request): Response
+    public function create(Request $request): View
     {
-        return Inertia::render('auth/forgot-password', [
-            'status' => $request->session()->get('status'),
+        return view('pages.auth.forgot-password', [
+            'title' => 'فراموشی رمز عبور',
         ]);
     }
 

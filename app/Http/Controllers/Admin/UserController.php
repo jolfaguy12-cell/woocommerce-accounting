@@ -4,26 +4,26 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
-use Inertia\Inertia;
-use Inertia\Response;
 use Spatie\Permission\Models\Role;
 
 /** Admin-only account management; public registration is disabled by design. */
 class UserController extends Controller
 {
-    public function index(): Response
+    public function index(): View
     {
-        return Inertia::render('users/index', [
+        return view('pages.users.index', [
+            'title' => 'کاربران',
             'users' => User::orderBy('name')->get()->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
-                'roles' => $u->getRoleNames(),
-                'created_at' => $u->created_at?->toIso8601String(),
+                'roles' => $u->getRoleNames()->all(),
+                'created_at' => $u->created_at,
             ]),
             'roles' => Role::orderBy('name')->pluck('name'),
         ]);

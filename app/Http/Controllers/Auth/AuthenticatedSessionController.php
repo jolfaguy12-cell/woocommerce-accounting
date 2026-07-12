@@ -4,23 +4,22 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
      * Show the login page.
      */
-    public function create(Request $request): Response
+    public function create(Request $request): View
     {
-        return Inertia::render('auth/login', [
+        return view('pages.auth.login', [
+            'title' => 'ورود',
             'canResetPassword' => Route::has('password.request'),
-            'status' => $request->session()->get('status'),
         ]);
     }
 
