@@ -40,7 +40,7 @@
                         class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
                         <option value="">انتخاب کنید…</option>
                         @foreach ($suppliers as $s)
-                            <option value="{{ $s->id }}" @selected(old('supplier_party_id') == $s->id)>{{ $s->name }}{{ $s->shop_name ? " ({$s->shop_name})" : '' }}</option>
+                            <option value="{{ $s->id }}" @selected(old('supplier_party_id', $preselectedSupplierId) == $s->id)>{{ $s->name }}{{ $s->shop_name ? " ({$s->shop_name})" : '' }}</option>
                         @endforeach
                         <option value="__new__" @selected(old('new_supplier_name'))>+ تامین‌کننده جدید…</option>
                     </select>

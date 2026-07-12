@@ -38,4 +38,14 @@ class PurchaseInvoice extends Model
     {
         return $this->morphMany(Attachment::class, 'attachable');
     }
+
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoiceReceipt::class, 'purchase_invoice_id');
+    }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(PurchaseReturn::class, 'purchase_invoice_id');
+    }
 }

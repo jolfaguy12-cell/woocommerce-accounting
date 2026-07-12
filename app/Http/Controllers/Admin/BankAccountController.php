@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Services\BankAccountManager;
+use App\Domain\Receivables\Models\PartyPayment;
 use App\Http\Controllers\Controller;
 use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -92,7 +94,9 @@ class BankAccountController extends Controller
 
         $transactions = $bankAccount->account->lines()
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
-            ->with(['entry', 'party'])
+            ->with(['entry', 'party', 'entry.source' => function (MorphTo $morphTo) {
+                $morphTo->morphWith([PartyPayment::class => ['creator', 'editor']]);
+            }])
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('journal_entries.description', 'like', "%{$search}%")

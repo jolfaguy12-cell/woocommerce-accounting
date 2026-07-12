@@ -48,13 +48,22 @@
             </td>
             <x-tables.ltr x-show="visible.bank_account" class="px-5 sm:px-6" :value="$supplier->bank_account_number" tone="muted" />
             <td x-show="visible.invoices_count" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ number_format($supplier->invoices_count) }}</td>
+            {{--
+                Plain color-coded signed number, no unit/label text: green =
+                credit (they owe us), red = debt (we owe them). This is the
+                OPPOSITE of <x-tables.num signed>'s profit/loss convention
+                (positive=green), so tone is set explicitly rather than using
+                `signed` — same reasoning as bank-accounts/show.blade.php's own
+                hand-rolled `$balance < 0 ? 'text-error-500' : ...`.
+            --}}
             <td x-show="visible.payable_balance" class="px-5 py-3 sm:px-6">
-                <x-tables.num :value="$supplier->payable_balance" type="toman" :signed="true" :cell="false" />
-                @if ($supplier->payable_balance > 0)
-                    <span class="mt-0.5 block text-theme-xs text-gray-400">بدهکار ما</span>
-                @elseif ($supplier->payable_balance < 0)
-                    <span class="mt-0.5 block text-theme-xs text-gray-400">طلبکار ما</span>
-                @endif
+                <x-tables.num
+                    :value="$supplier->payable_balance"
+                    type="toman"
+                    unit=""
+                    :tone="$supplier->payable_balance > 0 ? 'negative' : ($supplier->payable_balance < 0 ? 'positive' : 'default')"
+                    :cell="false"
+                />
             </td>
             <td x-show="visible.actions" class="px-5 py-3 sm:px-6">
                 <div class="flex items-center gap-2">

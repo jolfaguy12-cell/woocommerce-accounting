@@ -46,15 +46,31 @@
                 @endif
             </div>
 
-            <div class="flex shrink-0 items-center gap-2">
+            <div class="flex flex-wrap shrink-0 items-center gap-2">
+                <a href="{{ route('purchases.create', ['supplier_party_id' => $supplier->id]) }}"
+                    class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">
+                    + خرید جدید از این تامین‌کننده
+                </a>
+                <a href="{{ route('purchases.index', ['supplier_party_id' => $supplier->id]) }}"
+                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                    مشاهده فاکتورهای خرید
+                </a>
                 <button type="button"
                     @click="$dispatch('open-supplier-modal', @js($supplier->only(['id', 'name', 'shop_name', 'phone', 'email', 'address', 'bank_account_number', 'notes'])))"
                     class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
                     ویرایش
                 </button>
                 <button type="button" @click="$dispatch('open-pay-supplier-modal')"
-                    class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">
+                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
                     پرداخت به تامین‌کننده
+                </button>
+                <button type="button" @click="$dispatch('open-refund-supplier-modal')"
+                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                    دریافت بازپرداخت
+                </button>
+                <button type="button" @click="$dispatch('open-credit-supplier-modal')"
+                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                    ثبت اعتبار دستی
                 </button>
             </div>
         </div>
@@ -128,4 +144,6 @@
 
 @include('pages.suppliers.partials.edit-modal')
 @include('pages.suppliers.partials.pay-modal')
+@include('pages.suppliers.partials.refund-modal')
+@include('pages.suppliers.partials.credit-modal')
 @endsection

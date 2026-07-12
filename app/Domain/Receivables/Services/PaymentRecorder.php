@@ -159,14 +159,16 @@ class PaymentRecorder
      * is a real event (an advance), and simply drives the AP balance negative
      * for this party rather than needing a separate prepaid-asset account.
      */
-    public function pay(Party $party, int $amount, int $bankAccountId, ?int $by = null): PartyPayment
+    public function pay(Party $party, int $amount, int $bankAccountId, ?int $by = null, ?string $method = null, ?string $reference = null): PartyPayment
     {
-        return DB::transaction(function () use ($party, $amount, $bankAccountId, $by) {
+        return DB::transaction(function () use ($party, $amount, $bankAccountId, $by, $method, $reference) {
             $payment = PartyPayment::create([
                 'uuid' => (string) Str::uuid(),
                 'party_id' => $party->id,
                 'direction' => 'out',
                 'amount' => $amount,
+                'method' => $method,
+                'reference' => $reference,
                 'bank_account_id' => $bankAccountId,
                 'paid_at' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
                 'created_by' => $by,
@@ -181,6 +183,43 @@ class PaymentRecorder
             ], [
                 ['account' => self::AP, 'debit' => $amount, 'party_id' => $party->id],
                 ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'credit' => $amount, 'party_id' => $party->id],
+            ]);
+
+            $payment->update(['journal_entry_id' => $entry->id]);
+
+            return $payment->load('journalEntry.lines');
+        });
+    }
+
+    /**
+     * A supplier refunding money back to us — the mirror of pay(): credits AP
+     * (reducing or reversing a negative/credit balance), debits the receiving
+     * bank account. Same generic party_payments table, direction 'in'.
+     */
+    public function receiveRefund(Party $party, int $amount, int $bankAccountId, ?int $by = null, ?string $method = null, ?string $reference = null): PartyPayment
+    {
+        return DB::transaction(function () use ($party, $amount, $bankAccountId, $by, $method, $reference) {
+            $payment = PartyPayment::create([
+                'uuid' => (string) Str::uuid(),
+                'party_id' => $party->id,
+                'direction' => 'in',
+                'amount' => $amount,
+                'method' => $method,
+                'reference' => $reference,
+                'bank_account_id' => $bankAccountId,
+                'paid_at' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
+                'created_by' => $by,
+            ]);
+
+            $entry = $this->poster->post([
+                'entry_date' => Carbon::now(JalaliPeriod::TIMEZONE),
+                'description' => "بازپرداخت از {$party->name}",
+                'idempotency_key' => "payment:{$payment->uuid}",
+                'source' => $payment,
+                'created_by' => $by,
+            ], [
+                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
+                ['account' => self::AP, 'credit' => $amount, 'party_id' => $party->id],
             ]);
 
             $payment->update(['journal_entry_id' => $entry->id]);

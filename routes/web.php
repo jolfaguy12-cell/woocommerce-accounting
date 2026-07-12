@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
+use App\Http\Controllers\Admin\PartyPaymentController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\PurchaseInvoiceController;
 use App\Http\Controllers\Admin\ReportController;
@@ -59,6 +60,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('attachments/{attachment}', [AttachmentController::class, 'download'])
         ->name('attachments.download');
 
+    // These two literal GET routes MUST be registered before the
+    // admin|accountant|warehouse group's `new-buy-order/{invoice}` below —
+    // Laravel/Symfony route matching picks whichever registered route
+    // matches first, and `{invoice}` would otherwise swallow the literal
+    // "create"/"items" segments as a (nonexistent) invoice id, 404ing instead
+    // of ever reaching this admin|accountant-only pair.
+    Route::middleware('role:admin|accountant')->group(function () {
+        Route::get('new-buy-order/create', [PurchaseInvoiceController::class, 'create'])->name('purchases.create');
+        Route::get('new-buy-order/items/search', [PurchaseInvoiceController::class, 'searchItems'])->name('purchases.items.search');
+    });
+
     // Read views for staff; partner viewers keep dashboard + reports only.
     Route::middleware('role:admin|accountant|warehouse')->group(function () {
         Route::get('review', [ReviewController::class, 'index'])->name('review.index');
@@ -72,6 +84,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('orders/{order}/notes', [NoteController::class, 'store'])->name('orders.notes.store');
         Route::delete('notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
         Route::post('orders/{order}/labels', [OrderController::class, 'syncLabels'])->name('orders.labels');
+
+        // Purchase invoice reads + recording a physical receipt are open to
+        // warehouse (see PurchaseInvoiceService::recordReceipt()) — everything
+        // else in Purchasing/Suppliers stays admin|accountant below.
+        Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
+        Route::get('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
+        Route::post('new-buy-order/{invoice}/receipts', [PurchaseInvoiceController::class, 'storeReceipt'])->name('purchases.receipts.store');
     });
 
     // Financial mutations are for admin/accountant only.
@@ -106,17 +125,18 @@ Route::middleware(['auth'])->group(function () {
         Route::post('suppliers/{supplier}/pay', [SupplierController::class, 'pay'])->name('suppliers.pay');
         Route::get('suppliers/{supplier}/purchase-history', [SupplierController::class, 'purchaseHistory'])->name('suppliers.purchase-history');
         Route::get('suppliers/{supplier}/transactions', [SupplierController::class, 'transactions'])->name('suppliers.transactions');
+        Route::post('suppliers/{supplier}/refund', [SupplierController::class, 'refund'])->name('suppliers.refund');
+        Route::post('suppliers/{supplier}/credit', [SupplierController::class, 'storeCredit'])->name('suppliers.credit');
 
-        Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
-        Route::get('new-buy-order/create', [PurchaseInvoiceController::class, 'create'])->name('purchases.create');
         Route::post('new-buy-order', [PurchaseInvoiceController::class, 'store'])->name('purchases.store');
-        Route::get('new-buy-order/items/search', [PurchaseInvoiceController::class, 'searchItems'])->name('purchases.items.search');
-        Route::get('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
         Route::get('new-buy-order/{invoice}/edit', [PurchaseInvoiceController::class, 'edit'])->name('purchases.edit');
         Route::put('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'update'])->name('purchases.update');
         Route::post('new-buy-order/{invoice}/finalize', [PurchaseInvoiceController::class, 'finalize'])->name('purchases.finalize');
         Route::post('new-buy-order/{invoice}/images', [PurchaseInvoiceController::class, 'storeImages'])->name('purchases.images.store');
         Route::delete('new-buy-order/{invoice}/images/{attachment}', [PurchaseInvoiceController::class, 'destroyImage'])->name('purchases.images.destroy');
+        Route::post('new-buy-order/{invoice}/returns', [PurchaseInvoiceController::class, 'storeReturn'])->name('purchases.returns.store');
+
+        Route::put('party-payments/{payment}/note', [PartyPaymentController::class, 'updateNote'])->name('party-payments.notes.update');
 
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');

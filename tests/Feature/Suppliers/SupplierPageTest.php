@@ -83,3 +83,22 @@ it('404s when viewing a non-supplier party as a supplier', function () {
     $this->actingAs($this->admin)->get("/suppliers/{$customer->id}/purchase-history")->assertNotFound();
     $this->actingAs($this->admin)->get("/suppliers/{$customer->id}/transactions")->assertNotFound();
 });
+
+it('renders the balance as a plain color-coded signed number, with no unit or debtor/creditor label text', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $item = CostItem::create(['name' => 'اسپری']);
+    $debtor = Party::create(['type' => 'supplier', 'name' => 'تامین‌کننده بدهکار']);
+    $invoice = $service->create([
+        'supplier_party_id' => $debtor->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'lines' => [['cost_item_id' => $item->id, 'qty' => 1, 'unit_price' => 500_000]],
+    ]);
+    $service->receive($invoice, [$invoice->lines->first()->id => 1]);
+
+    $response = $this->actingAs($this->admin)->get('/suppliers');
+
+    $response->assertOk()
+        ->assertDontSee('تومان')
+        ->assertDontSee('بدهکار ما')
+        ->assertDontSee('طلبکار ما');
+});

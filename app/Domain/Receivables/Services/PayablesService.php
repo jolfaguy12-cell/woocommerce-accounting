@@ -4,7 +4,9 @@ namespace App\Domain\Receivables\Services;
 
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Receivables\Models\PartyPayment;
 use App\Support\Design\TableQuery;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -48,7 +50,14 @@ class PayablesService
 
         $transactions = $account->lines()->where('party_id', $party->id)
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
-            ->with('entry')
+            // entry.source lets the view render a rich, typed row (payment vs
+            // invoice vs return vs manual credit) and its own clickable link.
+            // bankAccount is per-morph-type (only PartyPayment has one) so it
+            // is loaded via morphWith rather than plain dot-notation, which
+            // would error on source types with no such relation.
+            ->with(['entry', 'entry.source' => function (MorphTo $morphTo) {
+                $morphTo->morphWith([PartyPayment::class => ['bankAccount', 'creator', 'editor']]);
+            }])
             ->when($search !== '', fn ($q) => $q->where('journal_entries.description', 'like', "%{$search}%"))
             ->select('journal_lines.*')
             ->tap(fn ($q) => $query->apply($q))

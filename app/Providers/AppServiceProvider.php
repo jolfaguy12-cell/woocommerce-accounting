@@ -8,6 +8,7 @@ use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Models\PurchaseReturn;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Models\BankDeposit;
@@ -21,6 +22,7 @@ use App\Domain\Receivables\Models\CreditOrderSettlement;
 use App\Domain\Receivables\Models\Loan;
 use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Models\PayrollRun;
+use App\Domain\Receivables\Models\SupplierCreditAdjustment;
 use App\Domain\Reports\Models\PartnerReport;
 use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
@@ -64,6 +66,8 @@ class AppServiceProvider extends ServiceProvider
             'bad_debt_write_off' => BadDebtWriteOff::class,
             'credit_order_settlement' => CreditOrderSettlement::class,
             'party' => Party::class,
+            'purchase_return' => PurchaseReturn::class,
+            'supplier_credit_adjustment' => SupplierCreditAdjustment::class,
         ]);
 
         // Attachments hold sensitive financial documents; partner viewers never see them.

@@ -8,6 +8,7 @@ use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Costing\Services\ProductMappingResolver;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
+use App\Domain\Costing\Services\PurchaseReturnService;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Products\Models\ProductMirror;
 use App\Http\Controllers\Controller;
@@ -73,11 +74,13 @@ class PurchaseInvoiceController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('pages.purchases.create', [
             'title' => 'خرید جدید',
             'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
+            // Prefilled from the supplier page's "خرید جدید از این تامین‌کننده" button.
+            'preselectedSupplierId' => $request->integer('supplier_party_id') ?: null,
         ]);
     }
 
@@ -129,7 +132,15 @@ class PurchaseInvoiceController extends Controller
 
     public function show(PurchaseInvoice $invoice): View
     {
-        $invoice->load(['supplier', 'lines.costItem', 'lines.product', 'attachments', 'journalEntry']);
+        $invoice->load([
+            'supplier', 'lines.costItem', 'lines.product', 'attachments', 'journalEntry',
+            'receipts' => fn ($q) => $q->orderByDesc('received_at')->orderByDesc('id'),
+            'receipts.lines.invoiceLine.costItem',
+            'receipts.creator',
+            'returns' => fn ($q) => $q->orderByDesc('id'),
+            'returns.lines.invoiceLine.costItem',
+            'returns.creator',
+        ]);
 
         return view('pages.purchases.show', [
             'title' => 'فاکتور خرید #'.$invoice->id,
@@ -229,6 +240,59 @@ class PurchaseInvoiceController extends Controller
         }
 
         return redirect()->route('purchases.show', $invoice)->with('success', 'فاکتور خرید دریافت و سند حسابداری آن صادر شد.');
+    }
+
+    /**
+     * Record one partial-receiving event: per-outstanding-line qty (+ optional
+     * package count/label), one shared date/notes for the whole event. Open to
+     * warehouse too — this is a physical warehouse action, unlike everything
+     * else in Purchasing (see routes/web.php's role grouping).
+     */
+    public function storeReceipt(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    {
+        $data = $request->validate([
+            'received_at' => 'required|date',
+            'notes' => 'nullable|string|max:1000',
+            'lines' => 'required|array|min:1',
+            'lines.*.qty' => 'nullable|integer|min:1',
+            'lines.*.package_count' => 'nullable|integer|min:1',
+            'lines.*.package_label' => 'nullable|string|max:50',
+        ]);
+
+        try {
+            $purchaseInvoices->recordReceipt($invoice, $data['lines'], [
+                'received_at' => $data['received_at'],
+                'notes' => $data['notes'] ?? null,
+            ], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['received_at' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['lines' => $e->getMessage()])->withInput();
+        }
+
+        return redirect()->route('purchases.show', $invoice)->with('success', 'دریافت کالا ثبت شد.');
+    }
+
+    /** Goods physically returned to the supplier — only from qty already received and not already returned. */
+    public function storeReturn(Request $request, PurchaseInvoice $invoice, PurchaseReturnService $returns): RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => 'required|string|max:255',
+            'lines' => 'required|array|min:1',
+            'lines.*.qty' => 'nullable|integer|min:1',
+        ]);
+
+        $lines = collect($data['lines'])->map(fn ($line, $lineId) => ['line_id' => $lineId, 'qty' => $line['qty'] ?? 0])->values()->all();
+
+        try {
+            $returns->create($invoice, $lines, $data['reason'], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['reason' => 'دوره حسابداری قفل است.']);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['lines' => $e->getMessage()])->withInput();
+        }
+
+        return redirect()->route('purchases.show', $invoice)->with('success', 'برگشت از خرید ثبت شد.');
     }
 
     /**

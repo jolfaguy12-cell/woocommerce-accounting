@@ -5,6 +5,7 @@
         ['key' => 'date', 'label' => 'تاریخ', 'sort' => 'date'],
         ['key' => 'description', 'label' => 'شرح'],
         ['key' => 'party', 'label' => 'طرف حساب'],
+        ['key' => 'notes', 'label' => 'یادداشت'],
         ['key' => 'debit', 'label' => 'بدهکار (واریز)', 'sort' => 'debit'],
         ['key' => 'credit', 'label' => 'بستانکار (برداشت)', 'sort' => 'credit'],
         // Deliberately not sortable: it is a running balance, and it only means
@@ -70,6 +71,13 @@
                             <a href="{{ route('customers.show', $line->party) }}" class="font-medium text-brand-500 hover:underline">{{ $line->party->name }}</a>
                         @else
                             {{ $line->party->name ?? '—' }}
+                        @endif
+                    </td>
+                    <td x-show="visible.notes" class="px-5 py-3 sm:px-6">
+                        @if ($line->entry->source instanceof \App\Domain\Receivables\Models\PartyPayment)
+                            @include('pages.suppliers.partials.note-edit-control', ['payment' => $line->entry->source])
+                        @else
+                            <span class="text-gray-400">—</span>
                         @endif
                     </td>
                     {{-- A zero debit/credit is a non-entry on this side of the ledger, so it

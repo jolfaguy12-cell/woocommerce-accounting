@@ -10,6 +10,7 @@ use App\Domain\Costing\Models\PurchaseInvoiceLine;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Services\PayablesService;
 use App\Domain\Receivables\Services\PaymentRecorder;
+use App\Domain\Receivables\Services\SupplierCreditService;
 use App\Http\Controllers\Controller;
 use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
@@ -89,18 +90,50 @@ class SupplierController extends Controller
     {
         abort_unless($supplier->type === 'supplier', 404);
 
-        $data = $request->validate([
-            'amount' => 'required|integer|min:1',
-            'bank_account_id' => 'required|exists:bank_accounts,id',
-        ]);
+        $data = $this->validatePaymentMeta($request);
 
         try {
-            $recorder->pay($supplier, $data['amount'], $data['bank_account_id'], $request->user()->id);
+            $recorder->pay($supplier, $data['amount'], $data['bank_account_id'], $request->user()->id, $data['method'] ?? null, $data['reference'] ?? null);
         } catch (PeriodLockedException) {
             return back()->withErrors(['amount' => 'دوره حسابداری این تاریخ قفل است.']);
         }
 
         return back()->with('success', 'پرداخت به تامین‌کننده ثبت شد.');
+    }
+
+    /** A supplier refunding money back to us (e.g. settling a credit balance in cash) — PaymentRecorder::receiveRefund(). */
+    public function refund(Request $request, Party $supplier, PaymentRecorder $recorder): RedirectResponse
+    {
+        abort_unless($supplier->type === 'supplier', 404);
+
+        $data = $this->validatePaymentMeta($request);
+
+        try {
+            $recorder->receiveRefund($supplier, $data['amount'], $data['bank_account_id'], $request->user()->id, $data['method'] ?? null, $data['reference'] ?? null);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['amount' => 'دوره حسابداری این تاریخ قفل است.']);
+        }
+
+        return back()->with('success', 'بازپرداخت از تامین‌کننده ثبت شد.');
+    }
+
+    /** Manual "retained balance" credit — not a return, not a cash refund (SupplierCreditService::recordManualCredit()). */
+    public function storeCredit(Request $request, Party $supplier, SupplierCreditService $credits): RedirectResponse
+    {
+        abort_unless($supplier->type === 'supplier', 404);
+
+        $data = $request->validate([
+            'amount' => 'required|integer|min:1',
+            'description' => 'required|string|max:255',
+        ]);
+
+        try {
+            $credits->recordManualCredit($supplier, $data['amount'], $data['description'], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['amount' => 'دوره حسابداری این تاریخ قفل است.']);
+        }
+
+        return back()->with('success', 'اعتبار دستی برای تامین‌کننده ثبت شد.');
     }
 
     /**
@@ -257,6 +290,16 @@ class SupplierController extends Controller
             ['key' => 'purchases', 'label' => 'سابقه خرید', 'url' => route('suppliers.purchase-history', $supplier)],
             ['key' => 'transactions', 'label' => 'تراکنش‌های مالی', 'url' => route('suppliers.transactions', $supplier)],
         ];
+    }
+
+    private function validatePaymentMeta(Request $request): array
+    {
+        return $request->validate([
+            'amount' => 'required|integer|min:1',
+            'bank_account_id' => 'required|exists:bank_accounts,id',
+            'method' => 'nullable|string|in:bank_transfer,cash,card,other',
+            'reference' => 'nullable|string|max:100',
+        ]);
     }
 
     private function validateProfile(Request $request): array

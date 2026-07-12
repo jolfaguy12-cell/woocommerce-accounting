@@ -35,17 +35,110 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
-                <a href="{{ route('purchases.edit', $invoice) }}" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ویرایش</a>
-                @if ($invoice->status === 'draft' || $invoice->status === 'partial')
-                    <form method="POST" action="{{ route('purchases.finalize', $invoice) }}">
-                        @csrf
-                        <button type="submit" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">ثبت نهایی و صدور سند</button>
-                    </form>
+                @if (auth()->user()->hasRole(['admin', 'accountant']))
+                    <a href="{{ route('purchases.edit', $invoice) }}" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">ویرایش</a>
+                    @if ($invoice->status === 'draft' || $invoice->status === 'partial')
+                        <form method="POST" action="{{ route('purchases.finalize', $invoice) }}">
+                            @csrf
+                            <button type="submit" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">ثبت نهایی و صدور سند</button>
+                        </form>
+                    @endif
                 @endif
             </div>
         </div>
 
     </x-common.component-card>
+
+    @php
+        $outstandingLines = $invoice->lines->filter(fn ($l) => $l->qty > $l->received_qty)->values();
+        $returnableLines = $invoice->lines->filter(fn ($l) => $l->returnableQty() > 0)->values();
+    @endphp
+
+    @if ($outstandingLines->isNotEmpty() && $invoice->status !== 'cancelled')
+        <x-common.component-card title="کالاهای باقی‌مانده (در انتظار دریافت)">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            <th class="py-2 text-right font-normal">کالا</th>
+                            <th class="text-right font-normal">سفارش‌شده</th>
+                            <th class="text-right font-normal">دریافت‌شده</th>
+                            <th class="text-right font-normal">باقی‌مانده</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($outstandingLines as $line)
+                            <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                                <td class="py-2 text-gray-800 dark:text-white/90">{{ $line->product->name ?? $line->costItem->name }}</td>
+                                <x-tables.num :value="$line->qty" tone="muted" />
+                                <x-tables.num :value="$line->received_qty" tone="muted" />
+                                <x-tables.num :value="$line->qty - $line->received_qty" class="font-medium" />
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" @click="$dispatch('open-receipt-modal')" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">
+                ثبت دریافت کالا
+            </button>
+        </x-common.component-card>
+    @endif
+
+    @if ($invoice->receipts->isNotEmpty())
+        <x-common.component-card title="تاریخچه دریافت کالا">
+            <div class="space-y-3">
+                @foreach ($invoice->receipts as $receipt)
+                    <div class="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <x-tables.ltr :cell="false" :value="\Morilog\Jalali\Jalalian::fromCarbon($receipt->received_at)->format('Y/m/d')" />
+                            <span>ثبت‌کننده: {{ $receipt->creator->name ?? '—' }}</span>
+                        </div>
+                        <ul class="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                            @foreach ($receipt->lines as $receiptLine)
+                                <li>
+                                    {{ $receiptLine->invoiceLine->costItem->name }} —
+                                    {{ number_format($receiptLine->qty) }} عدد
+                                    @if ($receiptLine->package_count)
+                                        ({{ number_format($receiptLine->package_count) }} {{ $receiptLine->package_label ?? 'بسته' }})
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                        @if ($receipt->notes)
+                            <p class="mt-2 text-xs text-gray-400">{{ $receipt->notes }}</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </x-common.component-card>
+    @endif
+
+    @if (auth()->user()->hasRole(['admin', 'accountant']) && ($returnableLines->isNotEmpty() || $invoice->returns->isNotEmpty()))
+        <x-common.component-card title="برگشت از خرید">
+            @if ($invoice->returns->isNotEmpty())
+                <div class="mb-3 space-y-3">
+                    @foreach ($invoice->returns as $return)
+                        <div class="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span>{{ $return->reason }}</span>
+                                <span>ثبت‌کننده: {{ $return->creator->name ?? '—' }}</span>
+                            </div>
+                            <ul class="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                                @foreach ($return->lines as $returnLine)
+                                    <li>{{ $returnLine->invoiceLine->costItem->name }} — {{ number_format($returnLine->qty) }} عدد</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+            @if ($returnableLines->isNotEmpty())
+                <button type="button" @click="$dispatch('open-return-modal')" class="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                    ثبت بازگشت به تامین‌کننده
+                </button>
+            @endif
+        </x-common.component-card>
+    @endif
 
     <x-common.component-card title="تصاویر فاکتور">
         <div class="flex flex-wrap gap-3">
@@ -53,24 +146,28 @@
                 <div class="relative w-28 rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
                     <a href="{{ route('attachments.download', $attachment) }}" target="_blank" rel="noopener noreferrer" class="block text-2xl">📎</a>
                     <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400" title="{{ $attachment->original_name }}">{{ $attachment->original_name }}</p>
-                    <form method="POST" action="{{ route('purchases.images.destroy', [$invoice, $attachment]) }}" onsubmit="return confirm('این تصویر حذف شود؟')" class="mt-1">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="text-xs text-error-500 hover:underline">حذف</button>
-                    </form>
+                    @if (auth()->user()->hasRole(['admin', 'accountant']))
+                        <form method="POST" action="{{ route('purchases.images.destroy', [$invoice, $attachment]) }}" onsubmit="return confirm('این تصویر حذف شود؟')" class="mt-1">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="text-xs text-error-500 hover:underline">حذف</button>
+                        </form>
+                    @endif
                 </div>
             @empty
                 <p class="text-sm text-gray-400">هنوز تصویری برای این فاکتور بارگذاری نشده است.</p>
             @endforelse
         </div>
 
-        <form method="POST" action="{{ route('purchases.images.store', $invoice) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-3">
-            @csrf
-            <input type="file" name="images[]" accept="image/*" multiple required
-                class="h-11 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-            <button type="submit" class="h-11 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">افزودن تصویر</button>
-            @error('images')<p class="text-xs text-error-500">{{ $message }}</p>@enderror
-        </form>
+        @if (auth()->user()->hasRole(['admin', 'accountant']))
+            <form method="POST" action="{{ route('purchases.images.store', $invoice) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-3">
+                @csrf
+                <input type="file" name="images[]" accept="image/*" multiple required
+                    class="h-11 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                <button type="submit" class="h-11 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">افزودن تصویر</button>
+                @error('images')<p class="text-xs text-error-500">{{ $message }}</p>@enderror
+            </form>
+        @endif
     </x-common.component-card>
 
     <x-common.component-card title="اقلام فاکتور">
@@ -130,4 +227,97 @@
         </p>
     </x-common.component-card>
 </div>
+
+@if ($outstandingLines->isNotEmpty() && $invoice->status !== 'cancelled')
+    <div x-data="{ open: false }" @open-receipt-modal.window="open = true">
+        <x-ui.modal :isOpen="$errors->has('lines') && old('received_at')" @open-receipt-modal.window="open = true" class="max-w-2xl p-6">
+            <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت دریافت کالا</h4>
+
+            <form method="POST" action="{{ route('purchases.receipts.store', $invoice) }}" class="space-y-4">
+                @csrf
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تاریخ دریافت</label>
+                        <input type="text" inputmode="none" autocomplete="off" data-jdp value="{{ old('received_at') ? \Morilog\Jalali\Jalalian::fromCarbon(\Illuminate\Support\Carbon::parse(old('received_at')))->format('Y/m/d') : \Morilog\Jalali\Jalalian::now()->format('Y/m/d') }}"
+                            data-jdp-target-value-input="#receipt-date-g" data-jdp-target-value-type="gregorian"
+                            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <input type="hidden" id="receipt-date-g" name="received_at" value="{{ old('received_at', now()->toDateString()) }}">
+                        @error('received_at')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">یادداشت (اختیاری)</label>
+                        <input type="text" name="notes" value="{{ old('notes') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">اقلام دریافت‌شده در این محموله</label>
+                    <div class="space-y-2">
+                        @foreach ($outstandingLines as $line)
+                            <div class="grid grid-cols-12 items-center gap-2 border-b border-gray-100 pb-2 last:border-0 dark:border-gray-800">
+                                <div class="col-span-4 text-sm text-gray-800 dark:text-white/90">
+                                    {{ $line->product->name ?? $line->costItem->name }}
+                                    <span class="block text-xs text-gray-400">باقی‌مانده: {{ number_format($line->qty - $line->received_qty) }}</span>
+                                </div>
+                                <input type="number" name="lines[{{ $line->id }}][qty]" min="0" max="{{ $line->qty - $line->received_qty }}" placeholder="تعداد" dir="ltr"
+                                    class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                                <input type="number" name="lines[{{ $line->id }}][package_count]" min="1" placeholder="تعداد بسته" dir="ltr"
+                                    class="col-span-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                                <input type="text" name="lines[{{ $line->id }}][package_label]" placeholder="نوع بسته (مثلاً کارتن)"
+                                    class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                            </div>
+                        @endforeach
+                    </div>
+                    @error('lines')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+                    <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت دریافت</button>
+                </div>
+            </form>
+        </x-ui.modal>
+    </div>
+@endif
+
+@if (auth()->user()->hasRole(['admin', 'accountant']) && $returnableLines->isNotEmpty())
+    <div x-data="{ open: false }" @open-return-modal.window="open = true">
+        <x-ui.modal :isOpen="$errors->has('reason')" @open-return-modal.window="open = true" class="max-w-2xl p-6">
+            <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">ثبت بازگشت به تامین‌کننده</h4>
+
+            <form method="POST" action="{{ route('purchases.returns.store', $invoice) }}" class="space-y-4">
+                @csrf
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">دلیل بازگشت</label>
+                    <input type="text" name="reason" required value="{{ old('reason') }}" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    @error('reason')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">اقلام بازگشتی</label>
+                    <div class="space-y-2">
+                        @foreach ($returnableLines as $line)
+                            <div class="grid grid-cols-12 items-center gap-2 border-b border-gray-100 pb-2 last:border-0 dark:border-gray-800">
+                                <div class="col-span-8 text-sm text-gray-800 dark:text-white/90">
+                                    {{ $line->product->name ?? $line->costItem->name }}
+                                    <span class="block text-xs text-gray-400">قابل بازگشت: {{ number_format($line->returnableQty()) }}</span>
+                                </div>
+                                <input type="number" name="lines[{{ $line->id }}][qty]" min="0" max="{{ $line->returnableQty() }}" placeholder="تعداد" dir="ltr"
+                                    class="col-span-4 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                            </div>
+                        @endforeach
+                    </div>
+                    @error('lines')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+                    <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت بازگشت</button>
+                </div>
+            </form>
+        </x-ui.modal>
+    </div>
+@endif
 @endsection

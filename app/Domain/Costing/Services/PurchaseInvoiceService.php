@@ -6,6 +6,7 @@ use App\Domain\Accounting\Services\JournalPoster;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Costing\Models\PurchaseInvoiceLine;
+use App\Domain\Costing\Models\PurchaseInvoiceReceipt;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -189,44 +190,114 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Register received quantities. Writes cost history for lines receiving
-     * stock for the first time and posts the journal once fully priced.
+     * Register received quantities as an absolute per-line target (used by
+     * finalize()'s "receive everything remaining right now" shortcut).
      * Idempotent: re-receiving never duplicates history or journal entries.
      */
     public function receive(PurchaseInvoice $invoice, array $receivedByLineId, ?int $by = null): PurchaseInvoice
     {
-        return DB::transaction(function () use ($invoice, $receivedByLineId, $by) {
-            foreach ($invoice->lines as $line) {
-                $received = min((int) ($receivedByLineId[$line->id] ?? $line->received_qty), $line->qty);
+        return DB::transaction(fn () => $this->applyReceivedQuantities($invoice, $receivedByLineId, $by));
+    }
 
-                if ($received > 0 && $line->received_qty === 0) {
-                    // First receipt fixes the landed cost as the item's latest purchase cost.
-                    $line->costItem->costHistory()->create([
-                        'unit_cost' => $line->unit_price,
-                        'landed_unit_cost' => $line->landed_unit_cost,
-                        'source' => 'invoice',
-                        'source_id' => $line->id,
-                        'effective_at' => $invoice->invoice_date,
-                        'created_by' => $by,
-                    ]);
-                    $this->cascadeToVariations($line, $line->landed_unit_cost, $by);
+    /**
+     * Record one granular receiving EVENT (partial delivery): incremental
+     * qty per line (added to whatever was already received), plus the
+     * event's date/notes and an optional package count/label per line —
+     * the full audit trail a single absolute-qty receive() call can't carry.
+     * Delegates to the same applyReceivedQuantities() so cost_history,
+     * variation cascade, status transitions, and journal-once-fully-received
+     * behave identically to the existing shortcut.
+     *
+     * $lineQuantities: [line_id => ['qty' => int, 'package_count' => ?int, 'package_label' => ?string], ...]
+     * $meta: ['received_at' => date string, 'notes' => ?string]
+     */
+    public function recordReceipt(PurchaseInvoice $invoice, array $lineQuantities, array $meta, ?int $by = null): PurchaseInvoiceReceipt
+    {
+        return DB::transaction(function () use ($invoice, $lineQuantities, $meta, $by) {
+            $receipt = PurchaseInvoiceReceipt::create([
+                'uuid' => (string) Str::uuid(),
+                'purchase_invoice_id' => $invoice->id,
+                'received_at' => $meta['received_at'] ?? now()->toDateString(),
+                'notes' => $meta['notes'] ?? null,
+                'created_by' => $by,
+            ]);
+
+            $absoluteByLineId = [];
+            $anyReceived = false;
+
+            foreach ($lineQuantities as $lineId => $lineMeta) {
+                $qty = (int) ($lineMeta['qty'] ?? 0);
+                $line = $invoice->lines->firstWhere('id', $lineId);
+
+                if ($qty <= 0 || ! $line) {
+                    continue;
                 }
 
-                $line->update(['received_qty' => $received]);
+                // Never let a receipt push a line's total past what was ordered.
+                $qty = min($qty, $line->qty - $line->received_qty);
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                $receipt->lines()->create([
+                    'purchase_invoice_line_id' => $line->id,
+                    'qty' => $qty,
+                    'package_count' => $lineMeta['package_count'] ?? null,
+                    'package_label' => $lineMeta['package_label'] ?? null,
+                ]);
+
+                $absoluteByLineId[$line->id] = $line->received_qty + $qty;
+                $anyReceived = true;
             }
 
-            $invoice->refresh();
-            $fullyReceived = $invoice->lines->every(fn ($l) => $l->received_qty >= $l->qty);
-            $anythingReceived = $invoice->lines->contains(fn ($l) => $l->received_qty > 0);
-
-            $invoice->update(['status' => $fullyReceived ? 'received' : ($anythingReceived ? 'partial' : 'draft')]);
-
-            if ($fullyReceived && ! $invoice->journal_entry_id) {
-                $this->postJournal($invoice, $by);
+            if (! $anyReceived) {
+                throw new InvalidArgumentException('حداقل یک قلم با تعداد معتبر برای ثبت دریافت لازم است.');
             }
 
-            return $invoice->refresh()->load('lines');
+            $this->applyReceivedQuantities($invoice, $absoluteByLineId, $by);
+
+            return $receipt->load('lines.invoiceLine.costItem');
         });
+    }
+
+    /**
+     * Shared core of receive()/recordReceipt(): given an absolute target
+     * received_qty per line, writes cost history on first-received crossing,
+     * cascades to variations, transitions invoice status, and posts the
+     * journal exactly once the whole invoice is fully received.
+     */
+    private function applyReceivedQuantities(PurchaseInvoice $invoice, array $receivedByLineId, ?int $by): PurchaseInvoice
+    {
+        foreach ($invoice->lines as $line) {
+            $received = min((int) ($receivedByLineId[$line->id] ?? $line->received_qty), $line->qty);
+
+            if ($received > 0 && $line->received_qty === 0) {
+                // First receipt fixes the landed cost as the item's latest purchase cost.
+                $line->costItem->costHistory()->create([
+                    'unit_cost' => $line->unit_price,
+                    'landed_unit_cost' => $line->landed_unit_cost,
+                    'source' => 'invoice',
+                    'source_id' => $line->id,
+                    'effective_at' => $invoice->invoice_date,
+                    'created_by' => $by,
+                ]);
+                $this->cascadeToVariations($line, $line->landed_unit_cost, $by);
+            }
+
+            $line->update(['received_qty' => $received]);
+        }
+
+        $invoice->refresh();
+        $fullyReceived = $invoice->lines->every(fn ($l) => $l->received_qty >= $l->qty);
+        $anythingReceived = $invoice->lines->contains(fn ($l) => $l->received_qty > 0);
+
+        $invoice->update(['status' => $fullyReceived ? 'received' : ($anythingReceived ? 'partial' : 'draft')]);
+
+        if ($fullyReceived && ! $invoice->journal_entry_id) {
+            $this->postJournal($invoice, $by);
+        }
+
+        return $invoice->refresh()->load('lines');
     }
 
     /**
