@@ -8,6 +8,17 @@
 @section('content')
 <x-common.page-breadcrumb pageTitle="تغییر رمز عبور" parentLabel="پروفایل" :parentUrl="route('profile.edit')" />
 
+<x-nav.tabs
+    class="mb-5"
+    param="tab"
+    active="password"
+    :tabs="[
+        ['key' => 'profile', 'label' => 'پروفایل', 'url' => route('profile.edit')],
+        ['key' => 'password', 'label' => 'تغییر رمز عبور', 'url' => route('password.edit')],
+        ['key' => 'appearance', 'label' => 'ظاهر', 'url' => route('appearance')],
+    ]"
+/>
+
 <div class="max-w-xl space-y-4">
     @if (session('status') === 'password-updated')
         <x-ui.alert variant="success" title="انجام شد" message="رمز عبور شما به‌روزرسانی شد." />

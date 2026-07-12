@@ -114,9 +114,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customers/{party}', [CustomerController::class, 'show'])->name('customers.show');
         Route::post('customers/{party}/wholesale', [CustomerController::class, 'setWholesale'])->name('customers.wholesale');
         Route::post('customers/{party}/phone', [CustomerController::class, 'setPhone'])->name('customers.phone');
+        Route::post('customers/{party}/telegram', [CustomerController::class, 'setTelegramId'])->name('customers.telegram');
         Route::post('customers/{party}/settlement', [CustomerController::class, 'recordSettlement'])->name('customers.settlement');
         Route::post('customers/{party}/credit-sale', [CustomerController::class, 'storeCreditSale'])->name('customers.credit-sale');
         Route::post('customers/{party}/write-off', [CustomerController::class, 'storeWriteOff'])->name('customers.write-off');
+        Route::get('wholesale-customers', [CustomerController::class, 'wholesaleIndex'])->name('wholesale-customers.index');
 
         Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
         Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');

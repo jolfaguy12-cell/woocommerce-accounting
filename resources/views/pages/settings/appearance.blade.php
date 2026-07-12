@@ -3,6 +3,17 @@
 @section('content')
 <x-common.page-breadcrumb pageTitle="ظاهر" parentLabel="پروفایل" :parentUrl="route('profile.edit')" />
 
+<x-nav.tabs
+    class="mb-5"
+    param="tab"
+    active="appearance"
+    :tabs="[
+        ['key' => 'profile', 'label' => 'پروفایل', 'url' => route('profile.edit')],
+        ['key' => 'password', 'label' => 'تغییر رمز عبور', 'url' => route('password.edit')],
+        ['key' => 'appearance', 'label' => 'ظاهر', 'url' => route('appearance')],
+    ]"
+/>
+
 <div class="max-w-xl space-y-4">
     <x-common.component-card title="پوسته برنامه" desc="انتخاب شما در همین مرورگر ذخیره می‌شود.">
         {{-- Reads/writes the same Alpine theme store the header toggle uses, so the

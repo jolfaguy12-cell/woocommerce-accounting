@@ -46,7 +46,7 @@
     </x-common.component-card>
 
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]" x-data="{ editingPhone: false }">
+        <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]" x-data="{ editingPhone: false, editingTelegram: false }">
             <h3 class="mb-3 text-base font-medium text-gray-800 dark:text-white/90">اطلاعات تماس</h3>
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
                 <div class="flex items-center justify-between py-1.5 text-sm">
@@ -65,6 +65,19 @@
                 <div class="flex items-center justify-between py-1.5 text-sm">
                     <span class="text-gray-500 dark:text-gray-400">ایمیل</span>
                     <span class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ $party->email ?: '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between py-1.5 text-sm">
+                    <span class="text-gray-500 dark:text-gray-400">آیدی تلگرام</span>
+                    <div x-show="!editingTelegram" class="flex items-center gap-2">
+                        <span class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ $party->telegram_id ?: '—' }}</span>
+                        <button type="button" @click="editingTelegram = true" class="text-xs text-brand-500 hover:underline">{{ $party->telegram_id ? 'ویرایش' : 'ثبت آیدی' }}</button>
+                    </div>
+                    <form x-show="editingTelegram" x-cloak method="POST" action="{{ route('customers.telegram', $party) }}" class="flex items-center gap-2">
+                        @csrf
+                        <input type="text" name="telegram_id" value="{{ $party->telegram_id }}" dir="ltr" placeholder="123456789@" class="h-8 w-36 rounded-md border border-gray-300 bg-transparent px-2 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90">
+                        <button type="submit" class="text-xs text-brand-500 hover:underline">ذخیره</button>
+                        <button type="button" @click="editingTelegram = false" class="text-xs text-gray-500 hover:underline dark:text-gray-400">انصراف</button>
+                    </form>
                 </div>
                 <div class="flex items-center justify-between gap-3 py-1.5 text-sm">
                     <span class="shrink-0 text-gray-500 dark:text-gray-400">آدرس</span>

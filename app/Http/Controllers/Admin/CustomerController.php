@@ -52,14 +52,67 @@ class CustomerController extends Controller
             defaultSort: '-last_order_at',
         );
 
-        $customers = Party::query()
+        $wholesaleOnly = ($wholesale !== null && $wholesale !== '') ? (bool) $wholesale : null;
+
+        $customers = $this->buildCustomersQuery($query, $channelId, $wholesaleOnly)
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
+            ->withQueryString();
+
+        return view('pages.customers.index', [
+            'title' => 'مدیریت مشتریان',
+            'customers' => $customers,
+            'channelsByCustomer' => $this->channelsByCustomer($customers),
+            'filters' => $request->only('search', 'channel_id', 'wholesale'),
+            'query' => $query,
+            'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /** Same customer list, pre-filtered to wholesale-labeled parties only — no wholesale toggle needed since it's implied. */
+    public function wholesaleIndex(Request $request): View
+    {
+        $channelId = $request->input('channel_id');
+
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'name' => 'name',
+                'orders_count' => 'orders_count',
+                'total_volume' => 'total_volume',
+                'last_order_at' => 'last_order_at',
+            ],
+            filters: ['channel_id'],
+            defaultSort: '-last_order_at',
+        );
+
+        $customers = $this->buildCustomersQuery($query, $channelId, true)
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
+            ->withQueryString();
+
+        return view('pages.customers.wholesale-index', [
+            'title' => 'مشتریان عمده',
+            'customers' => $customers,
+            'channelsByCustomer' => $this->channelsByCustomer($customers),
+            'filters' => $request->only('search', 'channel_id'),
+            'query' => $query,
+            'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /** Shared aggregate query behind both the full and wholesale-only customer lists. */
+    private function buildCustomersQuery(TableQuery $query, ?string $channelId, ?bool $wholesaleOnly)
+    {
+        return Party::query()
             ->where('type', 'customer')
             ->whereHas('orders') // hide order-less duplicates left behind by acc:customers:merge-duplicates (never deleted, just emptied)
             ->when($query->search(), fn ($q, string $search) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
-                ->orWhere('phone', 'like', "%{$search}%")))
+                ->orWhere('phone', 'like', "%{$search}%")
+                ->orWhere('telegram_id', 'like', "%{$search}%")))
             ->when(filled($channelId), fn ($q) => $q->whereHas('orders', fn ($o) => $o->where('channel_id', $channelId)))
-            ->when($wholesale !== null && $wholesale !== '', fn ($q) => $q->where('is_wholesale', (bool) $wholesale))
+            ->when($wholesaleOnly !== null, fn ($q) => $q->where('is_wholesale', $wholesaleOnly))
             ->withCount([
                 'orders as orders_count',
                 'orders as paid_count' => fn ($q) => $q->whereIn('financial_state', self::VALID_STATES),
@@ -67,25 +120,17 @@ class CustomerController extends Controller
                 'orders as void_count' => fn ($q) => $q->whereIn('financial_state', self::VOID_STATES),
             ])
             ->withSum(['orders as total_volume' => fn ($q) => $q->whereIn('financial_state', self::VALID_STATES)], 'total')
-            ->withMax('orders as last_order_at', 'order_date')
-            ->tap(fn ($q) => $query->apply($q))
-            ->paginate($query->perPage())
-            ->withQueryString();
+            ->withMax('orders as last_order_at', 'order_date');
+    }
 
-        $channelsByCustomer = Order::whereIn('customer_party_id', $customers->pluck('id'))
+    /** Channel names each listed customer has ordered through, keyed by party id. */
+    private function channelsByCustomer($customers)
+    {
+        return Order::whereIn('customer_party_id', $customers->pluck('id'))
             ->with('channel:id,name')
             ->get(['id', 'customer_party_id', 'channel_id'])
             ->groupBy('customer_party_id')
             ->map(fn ($orders) => $orders->pluck('channel.name')->filter()->unique()->values());
-
-        return view('pages.customers.index', [
-            'title' => 'مدیریت مشتریان',
-            'customers' => $customers,
-            'channelsByCustomer' => $channelsByCustomer,
-            'filters' => $request->only('search', 'channel_id', 'wholesale'),
-            'query' => $query,
-            'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
-        ]);
     }
 
     public function show(Party $party, ReceivablesService $receivables): View
@@ -185,6 +230,18 @@ class CustomerController extends Controller
         $party->update(['phone' => $data['phone']]);
 
         return back()->with('success', 'شماره تماس ثبت شد.');
+    }
+
+    /** Save/edit a customer's Telegram ID (chat id used by TelegramNotifier) — same validation rule as the user-facing profile field. */
+    public function setTelegramId(Request $request, Party $party): RedirectResponse
+    {
+        abort_if($party->type !== 'customer', 404);
+
+        $data = $request->validate(['telegram_id' => ['nullable', 'string', 'max:255']]);
+
+        $party->update(['telegram_id' => $data['telegram_id'] ?? null]);
+
+        return back()->with('success', 'آیدی تلگرام ثبت شد.');
     }
 
     /**

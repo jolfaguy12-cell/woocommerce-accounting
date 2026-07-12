@@ -3,6 +3,17 @@
 @section('content')
 <x-common.page-breadcrumb pageTitle="پروفایل" />
 
+<x-nav.tabs
+    class="mb-5"
+    param="tab"
+    active="profile"
+    :tabs="[
+        ['key' => 'profile', 'label' => 'پروفایل', 'url' => route('profile.edit')],
+        ['key' => 'password', 'label' => 'تغییر رمز عبور', 'url' => route('password.edit')],
+        ['key' => 'appearance', 'label' => 'ظاهر', 'url' => route('appearance')],
+    ]"
+/>
+
 <div class="max-w-xl space-y-4">
     @if (session('success'))
         <x-ui.alert variant="success" :message="session('success')" />

@@ -32,6 +32,7 @@ class MenuHelper
                 'name' => 'کاربران',
                 'subItems' => [
                     ['name' => 'مدیریت مشتریان', 'path' => '/customers'],
+                    ['name' => 'مشتریان عمده', 'path' => '/wholesale-customers'],
                 ],
             ],
             [
