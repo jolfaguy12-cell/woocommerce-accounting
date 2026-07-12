@@ -4,6 +4,10 @@
     'emptyMessage' => 'موردی یافت نشد',
     'totals' => null, // optional array of ['label' => ..., 'value' => ...] rendered as a summary footer row
     'stickyHeader' => false,
+    // false when the caller (currently only the pro-table wrapper) renders its
+    // own pagination UI below this table — without it, a paginator passed
+    // through that wrapper produced two stacked paginators, one per component.
+    'showPagination' => true,
 ])
 
 <div class="overflow-hidden rounded-card border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
@@ -97,7 +101,7 @@
     </div>
 </div>
 
-@if ($paginator !== null && $paginator->hasPages())
+@if ($showPagination && $paginator !== null && $paginator->hasPages())
     <div class="mt-4">
         {{ $paginator->onEachSide(1)->links('vendor.pagination.custom') }}
     </div>

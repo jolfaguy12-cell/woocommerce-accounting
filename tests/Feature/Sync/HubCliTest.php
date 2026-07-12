@@ -5,6 +5,7 @@ use App\Domain\Orders\Services\OrderIngestPipeline;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Products\Services\ProductSyncer;
 use App\Domain\Sync\Models\RawOrder;
+use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\SyncRun;
 use Illuminate\Support\Facades\Http;
 
@@ -121,6 +122,51 @@ it('acc:sync:poll-orders walks the changed cursor and upserts, overlap-safe with
 
     expect(RawOrder::count())->toBe(2) // 700 not duplicated
         ->and(SyncRun::where('type', 'poll_orders')->where('status', 'done')->count())->toBe(1);
+});
+
+it('acc:sync:poll-orders keeps going past one malformed order instead of failing the whole run forever', function () {
+    // Regression: a hub-side bad date on one order (e.g. an already-Jalali
+    // "1405-04-17T15:59:23" string parsed as if it were Gregorian, landing at
+    // Jalali year ~784 on the second conversion) used to throw uncaught, killing
+    // the loop before any later order in the batch was ingested. Because the
+    // cursor is only ever advanced on a clean run, the exact same poisoned
+    // batch was re-fetched and re-thrown every single poll thereafter.
+    Http::fake([
+        'hub.test/api/v1/sync/changed/orders*' => Http::response([
+            'orders' => [['id' => 800], ['id' => 801], ['id' => 802]],
+        ]),
+        'hub.test/api/v1/orders/800' => Http::response(['id' => 800, 'status' => 'completed']),
+        'hub.test/api/v1/orders/801' => Http::response(['id' => 801, 'status' => 'completed', 'date_created' => '1405-04-17T15:59:23']),
+        'hub.test/api/v1/orders/802' => Http::response(['id' => 802, 'status' => 'completed']),
+    ]);
+
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful(); // scheduled command: quarantine, don't alarm
+
+    expect(Order::whereIn('hub_order_id', [800, 802])->count())->toBe(2)
+        ->and(Order::where('hub_order_id', 801)->exists())->toBeFalse();
+
+    $run = SyncRun::where('type', 'poll_orders')->latest()->first();
+    expect($run->status)->toBe('done')
+        ->and($run->since_cursor)->not->toBeNull() // cursor still advances past the poisoned row
+        ->and($run->stats)->toMatchArray(['upserted' => 2, 'failed' => 1, 'failed_ids' => [801]]);
+
+    $item = ReviewItem::where('type', 'sync_error')->where('status', 'open')->first();
+    expect($item)->not->toBeNull()
+        ->and($item->payload['hub_order_id'])->toBe(801);
+});
+
+it('acc:sync:poll-orders does not open a duplicate review item for the same order on the next poll', function () {
+    Http::fake([
+        'hub.test/api/v1/sync/changed/orders*' => Http::response([
+            'orders' => [['id' => 900]],
+        ]),
+        'hub.test/api/v1/orders/900' => Http::response(['id' => 900, 'status' => 'completed', 'date_created' => '1405-04-17T15:59:23']),
+    ]);
+
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful();
+    $this->artisan('acc:sync:poll-orders')->assertSuccessful();
+
+    expect(ReviewItem::where('type', 'sync_error')->where('status', 'open')->count())->toBe(1);
 });
 
 it('acc:sync:backfill-orders imports only orders missing locally, skipping ones already synced', function () {

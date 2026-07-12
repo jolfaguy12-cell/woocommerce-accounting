@@ -35,15 +35,12 @@
                     this.updateTheme();
                 },
                 updateTheme() {
-                    const html = document.documentElement;
-                    const body = document.body;
-                    if (this.theme === 'dark') {
-                        html.classList.add('dark');
-                        body.classList.add('dark', 'bg-gray-900');
-                    } else {
-                        html.classList.remove('dark');
-                        body.classList.remove('dark', 'bg-gray-900');
-                    }
+                    // Only <html> is ever touched: body's dark background is a
+                    // CSS dark: variant now, which activates off html.dark on
+                    // its own (see tailadmin.css). document.body does not exist
+                    // yet when the anti-flash script below runs during <head>
+                    // parsing, so it must never be a dependency here.
+                    document.documentElement.classList.toggle('dark', this.theme === 'dark');
                 }
             });
 
@@ -81,16 +78,15 @@
     <!-- Apply dark mode immediately to prevent flash -->
     <script>
         (function() {
+            // Runs synchronously while the parser is still inside <head> --
+            // document.body does not exist yet at this point. <html> always
+            // does (the parser opens it before <head>), so only it is touched;
+            // body's dark background follows automatically via the CSS dark:
+            // variant, which only needs an ancestor with the `dark` class.
             const savedTheme = localStorage.getItem('theme');
             const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             const theme = savedTheme || systemTheme;
-            if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-                document.body.classList.add('dark', 'bg-gray-900');
-            } else {
-                document.documentElement.classList.remove('dark');
-                document.body.classList.remove('dark', 'bg-gray-900');
-            }
+            document.documentElement.classList.toggle('dark', theme === 'dark');
         })();
     </script>
     

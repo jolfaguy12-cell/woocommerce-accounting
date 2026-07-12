@@ -48,16 +48,24 @@
             @endif
 
             @if ($showPages)
-                <nav class="flex items-center gap-1" aria-label="صفحه‌بندی">
-                    {{-- RTL: "previous" points right. --}}
+                {{-- dir="ltr", scoped to just this <nav>: page numbers are a
+                     sequence, like the tabular figures in <x-tables.num> —
+                     they read naturally ascending left-to-right regardless of
+                     page direction. Without this, the surrounding RTL context
+                     flips the flex row, laying DOM-first (prev) out on the
+                     RIGHT and walking pages in DESCENDING order to the left —
+                     page 1 ends up next to "prev" instead of leading the list.
+                     Scoping dir to the <nav> alone leaves its position among
+                     its own siblings (the per-page-size selector) untouched. --}}
+                <nav class="flex items-center gap-1" dir="ltr" aria-label="صفحه‌بندی">
                     @if ($paginator->onFirstPage())
                         <span class="flex h-8 w-8 items-center justify-center rounded-md text-gray-300 dark:text-gray-700" aria-disabled="true">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </span>
                     @else
                         <a href="{{ $paginator->previousPageUrl() }}" rel="prev" aria-label="صفحه قبل"
                             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </a>
                     @endif
 
@@ -85,11 +93,11 @@
                     @if ($paginator->hasMorePages())
                         <a href="{{ $paginator->nextPageUrl() }}" rel="next" aria-label="صفحه بعد"
                             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </a>
                     @else
                         <span class="flex h-8 w-8 items-center justify-center rounded-md text-gray-300 dark:text-gray-700" aria-disabled="true">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </span>
                     @endif
                 </nav>

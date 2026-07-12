@@ -194,17 +194,23 @@
                     :action="$query ? ['label' => 'پاک کردن فیلترها', 'url' => $query->clearUrl()] : null" />
             </div>
         @else
-            <x-tables.data-table :headers="$columns" :paginator="$paginator" :emptyMessage="$emptyMessage" :totals="$totals" :stickyHeader="$stickyHeader">
+            {{-- showPagination=false: pro-table owns pagination itself below,
+                 via <x-nav.pagination> (page-size + query-preserving links).
+                 data-table's own built-in pager must not also render, or every
+                 pro-table page shows two paginators stacked on top of each other. --}}
+            <x-tables.data-table :headers="$columns" :paginator="$paginator" :emptyMessage="$emptyMessage" :totals="$totals" :stickyHeader="$stickyHeader" :showPagination="false">
                 {{ $slot }}
             </x-tables.data-table>
         @endif
     </div>
 
-    {{-- Server-driven pagination + page size; both preserve the active query. --}}
-    @if ($paginator !== null && $query !== null)
+    {{-- Server-driven pagination + page size; both preserve the active query.
+         Works even without a TableQuery (perPageUrl just stays unset, hiding
+         the page-size selector) so a paginator alone is enough to get paging. --}}
+    @if ($paginator !== null)
         <div class="rounded-card border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-            <x-nav.pagination :paginator="$paginator" :perPage="$query->perPage()"
-                :perPageUrl="fn ($size) => $query->perPageUrl($size)" />
+            <x-nav.pagination :paginator="$paginator" :perPage="$query?->perPage()"
+                :perPageUrl="$query ? fn ($size) => $query->perPageUrl($size) : null" />
         </div>
     @endif
 </div>

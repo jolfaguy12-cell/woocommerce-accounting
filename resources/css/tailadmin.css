@@ -379,7 +379,13 @@
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50;
+    /* dark:bg-gray-900 here (not JS-toggled) so only <html> ever needs the
+       `dark` class: this rule fires off html.dark via the `.dark *` ancestor
+       variant below, and body itself never has to be touched by script. The
+       old code set this class from JS instead, and did so from a script that
+       ran while the parser was still inside <head> -- document.body was null
+       there, throwing on every page load. */
+    @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-gray-900;
   }
 }
 
