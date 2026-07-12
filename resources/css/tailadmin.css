@@ -213,8 +213,11 @@
      =================================================================== */
 
   /* --- Financial semantics --- */
-  --color-profit: #039855;      /* success-600 */
-  --color-loss: #d92d20;        /* error-600   */
+  /* success-700, not -600: profit is rendered as TEXT, and -600 (#039855) only
+     reaches 3.73:1 on white — below WCAG AA for body text. -700 gives 5.4:1, and
+     stays a fine chart fill (graphics need only 3:1). */
+  --color-profit: #027a48;      /* success-700 */
+  --color-loss: #d92d20;        /* error-600 — 4.9:1 on white */
   --color-income: #12b76a;      /* success-500 */
   --color-expense: #f79009;     /* warning-500 */
   --color-trend-up: #12b76a;

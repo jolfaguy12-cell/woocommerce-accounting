@@ -179,7 +179,7 @@
                                     <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $model->description }}</span>
                                 @endif
                             </td>
-                            <x-tables.num class="whitespace-nowrap text-gray-800 dark:text-white/90" :value="$entry['kind'] === 'credit_sale' ? $model->total_due : $model->amount" />
+                            <x-tables.num class="whitespace-nowrap" :value="$entry['kind'] === 'credit_sale' ? $model->total_due : $model->amount" />
                             <td class="text-xs text-gray-500 dark:text-gray-400">
                                 @if ($entry['kind'] === 'credit_sale')
                                     {{ $model->status === 'settled' ? 'تسویه‌شده' : 'باز — مانده '.number_format($model->remaining()) }}
@@ -222,7 +222,7 @@
                     <td class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->channel?->name ?? 'نامشخص' }}</td>
                     <td class="px-5 py-3 sm:px-6"><x-orders.status-badge type="financial" :value="$order->financial_state" /></td>
                     <td class="px-5 py-3 sm:px-6"><x-orders.status-badge type="payment" :value="$order->payment_status" /></td>
-                    <x-tables.num class="whitespace-nowrap px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" :value="$order->total" />
+ <x-tables.num class="whitespace-nowrap px-5 py-3 sm:px-6" :value="$order->total" tone="muted" />
                     <td class="whitespace-nowrap px-5 py-3 text-center sm:px-6 {{ ($order->profit?->operational_profit ?? 0) < 0 ? 'text-error-500' : 'text-gray-600 dark:text-gray-300' }}" dir="ltr">
                         {{ $order->profit?->operational_profit !== null ? number_format($order->profit->operational_profit) : '—' }}
                     </td>

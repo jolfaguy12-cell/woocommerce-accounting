@@ -25,6 +25,23 @@
     // to clear a filter, for the latter it is to add data.
     $hasFilters = $query?->hasActiveFilters() ?? false;
     $chips = $query?->activeFilters($filterLabels) ?? [];
+
+    // A column opts into sorting with 'sort' => '<TableQuery key>'; the header's
+    // link and arrow are derived from the query itself. Pages used to build these
+    // URLs by hand, which is how sorting and filtering drifted apart — a hand-made
+    // sort link that forgot a filter param silently dropped it on click.
+    $columns = collect($columns)->map(function (array $col) use ($query) {
+        if ($query === null || ! isset($col['sort'])) {
+            return $col;
+        }
+
+        return $col + [
+            'sort_url' => $query->sortUrl($col['sort']),
+            'sort_append_url' => $query->sortUrl($col['sort'], append: true),
+            'sort_dir' => $query->sortDir($col['sort']),
+            'sort_priority' => $query->sortPriority($col['sort']),
+        ];
+    })->all();
 @endphp
 
 {{--

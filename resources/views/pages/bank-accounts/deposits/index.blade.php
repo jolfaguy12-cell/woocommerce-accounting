@@ -2,14 +2,22 @@
 
 @php
     $columns = [
-        ['key' => 'status', 'label' => 'وضعیت'],
+        ['key' => 'status', 'label' => 'وضعیت', 'sort' => 'status'],
         ['key' => 'reference', 'label' => 'شناسه مرجع'],
-        ['key' => 'deposited_at', 'label' => 'تاریخ واریز'],
+        ['key' => 'deposited_at', 'label' => 'تاریخ واریز', 'sort' => 'deposited_at'],
         ['key' => 'psp', 'label' => 'نوع (PSP)'],
-        ['key' => 'amount', 'label' => 'مبلغ کل'],
+        ['key' => 'amount', 'label' => 'مبلغ کل', 'sort' => 'amount'],
         ['key' => 'holder', 'label' => 'نام صاحب حساب'],
         ['key' => 'bank_account', 'label' => 'حساب مقصد'],
         ['key' => 'posted', 'label' => 'سند حسابداری'],
+    ];
+
+    $filterLabels = [
+        'status' => 'وضعیت',
+        'psp' => 'نوع (PSP)',
+        'bank_account_id' => 'حساب مقصد',
+        'date_from' => 'از تاریخ',
+        'date_to' => 'تا تاریخ',
     ];
 @endphp
 
@@ -42,13 +50,15 @@
     <x-tables.pro-table
         :columns="$columns"
         :paginator="$deposits"
-        emptyMessage="واریزی‌ای با این فیلترها یافت نشد"
+        :query="$query"
+        :filterLabels="$filterLabels"
+        emptyMessage="هنوز واریزی‌ای ایمپورت نشده است"
         search-value="{{ $filters['search'] ?? '' }}"
         search-placeholder="جستجوی شناسه مرجع، نام صاحب حساب یا شناسه پیگیری"
         with-date-range
         date-from-value="{{ $filters['date_from'] ?? null }}"
         date-to-value="{{ $filters['date_to'] ?? null }}"
-        :clear-filters-route="array_filter($filters) ? route('deposits.index') : null"
+        :clear-filters-route="$query->hasActiveFilters() ? $query->clearUrl() : null"
         :totals="[['label' => 'مبلغ کل (فیلتر فعلی)', 'value' => number_format($totalAmount).' تومان']]"
         storage-key="deposits.visibleColumns"
     >
@@ -80,10 +90,10 @@
                 <td x-show="visible.status" class="px-5 py-3 sm:px-6">
                     <x-ui.badge size="sm" :color="$deposit->status === 'موفق' ? 'success' : 'warning'">{{ $deposit->status ?? '—' }}</x-ui.badge>
                 </td>
-                <x-tables.ltr x-show="visible.reference" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" :value="$deposit->external_reference" />
+ <x-tables.ltr x-show="visible.reference" class="px-5 py-3 sm:px-6" :value="$deposit->external_reference" tone="muted" />
                 <td x-show="visible.deposited_at" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($deposit->deposited_at) }}</td>
                 <td x-show="visible.psp" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $deposit->psp_label ?? '—' }}</td>
-                <x-tables.num x-show="visible.amount" class="px-5 py-3 font-medium text-gray-800 sm:px-6 dark:text-white/90" :value="$deposit->amount_toman" type="toman" />
+ <x-tables.num x-show="visible.amount" class="px-5 py-3 font-medium sm:px-6" :value="$deposit->amount_toman" type="toman" />
                 <td x-show="visible.holder" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $deposit->account_holder_name ?? '—' }}</td>
                 <td x-show="visible.bank_account" class="px-5 py-3 sm:px-6">
                     @if ($deposit->bankAccount)

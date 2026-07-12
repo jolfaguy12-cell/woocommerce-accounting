@@ -2,13 +2,17 @@
 
 @php
     $columns = [
-        ['key' => 'date', 'label' => 'تاریخ'],
+        ['key' => 'date', 'label' => 'تاریخ', 'sort' => 'date'],
         ['key' => 'description', 'label' => 'شرح'],
         ['key' => 'party', 'label' => 'طرف حساب'],
-        ['key' => 'debit', 'label' => 'بدهکار (واریز)'],
-        ['key' => 'credit', 'label' => 'بستانکار (برداشت)'],
+        ['key' => 'debit', 'label' => 'بدهکار (واریز)', 'sort' => 'debit'],
+        ['key' => 'credit', 'label' => 'بستانکار (برداشت)', 'sort' => 'credit'],
+        // Deliberately not sortable: it is a running balance, and it only means
+        // anything read in date order.
         ['key' => 'balance_after', 'label' => 'مانده پس از تراکنش'],
     ];
+
+    $filterLabels = ['date_from' => 'از تاریخ', 'date_to' => 'تا تاریخ'];
 @endphp
 
 @section('content')
@@ -46,13 +50,15 @@
         <x-tables.pro-table
             :columns="$columns"
             :paginator="$transactions"
-            empty-message="تراکنشی برای این حساب یافت نشد"
+            :query="$query"
+            :filterLabels="$filterLabels"
+            empty-message="هنوز تراکنشی برای این حساب ثبت نشده است"
             search-value="{{ $filters['search'] ?? '' }}"
             search-placeholder="جستجوی شرح یا طرف حساب"
             with-date-range
             date-from-value="{{ $filters['date_from'] ?? null }}"
             date-to-value="{{ $filters['date_to'] ?? null }}"
-            :clear-filters-route="array_filter($filters) ? route('bank-accounts.show', $bankAccount) : null"
+            :clear-filters-route="$query->hasActiveFilters() ? $query->clearUrl() : null"
             storage-key="bankAccounts.show.visibleColumns"
         >
             @foreach ($transactions as $line)
@@ -68,9 +74,9 @@
                     </td>
                     {{-- A zero debit/credit is a non-entry on this side of the ledger, so it
                          reads as '—' rather than a misleading 0. --}}
-                    <x-tables.num x-show="visible.debit" class="px-5 py-3 text-success-600 sm:px-6 dark:text-success-400" :value="$line->debit > 0 ? $line->debit : null" />
-                    <x-tables.num x-show="visible.credit" class="px-5 py-3 text-error-500 sm:px-6" :value="$line->credit > 0 ? $line->credit : null" />
-                    <x-tables.num x-show="visible.balance_after" class="whitespace-nowrap px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90" :value="$line->balance_after" />
+ <x-tables.num x-show="visible.debit" class="px-5 py-3 sm:px-6" :value="$line->debit > 0 ? $line->debit : null" tone="positive" />
+                    <x-tables.num x-show="visible.credit" class="px-5 py-3 sm:px-6" :value="$line->credit > 0 ? $line->credit : null" tone="negative" />
+ <x-tables.num x-show="visible.balance_after" class="whitespace-nowrap px-5 py-3 sm:px-6" :value="$line->balance_after" />
                 </tr>
             @endforeach
         </x-tables.pro-table>

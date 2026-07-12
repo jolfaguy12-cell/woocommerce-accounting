@@ -1,24 +1,31 @@
 @extends('layouts.app')
 
 @php
-    $sortUrl = fn (string $key) => route('orders.index', array_merge(
-        $filters,
-        ['sort' => $key, 'dir' => ($sort === $key && $dir === 'asc') ? 'desc' : 'asc']
-    ));
-    $sortDirFor = fn (string $key) => $sort === $key ? $dir : null;
-
+    // Sort links are derived from the TableQuery by <x-tables.pro-table>: a column
+    // just declares which sort key it maps to. The page no longer builds sort URLs
+    // by hand, so a sort click can no longer drop an active filter.
     $columns = [
-        ['key' => 'order', 'label' => 'سفارش', 'sort_url' => $sortUrl('hub_order_id'), 'sort_dir' => $sortDirFor('hub_order_id')],
+        ['key' => 'order', 'label' => 'سفارش', 'sort' => 'hub_order_id'],
         ['key' => 'customer', 'label' => 'مشتری'],
         ['key' => 'channel', 'label' => 'کانال'],
         ['key' => 'status', 'label' => 'وضعیت سفارش'],
         ['key' => 'payment_status', 'label' => 'وضعیت پرداخت'],
-        ['key' => 'total', 'label' => 'مبلغ (تومان)', 'sort_url' => $sortUrl('total'), 'sort_dir' => $sortDirFor('total')],
-        ['key' => 'shipping', 'label' => 'هزینه ارسال', 'sort_url' => $sortUrl('shipping_charged'), 'sort_dir' => $sortDirFor('shipping_charged')],
-        ['key' => 'profit', 'label' => 'سود', 'sort_url' => $sortUrl('operational_profit'), 'sort_dir' => $sortDirFor('operational_profit')],
+        ['key' => 'total', 'label' => 'مبلغ (تومان)', 'sort' => 'total'],
+        ['key' => 'shipping', 'label' => 'هزینه ارسال', 'sort' => 'shipping_charged'],
+        ['key' => 'profit', 'label' => 'سود', 'sort' => 'operational_profit'],
         ['key' => 'profit_status', 'label' => 'وضعیت سود'],
-        ['key' => 'order_date', 'label' => 'تاریخ ثبت', 'sort_url' => $sortUrl('order_date'), 'sort_dir' => $sortDirFor('order_date')],
-        ['key' => 'updated_at', 'label' => 'آخرین به‌روزرسانی از هاب', 'sort_url' => $sortUrl('updated_at'), 'sort_dir' => $sortDirFor('updated_at')],
+        ['key' => 'order_date', 'label' => 'تاریخ ثبت', 'sort' => 'order_date'],
+        ['key' => 'updated_at', 'label' => 'آخرین به‌روزرسانی از هاب', 'sort' => 'updated_at'],
+    ];
+
+    $filterLabels = [
+        'status' => 'وضعیت سفارش',
+        'payment_status' => 'وضعیت پرداخت',
+        'profit_status' => 'وضعیت سود',
+        'channel_id' => 'کانال',
+        'province' => 'استان',
+        'date_from' => 'از تاریخ',
+        'date_to' => 'تا تاریخ',
     ];
 @endphp
 
@@ -28,13 +35,15 @@
 <x-tables.pro-table
     :columns="$columns"
     :paginator="$orders"
-    empty-message="سفارشی با این فیلترها یافت نشد"
+    :query="$query"
+    :filterLabels="$filterLabels"
+    empty-message="هنوز سفارشی ثبت نشده است"
     search-value="{{ $filters['search'] ?? '' }}"
     search-placeholder="جستجوی شماره سفارش، نام مشتری یا شهر"
     with-date-range
     date-from-value="{{ $filters['date_from'] ?? null }}"
     date-to-value="{{ $filters['date_to'] ?? null }}"
-    :clear-filters-route="array_filter($filters) ? route('orders.index') : null"
+    :clear-filters-route="$query->hasActiveFilters() ? $query->clearUrl() : null"
     storage-key="orders.visibleColumns"
 >
     <x-slot:filters>
@@ -89,8 +98,8 @@
             <td x-show="visible.channel" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $order->channel?->name ?? 'نامشخص' }}</td>
             <td x-show="visible.status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="order" :value="$order->status" /></td>
             <td x-show="visible.payment_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="payment" :value="$order->payment_status" /></td>
-            <x-tables.num x-show="visible.total" :value="$order->total" class="text-gray-600 dark:text-gray-300" />
-            <x-tables.num x-show="visible.shipping" :value="$order->shipping_charged" class="text-gray-600 dark:text-gray-300" />
+            <x-tables.num x-show="visible.total" :value="$order->total" tone="muted" />
+            <x-tables.num x-show="visible.shipping" :value="$order->shipping_charged" tone="muted" />
             <x-tables.num x-show="visible.profit" :value="$order->profit?->operational_profit" :signed="true" />
             <td x-show="visible.profit_status" class="px-5 py-3 sm:px-6"><x-orders.status-badge type="profit" :value="$order->profit_status" /></td>
             <td x-show="visible.order_date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($order->order_date) }}</td>

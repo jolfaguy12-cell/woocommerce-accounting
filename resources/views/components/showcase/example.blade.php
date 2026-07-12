@@ -73,16 +73,16 @@
     {{-- ============ Tables ============ --}}
     @case('table-01')
         <x-tables.data-table
-            :headers="['نام مشتری', 'مبلغ', 'وضعیت']"
+            :headers="['نام مشتری', ['label' => 'مبلغ'], 'وضعیت']"
             :totals="[['label' => 'جمع', 'value' => '۴٬۰۷۰٬۰۰۰ تومان']]">
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td class="px-5 py-3 sm:px-6 text-gray-800 dark:text-white/90">زهرا کریمی</td>
-                <td class="px-5 py-3 text-gray-600 dark:text-gray-300" dir="ltr">۱٬۲۵۰٬۰۰۰</td>
+                <td class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">زهرا کریمی</td>
+                <x-tables.num :value="1250000" />
                 <td class="px-5 py-3"><x-ui.badge color="success" size="sm">تکمیل‌شده</x-ui.badge></td>
             </tr>
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td class="px-5 py-3 sm:px-6 text-gray-800 dark:text-white/90">محمد صادقی</td>
-                <td class="px-5 py-3 text-gray-600 dark:text-gray-300" dir="ltr">۲٬۸۲۰٬۰۰۰</td>
+                <td class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">محمد صادقی</td>
+                <x-tables.num :value="2820000" />
                 <td class="px-5 py-3"><x-ui.badge color="warning" size="sm">در حال پردازش</x-ui.badge></td>
             </tr>
         </x-tables.data-table>
@@ -98,13 +98,13 @@
                 ['key' => 'status', 'label' => 'وضعیت'],
             ]">
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td x-show="visible.name" class="px-5 py-3 sm:px-6 text-gray-800 dark:text-white/90">زهرا کریمی</td>
-                <td x-show="visible.amount" class="px-5 py-3 text-gray-600 dark:text-gray-300" dir="ltr">۱٬۲۵۰٬۰۰۰</td>
+                <td x-show="visible.name" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">زهرا کریمی</td>
+                <x-tables.num x-show="visible.amount" :value="1250000" />
                 <td x-show="visible.status" class="px-5 py-3"><x-ui.badge color="success" size="sm">تکمیل‌شده</x-ui.badge></td>
             </tr>
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td x-show="visible.name" class="px-5 py-3 sm:px-6 text-gray-800 dark:text-white/90">محمد صادقی</td>
-                <td x-show="visible.amount" class="px-5 py-3 text-gray-600 dark:text-gray-300" dir="ltr">۲٬۸۲۰٬۰۰۰</td>
+                <td x-show="visible.name" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">محمد صادقی</td>
+                <x-tables.num x-show="visible.amount" :value="2820000" />
                 <td x-show="visible.status" class="px-5 py-3"><x-ui.badge color="warning" size="sm">در حال پردازش</x-ui.badge></td>
             </tr>
         </x-tables.pro-table>
@@ -414,7 +414,7 @@
                 <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                     <td class="px-5 py-3 text-theme-sm text-gray-800 sm:px-6 dark:text-white/90">{{ $label }}</td>
                     <x-tables.num :value="$now" class="text-theme-sm" />
-                    <x-tables.num :value="$prev" class="text-theme-sm text-gray-400" />
+                    <x-tables.num :value="$prev" class="text-theme-sm" tone="subtle" />
                     <x-tables.num :value="$prev ? (($now - $prev) / $prev) * 100 : null" type="percent" :signed="true" class="text-theme-sm" />
                 </tr>
             @endforeach
@@ -430,7 +430,7 @@
                         <span class="flex h-6 w-6 items-center justify-center rounded-badge bg-gray-100 text-theme-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">{{ $i + 1 }}</span>
                     </td>
                     <td class="px-5 py-3 text-theme-sm text-gray-800 dark:text-white/90">{{ $p['label'] }}</td>
-                    <x-tables.num :value="$tot ? ($p['value'] / $tot) * 100 : 0" type="percent" class="text-theme-xs text-gray-400" />
+                    <x-tables.num :value="$tot ? ($p['value'] / $tot) * 100 : 0" type="percent" class="text-theme-xs" tone="subtle" />
                     <x-tables.num :value="$p['value']" type="toman" class="text-theme-sm" />
                 </tr>
             @endforeach
@@ -443,7 +443,7 @@
             <x-tables.data-table :headers="['فاکتور', 'تأمین‌کننده', ['label' => 'مبلغ (تومان)'], '']">
                 @foreach ([[104, 'پخش البرز', 12800000, [['ماسک سه‌لایه', 50, 8000000], ['دستکش نیتریل', 20, 4800000]]], [103, 'داروسازی بهار', 6400000, [['ژل ضدعفونی', 40, 6400000]]]] as [$inv, $sup, $amt, $lines])
                     <tr class="cursor-pointer border-b border-gray-100 dark:border-gray-800" @click="open = open === {{ $inv }} ? null : {{ $inv }}">
-                        <td class="px-5 py-3 text-theme-sm font-medium text-brand-500 sm:px-6" dir="ltr">#{{ $inv }}</td>
+                        <x-tables.ltr :value="'#'.$inv" tone="brand" class="text-theme-sm font-medium" />
                         <td class="px-5 py-3 text-theme-sm text-gray-800 dark:text-white/90">{{ $sup }}</td>
                         <x-tables.num :value="$amt" type="toman" class="text-theme-sm" />
                         <td class="px-5 py-3 text-theme-xs text-gray-400">
@@ -491,11 +491,25 @@
                     <td class="px-5 py-3 text-theme-sm text-gray-800 sm:px-6 dark:text-white/90">{{ $user }}</td>
                     <td class="px-5 py-3 text-theme-sm text-gray-600 dark:text-gray-300">{{ $act }}</td>
                     <td class="px-5 py-3 text-theme-xs text-gray-400">{{ $time }}</td>
-                    <x-tables.num :value="$before" type="toman" class="text-theme-xs text-gray-400" />
+                    <x-tables.num :value="$before" type="toman" class="text-theme-xs" tone="subtle" />
                     <x-tables.num :value="$after" type="toman" class="text-theme-sm" />
                 </tr>
             @endforeach
         </x-tables.data-table>
+        @break
+
+    @case('table-12')
+        <x-tables.data-table :headers="['مشتری', ['label' => 'شماره تماس'], ['label' => 'شبا'], ['label' => 'مبلغ (تومان)']]">
+            @foreach ([['زهرا کریمی', '09121234567', 'IR820540102680020817909002', 1250000], ['محمد صادقی', '09354446677', 'IR060120000000004652147001', 640000]] as [$name, $phone, $iban, $amt])
+                <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                    <td class="px-5 py-3 text-theme-sm text-gray-800 sm:px-6 dark:text-white/90">{{ $name }}</td>
+                    <x-tables.ltr :value="$phone" mono tone="muted" class="text-theme-sm" />
+                    <x-tables.ltr :value="$iban" mono tone="muted" class="text-theme-xs" />
+                    <x-tables.num :value="$amt" type="toman" class="text-theme-sm" />
+                </tr>
+            @endforeach
+        </x-tables.data-table>
+        <p class="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">شناسه‌های لاتین و اعداد، هر دو به لبهٔ راست (شروع خواندن در RTL) چسبیده‌اند و با هدر هم‌تراز می‌مانند.</p>
         @break
 
     {{-- ============ Charts 06–08 ============ --}}

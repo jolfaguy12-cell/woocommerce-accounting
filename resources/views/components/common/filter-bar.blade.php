@@ -25,8 +25,17 @@
 @endphp
 
 <form method="GET" action="{{ $action }}" {{ $attributes->merge(['class' => 'flex flex-wrap items-center gap-2']) }}>
+    {{-- Nested params (per-column search arrives as c[col]=…) are preserved too:
+         flattening them keeps `sort`, `per_page` AND `c[...]` alive across a
+         filter submit, so no interaction silently discards another. --}}
     @foreach ($preserved as $key => $value)
-        @if (! is_array($value))
+        @if (is_array($value))
+            @foreach ($value as $nestedKey => $nestedValue)
+                @if (! is_array($nestedValue))
+                    <input type="hidden" name="{{ $key }}[{{ $nestedKey }}]" value="{{ $nestedValue }}">
+                @endif
+            @endforeach
+        @else
             <input type="hidden" name="{{ $key }}" value="{{ $value }}">
         @endif
     @endforeach

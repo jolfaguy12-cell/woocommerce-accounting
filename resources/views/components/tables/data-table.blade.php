@@ -36,8 +36,21 @@
                         <th @if ($isArr && isset($header['key'])) x-show="visible['{{ $header['key'] }}']" @endif
                             class="px-5 py-3 sm:px-6 {{ $alignClass }}">
                             @if ($isArr && isset($header['sort_url']))
-                                <a href="{{ $header['sort_url'] }}" class="inline-flex items-center gap-1 font-medium text-gray-500 text-theme-xs hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                {{-- Ctrl/⌘-click appends this column to the existing sort instead of
+                                     replacing it. Plain JS, so the header works outside an Alpine scope
+                                     too (data-table is used standalone). --}}
+                                <a href="{{ $header['sort_url'] }}"
+                                    @isset($header['sort_append_url'])
+                                        data-sort-append="{{ $header['sort_append_url'] }}"
+                                        onclick="if (event.ctrlKey || event.metaKey) { event.preventDefault(); window.location = this.dataset.sortAppend; }"
+                                        title="برای مرتب‌سازی چندستونه، با Ctrl کلیک کنید"
+                                    @endisset
+                                    class="inline-flex items-center gap-1 font-medium text-gray-500 text-theme-xs hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                                     {{ $header['label'] }}
+                                    @if ($header['sort_priority'] ?? null)
+                                        {{-- Which column breaks the tie first. --}}
+                                        <span class="rounded-badge bg-brand-50 px-1 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">{{ $header['sort_priority'] }}</span>
+                                    @endif
                                     @if (($header['sort_dir'] ?? null) === 'asc')
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15l5-5 5 5"/></svg>
                                     @elseif (($header['sort_dir'] ?? null) === 'desc')

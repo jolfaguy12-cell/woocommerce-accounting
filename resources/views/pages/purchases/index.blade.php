@@ -33,13 +33,13 @@
         @foreach ($invoices as $invoice)
             @php $total = $invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price) + $invoice->shipping_cost; @endphp
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <x-tables.ltr class="p-3 sm:px-6 text-gray-800 dark:text-white/90" :value="\Morilog\Jalali\Jalalian::fromCarbon($invoice->invoice_date)->format('Y/m/d')" />
+                <x-tables.ltr class="p-3 sm:px-6" :value="\Morilog\Jalali\Jalalian::fromCarbon($invoice->invoice_date)->format('Y/m/d')" />
                 <td class="px-5 sm:px-6">
                     <a href="{{ route('purchases.show', $invoice) }}" class="text-brand-500 hover:underline">{{ $invoice->supplier->name }}</a>
                 </td>
-                <x-tables.ltr class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$invoice->invoice_no" />
+ <x-tables.ltr class="px-5 sm:px-6" :value="$invoice->invoice_no" tone="muted" />
                 <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ number_format($invoice->lines->sum('qty')) }}</td>
-                <x-tables.num class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$total" type="toman" />
+ <x-tables.num class="px-5 sm:px-6" :value="$total" type="toman" tone="muted" />
                 <td class="px-5 sm:px-6">
                     <x-ui.badge :color="$invoice->status === 'received' ? 'success' : ($invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
                         {{ $statusLabels[$invoice->status] ?? $invoice->status }}

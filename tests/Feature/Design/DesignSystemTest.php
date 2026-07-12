@@ -88,9 +88,18 @@ it('never hand-writes a numeric cell outside the design system', function () {
     //
     // Two cells in orders/show are allowed: their fallback is a badge, not a
     // number, so they must stay a <td> — but they carry an explicit text-right.
+    //
+    // components/ is scanned too: the Showcase demos escaped an earlier version
+    // of this guard that only looked at pages/, so the catalog itself shipped
+    // the very bug it exists to teach against.
     $offenders = [];
 
-    foreach (File::allFiles(resource_path('views/pages')) as $file) {
+    $files = array_merge(
+        File::allFiles(resource_path('views/pages')),
+        File::allFiles(resource_path('views/components')),
+    );
+
+    foreach ($files as $file) {
         foreach (preg_split('/\R/', $file->getContents()) as $n => $line) {
             if (! preg_match('/<td[^>]*dir="ltr"/', $line)) {
                 continue;
@@ -106,6 +115,78 @@ it('never hand-writes a numeric cell outside the design system', function () {
     }
 
     expect($offenders)->toBe([], 'Use <x-tables.num>/<x-tables.ltr> (or add text-right): '.implode(', ', $offenders));
+});
+
+it('gives every figure a readable colour of its own, in both themes', function () {
+    // `body` sets no text colour, so a figure that inherited its colour from the
+    // caller's <td> fell back to the browser default (pure black): illegible on
+    // a dark background, and heavier than its neighbours on a light one. The
+    // primitive must therefore supply the colour itself — the caller passing
+    // nothing is the common case, and it has to look right.
+    $html = Blade::render('<x-tables.num :value="1250000" />');
+
+    expect($html)->toContain('text-gray-800')       // readable on light
+        ->toContain('dark:text-white/90');          // and on dark
+
+    // A semantic tone, never a raw colour class from the caller.
+    expect(Blade::render('<x-tables.num :value="1" tone="muted" />'))->toContain('text-gray-600')
+        ->and(Blade::render('<x-tables.num :value="1" tone="positive" />'))->toContain('text-success-700')
+        ->and(Blade::render('<x-tables.num :value="1" tone="negative" />'))->toContain('text-error-600')
+        ->and(Blade::render('<x-tables.ltr value="IR12" />'))->toContain('dark:text-white/90');
+
+    // Every tone inverts with the background: the darker shade on light, the
+    // lighter shade on dark. Pairing them the other way round (gray-400 on white,
+    // gray-500 on black) fails WCAG AA at BOTH ends — `subtle` was doing exactly
+    // that, measured at 2.6:1 on light and 3.0:1 on dark.
+    foreach (['subtle', 'muted', 'positive', 'negative'] as $tone) {
+        $html = Blade::render('<x-tables.num :value="1" tone="'.$tone.'" />');
+
+        preg_match('/(?<!dark:)text-\w+-(\d00)/', $html, $light);
+        preg_match('/dark:text-\w+-(\d00)/', $html, $dark);
+
+        expect((int) $light[1])->toBeGreaterThan(
+            (int) $dark[1],
+            "tone={$tone} must use a darker shade on light than it does on dark"
+        );
+    }
+
+    // An unavailable value is never emphasised — but it still has to be legible.
+    expect(Blade::render('<x-tables.num :value="null" tone="default" />'))
+        ->toContain('text-gray-500')->toContain('dark:text-gray-400');
+
+    // The sign carries the meaning, so profit/loss colour outranks the tone.
+    expect(Blade::render('<x-tables.num :value="-45000" :signed="true" tone="muted" />'))
+        ->toContain('text-loss')->not->toContain('text-gray-600');
+});
+
+it('never lets a caller hand-colour a figure', function () {
+    // A text-* colour on the <td> is now dead code: the tone sits on the figure
+    // span, which beats anything merely inherited from the cell. Leaving one in
+    // place is a silent no-op that will confuse the next reader.
+    $offenders = [];
+
+    $files = array_merge(
+        File::allFiles(resource_path('views/pages')),
+        File::allFiles(resource_path('views/components')),
+    );
+
+    foreach ($files as $file) {
+        if (in_array($file->getFilename(), ['num.blade.php', 'ltr.blade.php'], true)) {
+            continue;   // the primitives are where colour is allowed to live
+        }
+
+        foreach (preg_split('/\R/', $file->getContents()) as $n => $line) {
+            if (! str_contains($line, '<x-tables.num') && ! str_contains($line, '<x-tables.ltr')) {
+                continue;
+            }
+
+            if (preg_match('/class="[^"]*\btext-(gray|success|error|warning|brand|white)-?/', $line)) {
+                $offenders[] = $file->getRelativePathname().':'.($n + 1);
+            }
+        }
+    }
+
+    expect($offenders)->toBe([], 'Use tone="…" instead of a colour class: '.implode(', ', $offenders));
 });
 
 it('formats every numeric type with its own unit and precision', function () {

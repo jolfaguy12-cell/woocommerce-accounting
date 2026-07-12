@@ -53,7 +53,7 @@
                                     @endisset
                                 </span>
                             </td>
-                            <x-tables.num :value="$share" type="percent" class="w-20 text-theme-xs text-gray-400" />
+                            <x-tables.num :value="$share" type="percent" class="w-20 text-theme-xs" tone="subtle" />
                             <x-tables.num :value="$item['value']" :type="$type" class="text-theme-sm" />
                         </tr>
                     @endforeach

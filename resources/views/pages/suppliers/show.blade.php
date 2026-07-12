@@ -45,11 +45,11 @@
                 <tbody>
                     @forelse ($purchases as $line)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <x-tables.ltr class="py-2 text-gray-800 dark:text-white/90" :value="\Morilog\Jalali\Jalalian::fromCarbon($line->invoice->invoice_date)->format('Y/m/d')" />
+                            <x-tables.ltr class="py-2" :value="\Morilog\Jalali\Jalalian::fromCarbon($line->invoice->invoice_date)->format('Y/m/d')" />
                             <td class="text-gray-800 dark:text-white/90">{{ $line->costItem->name }}</td>
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty" />
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->unit_price" type="toman" />
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->landed_unit_cost" type="toman" />
+                            <x-tables.num :value="$line->qty" tone="muted" />
+                            <x-tables.num :value="$line->unit_price" type="toman" tone="muted" />
+                            <x-tables.num :value="$line->landed_unit_cost" type="toman" tone="muted" />
                             <td>
                                 <x-ui.badge :color="$line->invoice->status === 'received' ? 'success' : ($line->invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
                                     {{ $statusLabels[$line->invoice->status] ?? $line->invoice->status }}

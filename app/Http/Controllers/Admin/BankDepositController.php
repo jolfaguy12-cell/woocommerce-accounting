@@ -6,6 +6,7 @@ use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Models\BankDeposit;
 use App\Domain\Expenses\Services\ZibalDepositImporter;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,10 +17,20 @@ class BankDepositController extends Controller
     {
         $filters = $request->only(['search', 'status', 'psp', 'date_from', 'date_to', 'bank_account_id']);
 
-        $query = BankDeposit::with('bankAccount')->latest('deposited_at');
+        $table = new TableQuery(
+            request: $request,
+            sortable: [
+                'deposited_at' => 'deposited_at',
+                'amount' => 'amount_toman',
+                'status' => 'status',
+            ],
+            filters: ['status', 'psp', 'bank_account_id', 'date_from', 'date_to'],
+            defaultSort: '-deposited_at',
+        );
 
-        if ($filters['search'] ?? null) {
-            $search = $filters['search'];
+        $query = BankDeposit::with('bankAccount');
+
+        if ($search = $table->search()) {
             $query->where(function ($q) use ($search) {
                 $q->where('external_reference', 'like', "%{$search}%")
                     ->orWhere('account_holder_name', 'like', "%{$search}%")
@@ -42,12 +53,18 @@ class BankDepositController extends Controller
             $query->whereDate('deposited_at', '<=', $filters['date_to']);
         }
 
-        $deposits = (clone $query)->paginate(20)->withQueryString();
+        // The total is of everything the filters match, not just this page — so it
+        // is summed before sorting/pagination are applied.
         $totalAmount = (clone $query)->sum('amount_toman');
+
+        $deposits = $query->tap(fn ($q) => $table->apply($q))
+            ->paginate($table->perPage())
+            ->withQueryString();
 
         return view('pages.bank-accounts.deposits.index', [
             'title' => 'واریزی‌های زیبال',
             'deposits' => $deposits,
+            'query' => $table,
             'filters' => $filters,
             'statuses' => BankDeposit::query()->select('status')->distinct()->whereNotNull('status')->pluck('status'),
             'pspLabels' => BankDeposit::query()->select('psp_label')->distinct()->whereNotNull('psp_label')->pluck('psp_label'),

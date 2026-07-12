@@ -112,13 +112,35 @@ it('sorts orders by total ascending and descending', function () {
     app(OrderIngestPipeline::class)->ingest(8702, indexPageOrder(8702, ['total' => 100000]), 'manual');
     app(OrderIngestPipeline::class)->ingest(8703, indexPageOrder(8703, ['total' => 200000]), 'manual');
 
-    $this->actingAs($this->admin)->get('/orders?sort=total&dir=asc')->assertViewHas(
+    $this->actingAs($this->admin)->get('/orders?sort=total')->assertViewHas(
         'orders', fn ($orders) => $orders->pluck('hub_order_id')->all() === [8702, 8703, 8701],
     );
 
-    $this->actingAs($this->admin)->get('/orders?sort=total&dir=desc')->assertViewHas(
+    // A leading '-' is descending — the whole sort contract, in one character.
+    $this->actingAs($this->admin)->get('/orders?sort=-total')->assertViewHas(
         'orders', fn ($orders) => $orders->pluck('hub_order_id')->all() === [8701, 8703, 8702],
     );
+});
+
+it('sorts orders by several columns at once, in the order given', function () {
+    // Same total, different dates: the second sort key is what breaks the tie.
+    app(OrderIngestPipeline::class)->ingest(8801, indexPageOrder(8801, ['total' => 100000, 'date_created' => '2026-01-03T10:00:00']), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8802, indexPageOrder(8802, ['total' => 100000, 'date_created' => '2026-01-01T10:00:00']), 'manual');
+    app(OrderIngestPipeline::class)->ingest(8803, indexPageOrder(8803, ['total' => 500000, 'date_created' => '2026-01-02T10:00:00']), 'manual');
+
+    $this->actingAs($this->admin)->get('/orders?sort=total,order_date')->assertViewHas(
+        'orders', fn ($orders) => $orders->pluck('hub_order_id')->all() === [8802, 8801, 8803],
+    );
+});
+
+it('never drops an active filter when the sort changes', function () {
+    // The bug that motivated TableQuery: hand-built sort links forgot the filters.
+    $this->actingAs($this->admin)->get('/orders?status=processing&sort=-total')
+        ->assertViewHas('query', function ($query) {
+            $url = $query->sortUrl('order_date');
+
+            return str_contains($url, 'status=processing') && str_contains($url, 'sort=order_date');
+        });
 });
 
 it('falls back to the default sort for an unrecognized sort key', function () {

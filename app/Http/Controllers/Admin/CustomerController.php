@@ -13,6 +13,7 @@ use App\Domain\Receivables\Services\CreditOrderService;
 use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Domain\Receivables\Services\ReceivablesService;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,21 +35,27 @@ class CustomerController extends Controller
 
     public function index(Request $request): View
     {
-        $search = $request->string('search')->trim()->value();
         $channelId = $request->input('channel_id');
         $wholesale = $request->input('wholesale'); // '1' | '0' | null
-        $sort = $request->string('sort', 'last_order_at')->value();
-        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
 
-        $sortable = ['name', 'orders_count', 'total_volume', 'last_order_at'];
-        if (! in_array($sort, $sortable, true)) {
-            $sort = 'last_order_at';
-        }
+        // orders_count / total_volume / last_order_at are aggregate aliases added
+        // by withCount/withSum/withMax below — sortable by name, same as a column.
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'name' => 'name',
+                'orders_count' => 'orders_count',
+                'total_volume' => 'total_volume',
+                'last_order_at' => 'last_order_at',
+            ],
+            filters: ['channel_id', 'wholesale'],
+            defaultSort: '-last_order_at',
+        );
 
         $customers = Party::query()
             ->where('type', 'customer')
             ->whereHas('orders') // hide order-less duplicates left behind by acc:customers:merge-duplicates (never deleted, just emptied)
-            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+            ->when($query->search(), fn ($q, string $search) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%")))
             ->when(filled($channelId), fn ($q) => $q->whereHas('orders', fn ($o) => $o->where('channel_id', $channelId)))
@@ -61,8 +68,8 @@ class CustomerController extends Controller
             ])
             ->withSum(['orders as total_volume' => fn ($q) => $q->whereIn('financial_state', self::VALID_STATES)], 'total')
             ->withMax('orders as last_order_at', 'order_date')
-            ->orderBy($sort, $dir)
-            ->paginate(20)
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
             ->withQueryString();
 
         $channelsByCustomer = Order::whereIn('customer_party_id', $customers->pluck('id'))
@@ -76,8 +83,7 @@ class CustomerController extends Controller
             'customers' => $customers,
             'channelsByCustomer' => $channelsByCustomer,
             'filters' => $request->only('search', 'channel_id', 'wholesale'),
-            'sort' => $sort,
-            'dir' => $dir,
+            'query' => $query,
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }

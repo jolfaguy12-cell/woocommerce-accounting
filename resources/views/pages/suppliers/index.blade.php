@@ -36,8 +36,8 @@
                     <a href="{{ route('suppliers.show', $supplier) }}" class="text-brand-500 hover:underline">{{ $supplier->name }}</a>
                 </td>
                 <td class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ $supplier->shop_name ?? '—' }}</td>
-                <x-tables.ltr class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$supplier->phone" />
-                <x-tables.ltr class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$supplier->bank_account_number" />
+ <x-tables.ltr class="px-5 sm:px-6" :value="$supplier->phone" tone="muted" />
+ <x-tables.ltr class="px-5 sm:px-6" :value="$supplier->bank_account_number" tone="muted" />
             </tr>
         @endforeach
     </x-tables.data-table>

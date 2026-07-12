@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Services\BankAccountManager;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,7 +61,18 @@ class BankAccountController extends Controller
     {
         $bankAccount->load('account');
 
-        $search = $request->string('search')->trim()->value();
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'date' => 'journal_entries.entry_date',
+                'debit' => 'journal_lines.debit',
+                'credit' => 'journal_lines.credit',
+            ],
+            filters: ['date_from', 'date_to'],
+            defaultSort: '-date',
+        );
+
+        $search = $query->search() ?? '';
         $dateFrom = $request->string('date_from')->value();
         $dateTo = $request->string('date_to')->value();
 
@@ -90,8 +102,11 @@ class BankAccountController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('journal_entries.entry_date', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('journal_entries.entry_date', '<=', $dateTo))
             ->select('journal_lines.*')
-            ->orderByDesc('journal_entries.entry_date')->orderByDesc('journal_lines.id')
-            ->paginate(20)
+            ->tap(fn ($q) => $query->apply($q))
+            // Stable tiebreaker: two lines can share an entry_date, and a ledger
+            // must not reshuffle between page loads.
+            ->orderByDesc('journal_lines.id')
+            ->paginate($query->perPage())
             ->withQueryString();
 
         $transactions->getCollection()->transform(function ($line) use ($runningBalance) {
@@ -105,6 +120,7 @@ class BankAccountController extends Controller
             'bankAccount' => $bankAccount,
             'balance' => $bankAccount->account->balance(),
             'transactions' => $transactions,
+            'query' => $query,
             'filters' => $request->only('search', 'date_from', 'date_to'),
         ]);
     }

@@ -70,11 +70,11 @@
                     @foreach ($invoice->lines as $line)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">{{ $line->product->name ?? $line->costItem->name }}</td>
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty" />
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->unit_price" />
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->shipping_allocated" />
-                            <x-tables.num class="font-medium text-gray-800 dark:text-white/90" :value="$line->landed_unit_cost" />
-                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty * $line->unit_price" />
+                            <x-tables.num :value="$line->qty" tone="muted" />
+                            <x-tables.num :value="$line->unit_price" tone="muted" />
+                            <x-tables.num :value="$line->shipping_allocated" tone="muted" />
+                            <x-tables.num class="font-medium" :value="$line->landed_unit_cost" />
+                            <x-tables.num :value="$line->qty * $line->unit_price" tone="muted" />
                             <td class="text-gray-500 dark:text-gray-400">{{ $line->note ?? '—' }}</td>
                         </tr>
                     @endforeach

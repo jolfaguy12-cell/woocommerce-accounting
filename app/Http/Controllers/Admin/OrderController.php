@@ -8,6 +8,7 @@ use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderLabel;
 use App\Domain\Orders\Services\ProfitEngine;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,17 +17,30 @@ class OrderController extends Controller
 {
     public function index(Request $request): View
     {
-        $sort = $request->string('sort', 'order_date')->value();
-        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
+        // Sort/search/page-size state lives in the URL, parsed and whitelisted in
+        // one place (see App\Support\Design\TableQuery) rather than hand-rolled here.
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'hub_order_id' => 'orders.hub_order_id',
+                'total' => 'orders.total',
+                'shipping_charged' => 'orders.shipping_charged',
+                'order_date' => 'orders.order_date',
+                'updated_at' => 'orders.updated_at',
+                // Profit lives on a joined table; the join is added below only when
+                // it is actually sorted on, so the common case stays a single-table read.
+                'operational_profit' => 'order_profits.operational_profit',
+            ],
+            searchable: ['city' => 'orders.city', 'province' => 'orders.province'],
+            filters: ['profit_status', 'status', 'payment_status', 'channel_id', 'province', 'date_from', 'date_to'],
+            defaultSort: '-order_date',
+        );
 
-        $sortable = ['hub_order_id', 'total', 'shipping_charged', 'order_date', 'updated_at', 'operational_profit'];
-        if (! in_array($sort, $sortable, true)) {
-            $sort = 'order_date';
-        }
+        $sortsOnProfit = collect($query->sorts())->contains(fn ($s) => $s['key'] === 'operational_profit');
 
         $orders = Order::query()
             ->select('orders.*')
-            ->when($sort === 'operational_profit', fn ($q) => $q->leftJoin('order_profits', 'order_profits.order_id', '=', 'orders.id'))
+            ->when($sortsOnProfit, fn ($q) => $q->leftJoin('order_profits', 'order_profits.order_id', '=', 'orders.id'))
             ->with('channel', 'profit', 'customerParty')
             ->when($request->filled('profit_status'), fn ($q) => $q->where('profit_status', $request->string('profit_status')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
@@ -39,24 +53,23 @@ class OrderController extends Controller
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('order_date', '>=', $request->string('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('order_date', '<=', $request->string('date_to')))
             ->when($request->filled('province'), fn ($q) => $q->where('province', $request->string('province')))
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $search = $request->string('search')->trim()->value();
+            ->when($query->search(), function ($q, string $search) {
+                // Which columns/relations "search" means is page knowledge, so it stays here.
                 $q->where(function ($w) use ($search) {
                     $w->where('hub_order_id', 'like', "%{$search}%")
                         ->orWhere('city', 'like', "%{$search}%")
                         ->orWhereHas('customerParty', fn ($c) => $c->where('name', 'like', "%{$search}%"));
                 });
             })
-            ->orderBy($sort === 'operational_profit' ? 'order_profits.operational_profit' : "orders.$sort", $dir)
-            ->paginate(25)
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
             ->withQueryString();
 
         return view('pages.orders.index', [
             'title' => 'سفارش‌ها',
             'orders' => $orders,
+            'query' => $query,
             'filters' => $request->only('profit_status', 'status', 'payment_status', 'channel_id', 'search', 'date_from', 'date_to', 'province'),
-            'sort' => $sort,
-            'dir' => $dir,
             'channels' => Channel::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'unmappedCount' => Order::whereNull('channel_id')->count(),
             // Data-driven, never hard-coded: whatever statuses actually exist

@@ -11,6 +11,7 @@
     'placeholder' => '—',
     'zero' => null,      // optional text to show instead of a bare 0
     'cell' => true,      // false → render just the span (KPI values, summary rows)
+    'tone' => 'default', // default | muted | subtle | positive | negative
 ])
 
 {{--
@@ -29,8 +30,16 @@
                        already sits, so header and value cannot drift apart
         tabular-fig  → fixed-width figures, so amounts stack by place value
 
+    Colour is owned here too, via `tone` — and for the same reason. `body` sets
+    no text colour, so a figure that inherited its colour from the caller's <td>
+    fell back to the browser default (pure black) whenever the caller forgot to
+    pass one: illegible in dark mode, and heavier than its neighbours in light.
+    Callers therefore pick a SEMANTIC tone; they must not pass a raw text-*
+    colour class (it would be overridden anyway — the tone sits on the figure
+    span, which beats any colour merely inherited from the <td>).
+
     Colour never carries meaning alone: `signed` adds an explicit +/− sign next
-    to the profit/loss colour (WCAG color-not-only).
+    to the profit/loss colour (WCAG color-not-only), and it outranks `tone`.
 --}}
 @php
     $isNull = $value === null || $value === '';
@@ -68,9 +77,23 @@
 
     $isPlain = $isNull || ($zero !== null && (float) $num === 0.0);
 
-    $figClass = 'tabular-fig whitespace-nowrap';
+    // Each tone darkens on light and lightens on dark — the pairing has to invert
+    // with the background, or it fails contrast at one end. (gray-400/gray-500 the
+    // other way round is the worst of both: too pale on white, too dim on black.)
+    $toneClass = match ($tone) {
+        'muted' => 'text-gray-600 dark:text-gray-300',
+        'subtle' => 'text-gray-500 dark:text-gray-400',
+        'positive' => 'text-success-700 dark:text-success-400',
+        'negative' => 'text-error-600 dark:text-error-400',
+        default => 'text-gray-800 dark:text-white/90',
+    };
+
+    // An unavailable value is never emphasised, whatever the tone.
+    $figClass = 'tabular-fig whitespace-nowrap '.($isNull ? 'text-gray-500 dark:text-gray-400' : $toneClass);
+
     if ($signed && ! $isPlain) {
-        $figClass .= ' font-medium '.($num > 0 ? 'text-profit' : ($num < 0 ? 'text-loss' : 'text-gray-500 dark:text-gray-400'));
+        // The sign carries the meaning; profit/loss colour reinforces it and outranks the tone.
+        $figClass = 'tabular-fig whitespace-nowrap font-medium '.($num > 0 ? 'text-profit' : ($num < 0 ? 'text-loss' : 'text-gray-500 dark:text-gray-400'));
     }
 @endphp
 

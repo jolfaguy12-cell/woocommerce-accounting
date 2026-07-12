@@ -12,6 +12,7 @@ use App\Domain\Orders\Services\ProfitEngine;
 use App\Domain\Products\Models\ProductMirror;
 use App\Domain\Products\Services\ProductSyncer;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,32 +23,38 @@ class ProductController extends Controller
 {
     public function index(Request $request, CostResolver $resolver): View
     {
-        $sort = $request->string('sort', 'hub_modified_at')->value();
-        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
-
-        $sortable = ['name', 'price', 'stock_quantity', 'hub_modified_at'];
-        if (! in_array($sort, $sortable, true)) {
-            $sort = 'hub_modified_at';
-        }
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'name' => 'name',
+                'price' => 'price',
+                'stock_quantity' => 'stock_quantity',
+                'hub_modified_at' => 'hub_modified_at',
+            ],
+            searchable: ['sku' => 'sku', 'name' => 'name'],
+            filters: ['mapping'],
+            defaultSort: '-hub_modified_at',
+        );
 
         $products = ProductMirror::with('costMapping')
             ->whereIn('type', ['simple', 'variation', 'variable'])
-            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w
-                ->where('name', 'like', '%'.$request->string('q').'%')
-                ->orWhere('sku', 'like', '%'.$request->string('q').'%')
-                ->orWhere('hub_product_id', $request->string('q'))))
+            ->when($query->search(), fn ($q, string $search) => $q->where(fn ($w) => $w
+                ->where('name', 'like', '%'.$search.'%')
+                ->orWhere('sku', 'like', '%'.$search.'%')
+                ->orWhere('hub_product_id', $search)))
             ->when($request->input('mapping') === 'unmapped', fn ($q) => $q
                 ->whereIn('type', ['simple', 'variation'])
                 ->whereDoesntHave('costMapping', fn ($m) => $m->where('status', 'mapped')))
-            ->orderBy($sort, $dir)
-            ->paginate(25)->withQueryString();
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())->withQueryString();
 
         return view('pages.products.index', [
             'title' => 'محصولات',
             'products' => $products,
-            'filters' => $request->only('q', 'mapping'),
-            'sort' => $sort,
-            'dir' => $dir,
+            'query' => $query,
+            // The search param is `search` now, not `q` — the one contract every
+            // TableQuery page shares (see App\Support\Design\TableQuery).
+            'filters' => $request->only('search', 'mapping'),
         ]);
     }
 

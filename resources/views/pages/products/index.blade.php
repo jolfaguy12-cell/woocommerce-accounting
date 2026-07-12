@@ -1,20 +1,16 @@
 @extends('layouts.app')
 
 @php
-    $sortUrl = fn (string $key) => route('products.index', array_merge(
-        $filters,
-        ['sort' => $key, 'dir' => ($sort === $key && $dir === 'asc') ? 'desc' : 'asc']
-    ));
-    $sortDirFor = fn (string $key) => $sort === $key ? $dir : null;
-
     $columns = [
-        ['key' => 'name', 'label' => 'محصول', 'sort_url' => $sortUrl('name'), 'sort_dir' => $sortDirFor('name')],
+        ['key' => 'name', 'label' => 'محصول', 'sort' => 'name'],
         ['key' => 'type', 'label' => 'نوع'],
         ['key' => 'sku', 'label' => 'SKU'],
-        ['key' => 'price', 'label' => 'قیمت سایت', 'sort_url' => $sortUrl('price'), 'sort_dir' => $sortDirFor('price')],
-        ['key' => 'stock', 'label' => 'موجودی', 'sort_url' => $sortUrl('stock_quantity'), 'sort_dir' => $sortDirFor('stock_quantity')],
+        ['key' => 'price', 'label' => 'قیمت سایت', 'sort' => 'price'],
+        ['key' => 'stock', 'label' => 'موجودی', 'sort' => 'stock_quantity'],
         ['key' => 'cost', 'label' => 'بهای تمام‌شده'],
     ];
+
+    $filterLabels = ['mapping' => 'فیلتر', 'sku' => 'SKU', 'name' => 'نام'];
 @endphp
 
 @section('content')
@@ -23,11 +19,12 @@
 <x-tables.pro-table
     :columns="$columns"
     :paginator="$products"
+    :query="$query"
+    :filterLabels="$filterLabels"
     empty-message="محصولی یافت نشد — با acc:sync:product همگام‌سازی کنید"
-    search-name="q"
-    search-value="{{ $filters['q'] ?? '' }}"
+    search-value="{{ $filters['search'] ?? '' }}"
     search-placeholder="جستجو نام / SKU / شناسه"
-    :clear-filters-route="array_filter($filters) ? route('products.index') : null"
+    :clear-filters-route="$query->hasActiveFilters() ? $query->clearUrl() : null"
     storage-key="products.visibleColumns"
 >
     <x-slot:filters>
@@ -44,8 +41,8 @@
                 <span class="mr-2 text-xs text-gray-500 dark:text-gray-400" dir="ltr">#{{ $p->hub_product_id }}</span>
             </td>
             <td x-show="visible.type" class="px-5 sm:px-6"><x-ui.badge color="light" size="sm">{{ $p->type }}</x-ui.badge></td>
-            <x-tables.ltr x-show="visible.sku" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$p->sku" />
-            <x-tables.num x-show="visible.price" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$p->price" />
+ <x-tables.ltr x-show="visible.sku" class="px-5 sm:px-6" :value="$p->sku" tone="muted" />
+ <x-tables.num x-show="visible.price" class="px-5 sm:px-6" :value="$p->price" tone="muted" />
             <td x-show="visible.stock" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ $p->stock_quantity !== null ? number_format($p->stock_quantity) : '—' }}</td>
             <td x-show="visible.cost" class="px-5 sm:px-6">
                 @php $mapped = $p->costMapping?->status === 'mapped'; @endphp

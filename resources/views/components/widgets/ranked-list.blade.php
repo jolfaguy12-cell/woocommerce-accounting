@@ -82,7 +82,7 @@
                             <x-ui.status :status="$item['status']" />
                         @endisset
 
-                        <x-tables.num :value="$item['value']" :type="$type" :cell="false" class="shrink-0 text-theme-sm font-medium text-gray-700 dark:text-gray-200" />
+                        <x-tables.num :value="$item['value']" :type="$type" :cell="false" class="shrink-0 text-theme-sm font-medium" />
                     </div>
                 </li>
             @endforeach
