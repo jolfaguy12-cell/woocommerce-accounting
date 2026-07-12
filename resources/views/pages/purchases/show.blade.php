@@ -70,11 +70,11 @@
                     @foreach ($invoice->lines as $line)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                             <td class="py-2 text-gray-800 dark:text-white/90">{{ $line->product->name ?? $line->costItem->name }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->qty) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->unit_price) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->shipping_allocated) }}</td>
-                            <td class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($line->landed_unit_cost) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->qty * $line->unit_price) }}</td>
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->unit_price" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->shipping_allocated" />
+                            <x-tables.num class="font-medium text-gray-800 dark:text-white/90" :value="$line->landed_unit_cost" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty * $line->unit_price" />
                             <td class="text-gray-500 dark:text-gray-400">{{ $line->note ?? '—' }}</td>
                         </tr>
                     @endforeach
@@ -82,17 +82,17 @@
                 <tfoot>
                     <tr class="border-t border-gray-200 font-medium text-gray-800 dark:border-gray-700 dark:text-white/90">
                         <td colspan="5" class="py-2 text-left">جمع کالا:</td>
-                        <td dir="ltr">{{ number_format($invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price)) }} تومان</td>
+                        <x-tables.num  :value="$invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price)" type="toman" />
                         <td></td>
                     </tr>
                     <tr class="text-gray-600 dark:text-gray-300">
                         <td colspan="5" class="py-1 text-left">هزینه حمل:</td>
-                        <td dir="ltr">{{ number_format($invoice->shipping_cost) }} تومان</td>
+                        <x-tables.num  :value="$invoice->shipping_cost" type="toman" />
                         <td></td>
                     </tr>
                     <tr class="text-lg font-bold text-gray-800 dark:text-white/90">
                         <td colspan="5" class="py-1 text-left">مبلغ کل فاکتور:</td>
-                        <td dir="ltr">{{ number_format($invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price) + $invoice->shipping_cost) }} تومان</td>
+                        <x-tables.num  :value="$invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price) + $invoice->shipping_cost" type="toman" />
                         <td></td>
                     </tr>
                 </tfoot>

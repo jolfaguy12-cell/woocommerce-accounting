@@ -4,8 +4,8 @@
     $columns = [
         ['key' => 'name', 'label' => 'نام و نام‌خانوادگی'],
         ['key' => 'channel', 'label' => 'کانال'],
-        ['key' => 'orders', 'label' => 'تعداد خریدها', 'align' => 'center'],
-        ['key' => 'total_volume', 'label' => 'حجم کل خرید (تومان)', 'align' => 'center'],
+        ['key' => 'orders', 'label' => 'تعداد خریدها'],
+        ['key' => 'total_volume', 'label' => 'حجم کل خرید (تومان)'],
         ['key' => 'last_order', 'label' => 'آخرین خرید'],
         ['key' => 'wholesale', 'label' => 'وضعیت'],
     ];
@@ -83,8 +83,8 @@
         :headers="[
             ['key' => 'name', 'label' => 'نام و نام‌خانوادگی', 'sort_url' => $sortUrl('name'), 'sort_dir' => $sortDirFor('name')],
             ['key' => 'channel', 'label' => 'کانال'],
-            ['key' => 'orders', 'label' => 'تعداد خریدها', 'align' => 'center', 'sort_url' => $sortUrl('orders_count'), 'sort_dir' => $sortDirFor('orders_count')],
-            ['key' => 'total_volume', 'label' => 'حجم کل خرید (تومان)', 'align' => 'center', 'sort_url' => $sortUrl('total_volume'), 'sort_dir' => $sortDirFor('total_volume')],
+            ['key' => 'orders', 'label' => 'تعداد خریدها', 'sort_url' => $sortUrl('orders_count'), 'sort_dir' => $sortDirFor('orders_count')],
+            ['key' => 'total_volume', 'label' => 'حجم کل خرید (تومان)', 'sort_url' => $sortUrl('total_volume'), 'sort_dir' => $sortDirFor('total_volume')],
             ['key' => 'last_order', 'label' => 'آخرین خرید', 'sort_url' => $sortUrl('last_order_at'), 'sort_dir' => $sortDirFor('last_order_at')],
             ['key' => 'wholesale', 'label' => 'وضعیت'],
             'عملیات',
@@ -124,9 +124,7 @@
                         @endif
                     </div>
                 </td>
-                <td x-show="visible.total_volume" class="px-5 py-3 text-center text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">
-                    {{ number_format((int) $customer->total_volume) }}
-                </td>
+                <x-tables.num x-show="visible.total_volume" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" :value="(int) $customer->total_volume" />
                 <td x-show="visible.last_order" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">
                     {{ $customer->last_order_at ? \App\Domain\Accounting\Support\JalaliPeriod::humanDiff(\Illuminate\Support\Carbon::parse($customer->last_order_at)) : '—' }}
                 </td>

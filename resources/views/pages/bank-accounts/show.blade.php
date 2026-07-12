@@ -5,9 +5,9 @@
         ['key' => 'date', 'label' => 'تاریخ'],
         ['key' => 'description', 'label' => 'شرح'],
         ['key' => 'party', 'label' => 'طرف حساب'],
-        ['key' => 'debit', 'label' => 'بدهکار (واریز)', 'align' => 'center'],
-        ['key' => 'credit', 'label' => 'بستانکار (برداشت)', 'align' => 'center'],
-        ['key' => 'balance_after', 'label' => 'مانده پس از تراکنش', 'align' => 'center'],
+        ['key' => 'debit', 'label' => 'بدهکار (واریز)'],
+        ['key' => 'credit', 'label' => 'بستانکار (برداشت)'],
+        ['key' => 'balance_after', 'label' => 'مانده پس از تراکنش'],
     ];
 @endphp
 
@@ -66,9 +66,11 @@
                             {{ $line->party->name ?? '—' }}
                         @endif
                     </td>
-                    <td x-show="visible.debit" class="whitespace-nowrap px-5 py-3 text-center text-success-600 sm:px-6 dark:text-success-400" dir="ltr">{{ $line->debit > 0 ? number_format($line->debit) : '—' }}</td>
-                    <td x-show="visible.credit" class="whitespace-nowrap px-5 py-3 text-center text-error-500 sm:px-6" dir="ltr">{{ $line->credit > 0 ? number_format($line->credit) : '—' }}</td>
-                    <td x-show="visible.balance_after" class="whitespace-nowrap px-5 py-3 text-center text-gray-800 sm:px-6 dark:text-white/90" dir="ltr">{{ number_format($line->balance_after) }}</td>
+                    {{-- A zero debit/credit is a non-entry on this side of the ledger, so it
+                         reads as '—' rather than a misleading 0. --}}
+                    <x-tables.num x-show="visible.debit" class="px-5 py-3 text-success-600 sm:px-6 dark:text-success-400" :value="$line->debit > 0 ? $line->debit : null" />
+                    <x-tables.num x-show="visible.credit" class="px-5 py-3 text-error-500 sm:px-6" :value="$line->credit > 0 ? $line->credit : null" />
+                    <x-tables.num x-show="visible.balance_after" class="whitespace-nowrap px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90" :value="$line->balance_after" />
                 </tr>
             @endforeach
         </x-tables.pro-table>

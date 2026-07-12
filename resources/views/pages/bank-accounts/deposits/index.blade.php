@@ -80,10 +80,10 @@
                 <td x-show="visible.status" class="px-5 py-3 sm:px-6">
                     <x-ui.badge size="sm" :color="$deposit->status === 'موفق' ? 'success' : 'warning'">{{ $deposit->status ?? '—' }}</x-ui.badge>
                 </td>
-                <td x-show="visible.reference" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $deposit->external_reference }}</td>
+                <x-tables.ltr x-show="visible.reference" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300" :value="$deposit->external_reference" />
                 <td x-show="visible.deposited_at" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($deposit->deposited_at) }}</td>
                 <td x-show="visible.psp" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $deposit->psp_label ?? '—' }}</td>
-                <td x-show="visible.amount" class="px-5 py-3 font-medium text-gray-800 sm:px-6 dark:text-white/90" dir="ltr">{{ number_format($deposit->amount_toman) }} تومان</td>
+                <x-tables.num x-show="visible.amount" class="px-5 py-3 font-medium text-gray-800 sm:px-6 dark:text-white/90" :value="$deposit->amount_toman" type="toman" />
                 <td x-show="visible.holder" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">{{ $deposit->account_holder_name ?? '—' }}</td>
                 <td x-show="visible.bank_account" class="px-5 py-3 sm:px-6">
                     @if ($deposit->bankAccount)

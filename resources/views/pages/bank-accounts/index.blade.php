@@ -17,10 +17,10 @@
     <x-tables.data-table
         :headers="[
             ['key' => 'name', 'label' => 'نام'],
-            ['key' => 'bank_name', 'label' => 'نام بانک', 'align' => 'center'],
-            ['key' => 'card_number', 'label' => 'شماره کارت', 'align' => 'center'],
-            ['key' => 'iban', 'label' => 'شماره شبا', 'align' => 'center'],
-            ['key' => 'balance', 'label' => 'موجودی فعلی', 'align' => 'center'],
+            ['key' => 'bank_name', 'label' => 'نام بانک'],
+            ['key' => 'card_number', 'label' => 'شماره کارت'],
+            ['key' => 'iban', 'label' => 'شماره شبا'],
+            ['key' => 'balance', 'label' => 'موجودی فعلی'],
             ['key' => 'actions', 'label' => ''],
         ]"
         :paginator="null"
@@ -35,9 +35,9 @@
                     @endif
                 </td>
                 <td x-show="visible.bank_name" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300">{{ $row['model']->bank_name ?? '—' }}</td>
-                <td x-show="visible.card_number" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->card_number ?? '—' }}</td>
-                <td x-show="visible.iban" class="px-5 text-center text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $row['model']->iban ?? '—' }}</td>
-                <td x-show="visible.balance" class="px-5 text-center sm:px-6 font-medium {{ $row['balance'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">{{ number_format($row['balance']) }} تومان</td>
+                <x-tables.ltr x-show="visible.card_number" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$row['model']->card_number" />
+                <x-tables.ltr x-show="visible.iban" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$row['model']->iban" />
+                <x-tables.num x-show="visible.balance" class="px-5 sm:px-6 font-medium {{ $row['balance'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" :value="$row['balance']" type="toman" />
                 <td x-show="visible.actions" class="px-5 text-center sm:px-6">
                     <button type="button" onclick="editBankAccount({{ $row['model']->id }}, {{ \Illuminate\Support\Js::from($row['model']->name) }}, {{ \Illuminate\Support\Js::from($row['model']->bank_name) }}, {{ \Illuminate\Support\Js::from($row['model']->card_number) }}, {{ \Illuminate\Support\Js::from($row['model']->iban) }})" class="text-sm text-brand-500 hover:underline">
                         ویرایش

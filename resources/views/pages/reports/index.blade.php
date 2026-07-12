@@ -37,9 +37,9 @@
                         <span class="text-warning-600 dark:text-orange-400">⚠️ موارد باز</span>
                     @endif
                 </td>
-                <td x-show="visible.net_profit" class="px-5 text-center font-medium sm:px-6 {{ $row['net_period_profit'] !== null && $row['net_period_profit'] < 0 ? 'text-error-500' : 'text-gray-800 dark:text-white/90' }}" dir="ltr">
-                    {{ $row['net_period_profit'] === null ? '—' : number_format($row['net_period_profit']) }}
-                </td>
+                {{-- `signed` supplies the profit/loss colour AND an explicit +/- sign,
+                     so the figure never relies on colour alone. --}}
+                <x-tables.num x-show="visible.net_profit" class="px-5 sm:px-6" :value="$row['net_period_profit']" :signed="true" />
                 <td x-show="visible.finalized_at" class="px-5 text-center text-xs text-gray-500 sm:px-6 dark:text-gray-400">
                     {{ $row['finalized_at'] ? \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($row['finalized_at']) : '—' }}
                 </td>

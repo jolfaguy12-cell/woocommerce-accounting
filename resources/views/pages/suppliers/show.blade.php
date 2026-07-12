@@ -45,11 +45,11 @@
                 <tbody>
                     @forelse ($purchases as $line)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <td class="py-2 text-gray-800 dark:text-white/90" dir="ltr">{{ \Morilog\Jalali\Jalalian::fromCarbon($line->invoice->invoice_date)->format('Y/m/d') }}</td>
+                            <x-tables.ltr class="py-2 text-gray-800 dark:text-white/90" :value="\Morilog\Jalali\Jalalian::fromCarbon($line->invoice->invoice_date)->format('Y/m/d')" />
                             <td class="text-gray-800 dark:text-white/90">{{ $line->costItem->name }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->qty) }}</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->unit_price) }} تومان</td>
-                            <td class="text-gray-600 dark:text-gray-300" dir="ltr">{{ $line->landed_unit_cost !== null ? number_format($line->landed_unit_cost).' تومان' : '—' }}</td>
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->qty" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->unit_price" type="toman" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$line->landed_unit_cost" type="toman" />
                             <td>
                                 <x-ui.badge :color="$line->invoice->status === 'received' ? 'success' : ($line->invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
                                     {{ $statusLabels[$line->invoice->status] ?? $line->invoice->status }}

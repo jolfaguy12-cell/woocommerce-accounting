@@ -44,7 +44,7 @@
                         @endif
                     </span>
                 </td>
-                <td class="px-5 py-3 text-gray-500 dark:text-gray-400" dir="ltr">{{ $user['email'] }}</td>
+                <x-tables.ltr class="px-5 py-3 text-gray-500 dark:text-gray-400" :value="$user['email']" />
                 <td class="px-5 py-3">
                     @foreach ($user['roles'] as $role)
                         <x-ui.badge :color="$role === 'admin' ? 'primary' : 'light'" size="sm">

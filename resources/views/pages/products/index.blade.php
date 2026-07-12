@@ -44,8 +44,8 @@
                 <span class="mr-2 text-xs text-gray-500 dark:text-gray-400" dir="ltr">#{{ $p->hub_product_id }}</span>
             </td>
             <td x-show="visible.type" class="px-5 sm:px-6"><x-ui.badge color="light" size="sm">{{ $p->type }}</x-ui.badge></td>
-            <td x-show="visible.sku" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $p->sku ?? '—' }}</td>
-            <td x-show="visible.price" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">{{ $p->price !== null ? number_format($p->price) : '—' }}</td>
+            <x-tables.ltr x-show="visible.sku" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$p->sku" />
+            <x-tables.num x-show="visible.price" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300" :value="$p->price" />
             <td x-show="visible.stock" class="px-5 text-gray-600 sm:px-6 dark:text-gray-300">{{ $p->stock_quantity !== null ? number_format($p->stock_quantity) : '—' }}</td>
             <td x-show="visible.cost" class="px-5 sm:px-6">
                 @php $mapped = $p->costMapping?->status === 'mapped'; @endphp

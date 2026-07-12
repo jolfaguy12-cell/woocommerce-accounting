@@ -2,6 +2,7 @@
 
 use App\Support\Design\StatusPresenter;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\File;
 
 /*
  * Guards the Reporting Design System foundation (Phase 2).
@@ -78,6 +79,34 @@ it('gives every chart a unique generated id so a preset can repeat on one page',
 it('renders every data state variant', function (string $variant) {
     expect(Blade::render('<x-states.state variant="'.$variant.'" />'))->not->toBeEmpty();
 })->with(['empty', 'no-results', 'error', 'permission', 'loading', 'skeleton', 'stale', 'partial', 'offline']);
+
+it('never hand-writes a numeric cell outside the design system', function () {
+    // The alignment bug came back one <td dir="ltr"> at a time. A raw dir="ltr"
+    // cell resolves text-align:start to LEFT while its <th> stays right, so the
+    // column silently desyncs. Every numeric/LTR cell must go through
+    // <x-tables.num> / <x-tables.ltr>, which own direction AND alignment.
+    //
+    // Two cells in orders/show are allowed: their fallback is a badge, not a
+    // number, so they must stay a <td> — but they carry an explicit text-right.
+    $offenders = [];
+
+    foreach (File::allFiles(resource_path('views/pages')) as $file) {
+        foreach (preg_split('/\R/', $file->getContents()) as $n => $line) {
+            if (! preg_match('/<td[^>]*dir="ltr"/', $line)) {
+                continue;
+            }
+
+            // Explicitly aligned cells are fine — they cannot desync from the header.
+            if (str_contains($line, 'text-right')) {
+                continue;
+            }
+
+            $offenders[] = $file->getRelativePathname().':'.($n + 1);
+        }
+    }
+
+    expect($offenders)->toBe([], 'Use <x-tables.num>/<x-tables.ltr> (or add text-right): '.implode(', ', $offenders));
+});
 
 it('formats every numeric type with its own unit and precision', function () {
     expect(Blade::render('<x-tables.num :value="1250000" type="toman" />'))->toContain('1,250,000')->toContain('تومان')

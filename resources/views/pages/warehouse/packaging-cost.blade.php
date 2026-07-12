@@ -54,8 +54,8 @@
                 <tbody>
                     @forelse ($tiers as $tier)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <td class="py-2 text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($tier->min_weight_grams) }}</td>
-                            <td class="text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($tier->cost) }}</td>
+                            <x-tables.num class="py-2 text-gray-800 dark:text-white/90" :value="$tier->min_weight_grams" />
+                            <x-tables.num class="text-gray-800 dark:text-white/90" :value="$tier->cost" />
                             <td class="text-left">
                                 <button type="button" onclick="editPackagingTier({{ $tier->id }}, {{ $tier->min_weight_grams }}, {{ $tier->cost }})" class="ml-2 text-sm text-brand-500 hover:underline">ویرایش</button>
                                 <form method="POST" action="{{ route('warehouse.packaging-cost.tiers.destroy', $tier) }}" class="inline"

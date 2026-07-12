@@ -219,7 +219,7 @@
                                 <td class="text-gray-600 dark:text-gray-300">
                                     {{ $settlement->source instanceof \App\Domain\Receivables\Models\PartyPayment ? 'دریافت وجه'.($settlement->source->bankAccount ? ' — '.$settlement->source->bankAccount->name : '') : 'سوخت مطالبات' }}
                                 </td>
-                                <td class="whitespace-nowrap text-center text-gray-800 dark:text-white/90" dir="ltr">{{ number_format($settlement->amount) }}</td>
+                                <x-tables.num class="whitespace-nowrap text-gray-800 dark:text-white/90" :value="$settlement->amount" />
                             </tr>
                         @endforeach
                     </tbody>
@@ -276,10 +276,15 @@
                                     <x-ui.badge color="error" size="sm">بدون نگاشت</x-ui.badge>
                                 @endif
                             </td>
-                            <td class="text-center text-gray-600 dark:text-gray-300">{{ number_format($item->qty) }}</td>
-                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$item->qty" />
+
+                            {{-- Stays a <td>: the fallback is a badge/button, not a number. It
+                                 still carries dir="ltr" + text-right so it lines up with its
+                                 header, and the numeric branch renders through <x-tables.num>
+                                 so the figures stay tabular. --}}
+                            <td class="px-5 py-3 text-right text-gray-600 sm:px-6 dark:text-gray-300" dir="ltr">
                                 @if ($lineCost !== null)
-                                    {{ number_format($lineCost) }}
+                                    <x-tables.num :value="$lineCost" :cell="false" />
                                 @elseif ($item->product_mirror_id)
                                     <button type="button" onclick='openQuickCostModal({{ $item->product_mirror_id }}, @json($item->name))'>
                                         <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
@@ -288,18 +293,18 @@
                                     <x-ui.badge color="error" size="sm">ثبت نشده</x-ui.badge>
                                 @endif
                             </td>
-                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->unit_price) }}</td>
-                            <td class="text-center text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($item->line_total) }}</td>
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$item->unit_price" />
+                            <x-tables.num class="text-gray-600 dark:text-gray-300" :value="$item->line_total" />
                             @if ($showChannelFeeColumn)
-                                <td class="text-center text-error-500" dir="ltr" title="تخمینی — به نسبت سهم این آیتم از جمع سفارش">
-                                    {{ $itemFee !== null ? number_format($itemFee) : '—' }}
-                                </td>
+                                <x-tables.num class="text-error-500" :value="$itemFee" title="تخمینی — به نسبت سهم این آیتم از جمع سفارش" />
                             @endif
-                            <td class="text-center" dir="ltr">
+                            {{-- `signed` gives the profit/loss colour AND an explicit +/- sign,
+                                 so profit is never conveyed by colour alone. --}}
+                            <td class="px-5 py-3 text-right sm:px-6" dir="ltr">
                                 @if ($lineProfit !== null)
-                                    <span class="{{ $lineProfit < 0 ? 'text-error-500' : 'text-success-600 dark:text-success-400' }}">{{ number_format($lineProfit) }}</span>
+                                    <x-tables.num :value="$lineProfit" :signed="true" :cell="false" />
                                 @else
-                                    <span class="text-error-500 text-base leading-none">✕</span>
+                                    <span class="text-base leading-none text-error-500" title="سود این ردیف محاسبه نشده">✕</span>
                                 @endif
                             </td>
                         </tr>
