@@ -76,9 +76,9 @@
                 </div>
 
                 <div>
-                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تصویر فاکتور (اختیاری)</label>
-                    <input type="file" name="image" accept="image/*" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                    @error('image')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تصاویر فاکتور (اختیاری، چندتایی)</label>
+                    <input type="file" name="images[]" accept="image/*" multiple class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    @error('images')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
                 </div>
             </div>
 

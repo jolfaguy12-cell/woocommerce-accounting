@@ -11,11 +11,15 @@ use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Products\Models\ProductMirror;
 use App\Http\Controllers\Controller;
+use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class PurchaseInvoiceController extends Controller
 {
@@ -23,17 +27,49 @@ class PurchaseInvoiceController extends Controller
 
     public function index(Request $request): View
     {
-        $invoices = PurchaseInvoice::with(['supplier', 'lines', 'attachments'])
-            ->when($request->filled('q'), fn ($q) => $q->whereHas('supplier', fn ($s) => $s->where('name', 'like', '%'.$request->string('q').'%'))
-                ->orWhere('invoice_no', 'like', '%'.$request->string('q').'%'))
-            ->orderByDesc('invoice_date')->orderByDesc('id')
-            ->paginate(25)->withQueryString();
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'invoice_date' => 'purchase_invoices.invoice_date',
+                'invoice_no' => 'purchase_invoices.invoice_no',
+                'total' => 'total',
+                'status' => 'purchase_invoices.status',
+            ],
+            filters: ['supplier_party_id', 'status'],
+            defaultSort: '-invoice_date',
+        );
+
+        $search = $query->search() ?? '';
+
+        // "total" isn't a stored column (it's lines + shipping), so it's
+        // computed once here via a subquery rather than loaded per-row in the
+        // view — this is also what makes it sortable through TableQuery.
+        $totals = DB::table('purchase_invoice_lines')
+            ->selectRaw('purchase_invoice_id, SUM(qty * unit_price) as lines_total, SUM(qty) as total_qty')
+            ->groupBy('purchase_invoice_id');
+
+        $invoices = PurchaseInvoice::query()
+            ->leftJoinSub($totals, 'totals', 'totals.purchase_invoice_id', '=', 'purchase_invoices.id')
+            ->with(['supplier', 'attachments'])
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->whereHas('supplier', fn ($s) => $s->where('name', 'like', "%{$search}%"))
+                ->orWhere('purchase_invoices.invoice_no', 'like', "%{$search}%")))
+            ->when($request->filled('supplier_party_id'), fn ($q) => $q->where('purchase_invoices.supplier_party_id', $request->integer('supplier_party_id')))
+            ->when($request->filled('status'), fn ($q) => $q->where('purchase_invoices.status', $request->string('status')))
+            ->select('purchase_invoices.*', DB::raw('COALESCE(totals.lines_total, 0) + purchase_invoices.shipping_cost as total'), DB::raw('COALESCE(totals.total_qty, 0) as total_qty'))
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
+            ->withQueryString();
 
         return view('pages.purchases.index', [
             'title' => 'ثبت خرید',
             'invoices' => $invoices,
-            'filters' => $request->only('q'),
+            'query' => $query,
+            'filters' => $request->only('search', 'supplier_party_id', 'status'),
             'statusLabels' => self::STATUS_LABELS,
+            'supplierName' => $request->filled('supplier_party_id')
+                ? Party::find($request->integer('supplier_party_id'))?->name
+                : null,
         ]);
     }
 
@@ -82,7 +118,7 @@ class PurchaseInvoiceController extends Controller
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
         }
 
-        $this->storeAttachment($request, $invoice);
+        $this->storeAttachments($request, $invoice);
 
         $message = $request->input('action') === 'finalize'
             ? 'فاکتور خرید ثبت، دریافت و سند حسابداری آن صادر شد.'
@@ -114,11 +150,15 @@ class PurchaseInvoiceController extends Controller
     }
 
     /**
-     * Edits header fields + existing line prices/notes, reallocating shipping
-     * across every line (see PurchaseInvoiceService::update()'s docblock for
-     * why — shipping is often only known a day or two after the goods went
-     * out, and correcting it after the invoice was already received reverses
-     * the old journal entry and posts a corrected one rather than a silent edit).
+     * Edits header fields, existing line prices/qty/notes, adds/removes
+     * lines, and reallocates shipping across every remaining line (see
+     * PurchaseInvoiceService::update()'s docblock for why — shipping is often
+     * only known a day or two after the goods went out, and correcting it
+     * after the invoice was already received reverses the old journal entry
+     * and posts a corrected one rather than a silent edit). A line already
+     * received can only have its qty increased and can never be removed —
+     * the service enforces this and throws InvalidArgumentException, caught
+     * below, if the form tries anyway.
      */
     public function update(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices, ProductMappingResolver $resolver): RedirectResponse
     {
@@ -126,7 +166,8 @@ class PurchaseInvoiceController extends Controller
             'invoice_no' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'shipping_cost' => 'nullable|integer|min:0',
-            'image' => 'nullable|image|max:10240',
+            'images' => 'nullable|array',
+            'images.*' => 'image|max:10240',
             'lines' => 'nullable|array',
             'lines.*.id' => 'nullable|exists:purchase_invoice_lines,id',
             'lines.*.cost_item_id' => 'nullable|exists:cost_items,id',
@@ -134,6 +175,7 @@ class PurchaseInvoiceController extends Controller
             'lines.*.qty' => 'nullable|integer|min:1',
             'lines.*.unit_price' => 'nullable|integer|min:1',
             'lines.*.note' => 'nullable|string|max:255',
+            'lines.*._remove' => 'nullable|boolean',
         ]);
 
         $lines = isset($data['lines']) ? $this->resolveLines($data['lines'], $resolver) : [];
@@ -147,11 +189,34 @@ class PurchaseInvoiceController extends Controller
             ], $request->user()->id);
         } catch (PeriodLockedException) {
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['lines' => $e->getMessage()])->withInput();
         }
 
-        $this->storeAttachment($request, $invoice);
+        $this->storeAttachments($request, $invoice);
 
         return redirect()->route('purchases.show', $invoice)->with('success', 'فاکتور خرید به‌روزرسانی شد.');
+    }
+
+    /** Append one or more images to an already-created invoice, without resubmitting the whole edit form. */
+    public function storeImages(Request $request, PurchaseInvoice $invoice): RedirectResponse
+    {
+        $request->validate(['images' => 'required|array|min:1', 'images.*' => 'image|max:10240']);
+
+        $this->storeAttachments($request, $invoice);
+
+        return back()->with('success', 'تصویر فاکتور اضافه شد.');
+    }
+
+    /** Remove one invoice image. "Replace" is composed from this + storeImages. */
+    public function destroyImage(PurchaseInvoice $invoice, Attachment $attachment): RedirectResponse
+    {
+        abort_unless($attachment->attachable_type === 'purchase_invoice' && $attachment->attachable_id === $invoice->id, 404);
+
+        Storage::disk('local')->delete($attachment->path);
+        $attachment->delete();
+
+        return back()->with('success', 'تصویر فاکتور حذف شد.');
     }
 
     /** Receives a draft/partial invoice in full, posting its journal entry for the first time. */
@@ -191,7 +256,8 @@ class PurchaseInvoiceController extends Controller
             'invoice_no' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'shipping_cost' => 'nullable|integer|min:0',
-            'image' => 'nullable|image|max:10240',
+            'images' => 'nullable|array',
+            'images.*' => 'image|max:10240',
             'lines' => 'required|array|min:1',
             'lines.*.product_mirror_id' => 'nullable|exists:product_mirror,id',
             'lines.*.cost_item_id' => 'nullable|exists:cost_items,id',
@@ -229,22 +295,18 @@ class PurchaseInvoiceController extends Controller
         })->all();
     }
 
-    private function storeAttachment(Request $request, PurchaseInvoice $invoice): void
+    private function storeAttachments(Request $request, PurchaseInvoice $invoice): void
     {
-        if (! $request->hasFile('image')) {
-            return;
+        foreach ($request->file('images', []) as $file) {
+            Attachment::create([
+                'attachable_type' => 'purchase_invoice',
+                'attachable_id' => $invoice->id,
+                'path' => $file->store('attachments', 'local'),
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'uploaded_by' => $request->user()->id,
+            ]);
         }
-
-        $file = $request->file('image');
-
-        Attachment::create([
-            'attachable_type' => 'purchase_invoice',
-            'attachable_id' => $invoice->id,
-            'path' => $file->store('attachments', 'local'),
-            'original_name' => $file->getClientOriginalName(),
-            'mime_type' => $file->getClientMimeType(),
-            'size' => $file->getSize(),
-            'uploaded_by' => $request->user()->id,
-        ]);
     }
 }

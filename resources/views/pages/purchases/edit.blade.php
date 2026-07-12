@@ -62,25 +62,42 @@
                 </div>
 
                 <div>
-                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تصویر فاکتور (اختیاری)</label>
-                    <input type="file" name="image" accept="image/*" class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                    @error('image')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">افزودن تصاویر فاکتور (اختیاری، چندتایی)</label>
+                    <input type="file" name="images[]" accept="image/*" multiple class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    @error('images')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                    <p class="mt-1 text-xs text-gray-400">برای حذف یا مدیریت تصاویر موجود، از صفحه نمایش فاکتور استفاده کنید.</p>
                 </div>
             </div>
 
             <div>
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">اقلام موجود</label>
-                <p class="mb-2 text-xs text-gray-400">فقط قیمت و توضیحات هر ردیف قابل ویرایش است؛ برای تغییر تعداد یا کالا، یک ردیف جدید اضافه کنید.</p>
+                <p class="mb-2 text-xs text-gray-400">تعداد ردیفی که هنوز دریافت نشده را می‌توان آزادانه تغییر داد یا حذف کرد؛ تعداد ردیف دریافت‌شده فقط قابل افزایش است و قابل حذف نیست.</p>
 
                 @foreach ($invoice->lines as $i => $line)
-                    <div class="mb-2 grid grid-cols-12 items-center gap-2 border-b border-gray-100 pb-2 last:border-0 dark:border-gray-800">
+                    <div x-data="{ removed: false }" :class="removed && 'opacity-40'" class="mb-2 grid grid-cols-12 items-center gap-2 border-b border-gray-100 pb-2 last:border-0 dark:border-gray-800">
                         <input type="hidden" name="lines[{{ $i }}][id]" value="{{ $line->id }}">
-                        <div class="col-span-4 text-sm text-gray-800 dark:text-white/90">{{ $line->product->name ?? $line->costItem->name }}</div>
-                        <div class="col-span-2 text-sm text-gray-600 dark:text-gray-300" dir="ltr">{{ number_format($line->qty) }} عدد</div>
-                        <input type="number" name="lines[{{ $i }}][unit_price]" min="1" required dir="ltr" value="{{ old("lines.$i.unit_price", $line->unit_price) }}"
-                            class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
-                        <input type="text" name="lines[{{ $i }}][note]" value="{{ old("lines.$i.note", $line->note) }}" placeholder="توضیحات"
-                            class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <input type="hidden" name="lines[{{ $i }}][_remove]" :value="removed ? 1 : 0">
+                        <div class="col-span-3 text-sm text-gray-800 dark:text-white/90" :class="removed && 'line-through'">
+                            {{ $line->product->name ?? $line->costItem->name }}
+                            @if ($line->received_qty > 0)
+                                <span class="block text-xs text-gray-400">{{ number_format($line->received_qty) }} عدد دریافت‌شده</span>
+                            @endif
+                        </div>
+                        <input type="number" name="lines[{{ $i }}][qty]" min="{{ max(1, $line->received_qty) }}" required dir="ltr" :disabled="removed"
+                            value="{{ old("lines.$i.qty", $line->qty) }}"
+                            class="col-span-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <input type="number" name="lines[{{ $i }}][unit_price]" min="1" required dir="ltr" :disabled="removed"
+                            value="{{ old("lines.$i.unit_price", $line->unit_price) }}"
+                            class="col-span-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <input type="text" name="lines[{{ $i }}][note]" :disabled="removed" value="{{ old("lines.$i.note", $line->note) }}" placeholder="توضیحات"
+                            class="col-span-2 h-10 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                        <div class="col-span-2 text-left">
+                            @if ($line->received_qty > 0)
+                                <span class="text-xs text-gray-400">قابل حذف نیست</span>
+                            @else
+                                <button type="button" @click="removed = !removed" class="text-xs text-error-500 hover:underline" x-text="removed ? 'بازگردانی' : 'حذف'"></button>
+                            @endif
+                        </div>
                     </div>
                 @endforeach
 

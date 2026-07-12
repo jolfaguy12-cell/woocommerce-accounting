@@ -42,7 +42,7 @@ it('lists suppliers and shows a searchable index', function () {
         ->assertViewHas('suppliers', fn ($suppliers) => $suppliers->total() === 1);
 });
 
-it("shows a supplier's purchase history on their profile page", function () {
+it("shows a supplier's purchase history on its dedicated tab", function () {
     $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
     $item = CostItem::create(['name' => 'اسپری']);
 
@@ -53,14 +53,33 @@ it("shows a supplier's purchase history on their profile page", function () {
     ]);
     app(PurchaseInvoiceService::class)->receive($invoice, [$invoice->lines->first()->id => 5]);
 
-    $this->actingAs($this->admin)->get("/suppliers/{$supplier->id}")
+    $this->actingAs($this->admin)->get("/suppliers/{$supplier->id}/purchase-history")
         ->assertOk()
         ->assertViewHas('purchases', fn ($purchases) => $purchases->count() === 1
             && $purchases->first()->costItem->id === $item->id);
+});
+
+it('shows the supplier accounting dashboard with KPIs and payable balance', function () {
+    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $item = CostItem::create(['name' => 'اسپری']);
+
+    $invoice = app(PurchaseInvoiceService::class)->create([
+        'supplier_party_id' => $supplier->id,
+        'invoice_date' => Carbon::now('Asia/Tehran'),
+        'lines' => [['cost_item_id' => $item->id, 'qty' => 5, 'unit_price' => 300_000]],
+    ]);
+    app(PurchaseInvoiceService::class)->receive($invoice, [$invoice->lines->first()->id => 5]);
+
+    $this->actingAs($this->admin)->get("/suppliers/{$supplier->id}")
+        ->assertOk()
+        ->assertViewHas('kpis', fn ($kpis) => $kpis['month_value']['value'] === 1_500_000 && $kpis['lifetime_value']['value'] === 1_500_000)
+        ->assertViewHas('payableBalance', 1_500_000);
 });
 
 it('404s when viewing a non-supplier party as a supplier', function () {
     $customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
 
     $this->actingAs($this->admin)->get("/suppliers/{$customer->id}")->assertNotFound();
+    $this->actingAs($this->admin)->get("/suppliers/{$customer->id}/purchase-history")->assertNotFound();
+    $this->actingAs($this->admin)->get("/suppliers/{$customer->id}/transactions")->assertNotFound();
 });

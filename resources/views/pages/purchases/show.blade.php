@@ -45,11 +45,32 @@
             </div>
         </div>
 
-        @if ($invoice->attachments->isNotEmpty())
-            <p class="mt-3 text-sm">
-                <a href="{{ route('attachments.download', $invoice->attachments->first()) }}" class="text-brand-500 hover:underline">📎 مشاهده تصویر فاکتور</a>
-            </p>
-        @endif
+    </x-common.component-card>
+
+    <x-common.component-card title="تصاویر فاکتور">
+        <div class="flex flex-wrap gap-3">
+            @forelse ($invoice->attachments as $attachment)
+                <div class="relative w-28 rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
+                    <a href="{{ route('attachments.download', $attachment) }}" target="_blank" rel="noopener noreferrer" class="block text-2xl">📎</a>
+                    <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400" title="{{ $attachment->original_name }}">{{ $attachment->original_name }}</p>
+                    <form method="POST" action="{{ route('purchases.images.destroy', [$invoice, $attachment]) }}" onsubmit="return confirm('این تصویر حذف شود؟')" class="mt-1">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="text-xs text-error-500 hover:underline">حذف</button>
+                    </form>
+                </div>
+            @empty
+                <p class="text-sm text-gray-400">هنوز تصویری برای این فاکتور بارگذاری نشده است.</p>
+            @endforelse
+        </div>
+
+        <form method="POST" action="{{ route('purchases.images.store', $invoice) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-3">
+            @csrf
+            <input type="file" name="images[]" accept="image/*" multiple required
+                class="h-11 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <button type="submit" class="h-11 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">افزودن تصویر</button>
+            @error('images')<p class="text-xs text-error-500">{{ $message }}</p>@enderror
+        </form>
     </x-common.component-card>
 
     <x-common.component-card title="اقلام فاکتور">
@@ -69,7 +90,13 @@
                 <tbody>
                     @foreach ($invoice->lines as $line)
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <td class="py-2 text-gray-800 dark:text-white/90">{{ $line->product->name ?? $line->costItem->name }}</td>
+                            <td class="py-2 text-gray-800 dark:text-white/90">
+                                @if ($line->product)
+                                    <a href="{{ route('products.show', $line->product) }}" target="_blank" rel="noopener noreferrer" class="text-brand-500 hover:underline">{{ $line->product->name }}</a>
+                                @else
+                                    {{ $line->costItem->name }}
+                                @endif
+                            </td>
                             <x-tables.num :value="$line->qty" tone="muted" />
                             <x-tables.num :value="$line->unit_price" tone="muted" />
                             <x-tables.num :value="$line->shipping_allocated" tone="muted" />

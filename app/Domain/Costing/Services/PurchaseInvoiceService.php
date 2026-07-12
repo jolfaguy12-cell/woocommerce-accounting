@@ -9,6 +9,7 @@ use App\Domain\Costing\Models\PurchaseInvoiceLine;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class PurchaseInvoiceService
 {
@@ -66,15 +67,18 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Edit an existing invoice: header fields, per-line unit_price/note, and
-     * new lines can be added. Line qty/removal on already-received lines is
-     * intentionally out of scope (would need partial-reversal accounting not
-     * built yet) — only unit_price and shipping_cost changes are supported
-     * once a line has been received.
+     * Edit an existing invoice: header fields, per-line unit_price/qty/note,
+     * adding new lines, and removing lines can all change. A line with
+     * received_qty > 0 already has its landed cost baked into cost_history
+     * (and possibly a posted journal entry): its qty can only be increased
+     * (or left alone), never reduced below received_qty, and it can never be
+     * removed. A line with received_qty == 0
+     * (including on a partially-received invoice) can be freely qty-edited
+     * or removed.
      *
-     * Shipping is always reallocated across every line by qty (or manual)
-     * after any edit, since shipping is often only known a day or two after
-     * the goods went out. If a line was already received, its corrected
+     * Shipping is always reallocated across every remaining line by qty (or
+     * manual) after any edit, since shipping is often only known a day or two
+     * after the goods went out. If a line was already received, its corrected
      * landed cost is written as a NEW cost_history row (never mutating the
      * old one — see JournalPoster's reversal-only rule). If the invoice was
      * already fully received (journal posted), the old journal entry is
@@ -97,10 +101,32 @@ class PurchaseInvoiceService
                 'shipping_cost' => isset($data['shipping_cost']) ? (int) $data['shipping_cost'] : $invoice->shipping_cost,
             ]));
 
+            $remaining = $invoice->lines->count();
+
             foreach ($data['lines'] ?? [] as $lineData) {
                 if (! empty($lineData['id'])) {
                     $line = $invoice->lines->firstWhere('id', $lineData['id']);
-                    $line?->update(array_filter([
+
+                    if (! $line) {
+                        continue;
+                    }
+
+                    if (! empty($lineData['_remove'])) {
+                        if ($line->received_qty > 0) {
+                            throw new InvalidArgumentException("ردیف «{$line->costItem->name}» قبلاً دریافت شده و قابل حذف نیست.");
+                        }
+                        $line->delete();
+                        $remaining--;
+
+                        continue;
+                    }
+
+                    if (isset($lineData['qty']) && (int) $lineData['qty'] < $line->received_qty) {
+                        throw new InvalidArgumentException("تعداد ردیف «{$line->costItem->name}» را نمی‌توان کمتر از مقدار دریافت‌شده ({$line->received_qty}) کرد.");
+                    }
+
+                    $line->update(array_filter([
+                        'qty' => $lineData['qty'] ?? null,
                         'unit_price' => $lineData['unit_price'] ?? null,
                         'note' => $lineData['note'] ?? $line->note,
                     ], fn ($v) => $v !== null));
@@ -114,7 +140,12 @@ class PurchaseInvoiceService
                         'landed_unit_cost' => $lineData['unit_price'],
                         'note' => $lineData['note'] ?? null,
                     ]);
+                    $remaining++;
                 }
+            }
+
+            if ($remaining < 1) {
+                throw new InvalidArgumentException('فاکتور خرید باید حداقل یک ردیف داشته باشد.');
             }
 
             $invoice->refresh();

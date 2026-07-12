@@ -102,6 +102,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
         Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
         Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])->name('suppliers.show');
+        Route::put('suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+        Route::post('suppliers/{supplier}/pay', [SupplierController::class, 'pay'])->name('suppliers.pay');
+        Route::get('suppliers/{supplier}/purchase-history', [SupplierController::class, 'purchaseHistory'])->name('suppliers.purchase-history');
+        Route::get('suppliers/{supplier}/transactions', [SupplierController::class, 'transactions'])->name('suppliers.transactions');
 
         Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
         Route::get('new-buy-order/create', [PurchaseInvoiceController::class, 'create'])->name('purchases.create');
@@ -111,6 +115,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('new-buy-order/{invoice}/edit', [PurchaseInvoiceController::class, 'edit'])->name('purchases.edit');
         Route::put('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'update'])->name('purchases.update');
         Route::post('new-buy-order/{invoice}/finalize', [PurchaseInvoiceController::class, 'finalize'])->name('purchases.finalize');
+        Route::post('new-buy-order/{invoice}/images', [PurchaseInvoiceController::class, 'storeImages'])->name('purchases.images.store');
+        Route::delete('new-buy-order/{invoice}/images/{attachment}', [PurchaseInvoiceController::class, 'destroyImage'])->name('purchases.images.destroy');
 
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');

@@ -159,3 +159,109 @@ it('cascades landed cost to every variation when a line is purchased against a v
     // no extra qty or payable was invented for the variations.
     expect($invoice->journalEntry->lines->sum('debit'))->toBe(1_500_000);
 });
+
+it('increases the qty of a received line, recalculating its landed cost and journal', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'shipping_cost' => 100_000,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 500_000]],
+    ]);
+    $line = $invoice->lines->first();
+    $service->receive($invoice, [$line->id => 10]);
+
+    $service->update($invoice, ['lines' => [['id' => $line->id, 'qty' => 20, 'unit_price' => 500_000]]]);
+
+    $invoice->refresh();
+    expect($invoice->lines->first()->qty)->toBe(20)
+        // shipping (100_000) now spread over 20 units instead of 10
+        ->and($invoice->lines->first()->shipping_allocated)->toBe(100_000)
+        ->and($invoice->lines->first()->landed_unit_cost)->toBe(505_000)
+        ->and($invoice->journalEntry->lines->sum('debit'))->toBe(10_100_000);
+});
+
+it('throws when reducing a received line below its received qty', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+    $line = $invoice->lines->first();
+    $service->receive($invoice, [$line->id => 10]);
+
+    $service->update($invoice, ['lines' => [['id' => $line->id, 'qty' => 5, 'unit_price' => 480_000]]]);
+})->throws(InvalidArgumentException::class);
+
+it('throws when removing an already-received line', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+    $line = $invoice->lines->first();
+    $service->receive($invoice, [$line->id => 10]);
+
+    $service->update($invoice, ['lines' => [['id' => $line->id, '_remove' => true]]]);
+})->throws(InvalidArgumentException::class);
+
+it('freely removes an unreceived line on a partially-received invoice and reallocates shipping', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'shipping_cost' => 300_000,
+        'lines' => [
+            ['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000],
+            ['cost_item_id' => $this->lipstick->id, 'qty' => 20, 'unit_price' => 100_000],
+        ],
+    ]);
+    $sprayLine = $invoice->lines->firstWhere('cost_item_id', $this->spray->id);
+    $lipstickLine = $invoice->lines->firstWhere('cost_item_id', $this->lipstick->id);
+    $service->receive($invoice, [$sprayLine->id => 10, $lipstickLine->id => 0]);
+
+    $service->update($invoice, ['lines' => [
+        ['id' => $sprayLine->id, 'unit_price' => 480_000],
+        ['id' => $lipstickLine->id, '_remove' => true],
+    ]]);
+
+    $invoice->refresh();
+    expect($invoice->lines)->toHaveCount(1)
+        ->and($invoice->lines->first()->shipping_allocated)->toBe(300_000);
+});
+
+it('throws when an update would leave the invoice with zero lines', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+    $line = $invoice->lines->first();
+
+    $service->update($invoice, ['lines' => [['id' => $line->id, '_remove' => true]]]);
+})->throws(InvalidArgumentException::class);
+
+it('adds a new line to an already-received invoice, reversing and reposting the journal with the new total', function () {
+    $service = app(PurchaseInvoiceService::class);
+    $invoice = $service->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 480_000]],
+    ]);
+    $line = $invoice->lines->first();
+    $service->receive($invoice, [$line->id => 10]);
+    $originalEntry = $invoice->refresh()->journalEntry;
+
+    $service->update($invoice, ['lines' => [
+        ['id' => $line->id, 'unit_price' => 480_000],
+        ['cost_item_id' => $this->lipstick->id, 'qty' => 5, 'unit_price' => 100_000],
+    ]]);
+
+    $invoice->refresh();
+    expect($originalEntry->refresh()->status)->toBe('reversed')
+        ->and($invoice->lines)->toHaveCount(2)
+        ->and($invoice->journalEntry->lines->sum('debit'))->toBe(5_300_000);
+});

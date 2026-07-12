@@ -20,6 +20,8 @@ class PaymentRecorder
 
     private const CUSTOMER_CREDIT = '2400';
 
+    private const AP = '2000';
+
     public function __construct(
         private readonly JournalPoster $poster,
         private readonly CreditOrderAllocator $allocator,
@@ -148,6 +150,42 @@ class PaymentRecorder
             $payment->update(['journal_entry_id' => $entry->id]);
 
             return $payment->load('journalEntry.lines', 'settlements.creditOrder');
+        });
+    }
+
+    /**
+     * Payment out to a supplier: debits AP, credits the paying bank account.
+     * No cap at the current payable balance — paying more than currently owed
+     * is a real event (an advance), and simply drives the AP balance negative
+     * for this party rather than needing a separate prepaid-asset account.
+     */
+    public function pay(Party $party, int $amount, int $bankAccountId, ?int $by = null): PartyPayment
+    {
+        return DB::transaction(function () use ($party, $amount, $bankAccountId, $by) {
+            $payment = PartyPayment::create([
+                'uuid' => (string) Str::uuid(),
+                'party_id' => $party->id,
+                'direction' => 'out',
+                'amount' => $amount,
+                'bank_account_id' => $bankAccountId,
+                'paid_at' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
+                'created_by' => $by,
+            ]);
+
+            $entry = $this->poster->post([
+                'entry_date' => Carbon::now(JalaliPeriod::TIMEZONE),
+                'description' => "پرداخت به {$party->name}",
+                'idempotency_key' => "payment:{$payment->uuid}",
+                'source' => $payment,
+                'created_by' => $by,
+            ], [
+                ['account' => self::AP, 'debit' => $amount, 'party_id' => $party->id],
+                ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'credit' => $amount, 'party_id' => $party->id],
+            ]);
+
+            $payment->update(['journal_entry_id' => $entry->id]);
+
+            return $payment->load('journalEntry.lines');
         });
     }
 }
