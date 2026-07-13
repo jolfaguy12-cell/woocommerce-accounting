@@ -5,6 +5,7 @@ namespace App\Domain\Receivables\Services;
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\JournalLine;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Costing\Models\PurchaseReturn;
@@ -22,8 +23,6 @@ use Illuminate\Support\Collection;
  */
 class PayablesService
 {
-    private const AP = '2000';
-
     /** >0: we owe the supplier (payable). <0: the supplier owes us (overpaid/advance). 0: settled. */
     public function partyPayableBalance(Party $party): int
     {
@@ -137,6 +136,6 @@ class PayablesService
 
     private function apAccount(): Account
     {
-        return Account::firstWhere('code', self::AP);
+        return AccountCode::AccountsPayable->account();
     }
 }

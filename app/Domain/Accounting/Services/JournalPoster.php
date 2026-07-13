@@ -8,6 +8,7 @@ use App\Domain\Accounting\Exceptions\UnbalancedEntryException;
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\AccountingPeriod;
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -21,7 +22,7 @@ class JournalPoster
      *
      * $data: entry_date (Carbon), description, idempotency_key,
      *        [source (Model), correlation_id, created_by, allow_soft_closed (bool)]
-     * $lines: each ['account' => Account|id|code, 'debit'|'credit' => int Toman,
+     * $lines: each ['account' => Account|AccountCode|id|code, 'debit'|'credit' => int Toman,
      *        'party_id', 'cost_center_id', 'memo']
      */
     public function post(array $data, array $lines): JournalEntry
@@ -154,10 +155,13 @@ class JournalPoster
         }
     }
 
-    private function resolveAccountId(Account|int|string $account): int
+    private function resolveAccountId(Account|AccountCode|int|string $account): int
     {
         if ($account instanceof Account) {
             return $account->id;
+        }
+        if ($account instanceof AccountCode) {
+            $account = $account->value;
         }
         if (is_int($account)) {
             return $account;

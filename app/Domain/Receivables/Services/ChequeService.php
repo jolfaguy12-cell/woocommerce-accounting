@@ -4,6 +4,7 @@ namespace App\Domain\Receivables\Services;
 
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Services\JournalPoster;
+use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Models\Cheque;
@@ -14,30 +15,22 @@ use InvalidArgumentException;
 
 class ChequeService
 {
-    private const AR = '1200';
-
-    private const CHEQUES_RECEIVABLE = '1250';
-
-    private const AP = '2000';
-
-    private const CHEQUES_PAYABLE = '2100';
-
     public function __construct(private readonly JournalPoster $poster) {}
 
     /** Customer cheque received against their AR balance. */
     public function registerReceivable(Party $party, int $amount, Carbon $dueDate, ?string $serial = null): Cheque
     {
         return $this->register('receivable', $party, $amount, $dueDate, $serial,
-            [['account' => self::CHEQUES_RECEIVABLE, 'debit' => $amount],
-                ['account' => self::AR, 'credit' => $amount, 'party_id' => $party->id]]);
+            [['account' => AccountCode::ChequesReceivable, 'debit' => $amount],
+                ['account' => AccountCode::AccountsReceivable, 'credit' => $amount, 'party_id' => $party->id]]);
     }
 
     /** Our cheque handed to a supplier against AP. */
     public function registerPayable(Party $party, int $amount, Carbon $dueDate, ?string $serial = null): Cheque
     {
         return $this->register('payable', $party, $amount, $dueDate, $serial,
-            [['account' => self::AP, 'debit' => $amount, 'party_id' => $party->id],
-                ['account' => self::CHEQUES_PAYABLE, 'credit' => $amount, 'party_id' => $party->id]]);
+            [['account' => AccountCode::AccountsPayable, 'debit' => $amount, 'party_id' => $party->id],
+                ['account' => AccountCode::ChequesPayable, 'credit' => $amount, 'party_id' => $party->id]]);
     }
 
     public function clear(Cheque $cheque, int $bankAccountId): void
@@ -47,8 +40,8 @@ class ChequeService
         $bankLedger = BankAccount::findOrFail($bankAccountId)->account_id;
         $lines = $cheque->direction === 'receivable'
             ? [['account' => $bankLedger, 'debit' => $cheque->amount],
-                ['account' => self::CHEQUES_RECEIVABLE, 'credit' => $cheque->amount]]
-            : [['account' => self::CHEQUES_PAYABLE, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
+                ['account' => AccountCode::ChequesReceivable, 'credit' => $cheque->amount]]
+            : [['account' => AccountCode::ChequesPayable, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
                 ['account' => $bankLedger, 'credit' => $cheque->amount]];
 
         $this->settle($cheque, 'cleared', 'وصول چک', $lines);
@@ -59,10 +52,10 @@ class ChequeService
         $this->assertPending($cheque);
 
         $lines = $cheque->direction === 'receivable'
-            ? [['account' => self::AR, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
-                ['account' => self::CHEQUES_RECEIVABLE, 'credit' => $cheque->amount]]
-            : [['account' => self::CHEQUES_PAYABLE, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
-                ['account' => self::AP, 'credit' => $cheque->amount, 'party_id' => $cheque->party_id]];
+            ? [['account' => AccountCode::AccountsReceivable, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
+                ['account' => AccountCode::ChequesReceivable, 'credit' => $cheque->amount]]
+            : [['account' => AccountCode::ChequesPayable, 'debit' => $cheque->amount, 'party_id' => $cheque->party_id],
+                ['account' => AccountCode::AccountsPayable, 'credit' => $cheque->amount, 'party_id' => $cheque->party_id]];
 
         $this->settle($cheque, 'bounced', 'برگشت چک', $lines);
     }

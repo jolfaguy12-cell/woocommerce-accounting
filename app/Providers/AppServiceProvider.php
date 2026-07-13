@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Models\PartyBankAccount;
+use App\Domain\Accounting\Models\PartyExternalId;
+use App\Domain\Accounting\Models\PartyRole;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
@@ -68,6 +71,12 @@ class AppServiceProvider extends ServiceProvider
             'bad_debt_write_off' => BadDebtWriteOff::class,
             'credit_order_settlement' => CreditOrderSettlement::class,
             'party' => Party::class,
+            // Not journal sources — but the morph map is enforced, so any model
+            // whose class is resolved to a morph alias (LogsActivity does exactly
+            // that for its subject) must be registered here or it throws.
+            'party_role' => PartyRole::class,
+            'party_bank_account' => PartyBankAccount::class,
+            'party_external_id' => PartyExternalId::class,
             'purchase_return' => PurchaseReturn::class,
             'supplier_credit_adjustment' => SupplierCreditAdjustment::class,
         ]);

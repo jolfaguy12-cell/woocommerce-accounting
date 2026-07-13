@@ -4,6 +4,7 @@ namespace App\Domain\Receivables\Services;
 
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Services\JournalPoster;
+use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Orders\Models\Order;
@@ -16,12 +17,6 @@ use Illuminate\Support\Str;
 
 class PaymentRecorder
 {
-    private const AR = '1200';
-
-    private const CUSTOMER_CREDIT = '2400';
-
-    private const AP = '2000';
-
     public function __construct(
         private readonly JournalPoster $poster,
         private readonly CreditOrderAllocator $allocator,
@@ -61,10 +56,10 @@ class PaymentRecorder
 
             $lines = [
                 ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
-                ['account' => self::AR, 'credit' => $settled, 'party_id' => $party->id],
+                ['account' => AccountCode::AccountsReceivable, 'credit' => $settled, 'party_id' => $party->id],
             ];
             if ($excess > 0) {
-                $lines[] = ['account' => self::CUSTOMER_CREDIT, 'credit' => $excess, 'party_id' => $party->id];
+                $lines[] = ['account' => AccountCode::CustomerCredit, 'credit' => $excess, 'party_id' => $party->id];
             }
 
             $entry = $this->poster->post([
@@ -108,10 +103,10 @@ class PaymentRecorder
                 ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
             ];
             if ($settled > 0) {
-                $lines[] = ['account' => self::AR, 'credit' => $settled, 'party_id' => $party->id];
+                $lines[] = ['account' => AccountCode::AccountsReceivable, 'credit' => $settled, 'party_id' => $party->id];
             }
             if ($excess > 0) {
-                $lines[] = ['account' => self::CUSTOMER_CREDIT, 'credit' => $excess, 'party_id' => $party->id];
+                $lines[] = ['account' => AccountCode::CustomerCredit, 'credit' => $excess, 'party_id' => $party->id];
             }
 
             // A payment is always dated today, never backdated — if the current
@@ -181,7 +176,7 @@ class PaymentRecorder
                 'source' => $payment,
                 'created_by' => $by,
             ], [
-                ['account' => self::AP, 'debit' => $amount, 'party_id' => $party->id],
+                ['account' => AccountCode::AccountsPayable, 'debit' => $amount, 'party_id' => $party->id],
                 ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'credit' => $amount, 'party_id' => $party->id],
             ]);
 
@@ -219,7 +214,7 @@ class PaymentRecorder
                 'created_by' => $by,
             ], [
                 ['account' => BankAccount::findOrFail($bankAccountId)->account_id, 'debit' => $amount, 'party_id' => $party->id],
-                ['account' => self::AP, 'credit' => $amount, 'party_id' => $party->id],
+                ['account' => AccountCode::AccountsPayable, 'credit' => $amount, 'party_id' => $party->id],
             ]);
 
             $payment->update(['journal_entry_id' => $entry->id]);
