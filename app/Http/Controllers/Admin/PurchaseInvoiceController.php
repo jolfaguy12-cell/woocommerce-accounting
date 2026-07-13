@@ -81,7 +81,7 @@ class PurchaseInvoiceController extends Controller
     {
         return view('pages.purchases.create', [
             'title' => 'خرید جدید',
-            'suppliers' => Party::withRole(PartyRoleType::Supplier)->orderBy('name')->get(['id', 'name', 'shop_name']),
+            'suppliers' => Party::withRole(PartyRoleType::Supplier)->with('supplierProfile')->orderBy('name')->get(['id', 'name']),
             // Prefilled from the supplier page's "خرید جدید از این تامین‌کننده" button.
             'preselectedSupplierId' => $request->integer('supplier_party_id') ?: null,
         ]);
@@ -159,7 +159,7 @@ class PurchaseInvoiceController extends Controller
         return view('pages.purchases.edit', [
             'title' => 'ویرایش فاکتور خرید #'.$invoice->id,
             'invoice' => $invoice,
-            'suppliers' => Party::withRole(PartyRoleType::Supplier)->orderBy('name')->get(['id', 'name', 'shop_name']),
+            'suppliers' => Party::withRole(PartyRoleType::Supplier)->with('supplierProfile')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

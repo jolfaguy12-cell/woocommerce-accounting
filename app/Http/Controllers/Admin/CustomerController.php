@@ -107,13 +107,14 @@ class CustomerController extends Controller
     {
         return Party::query()
             ->withRole(PartyRoleType::Customer)
+            ->with('customerProfile')
             ->whereHas('orders') // hide order-less duplicates left behind by acc:customers:merge-duplicates (never deleted, just emptied)
             ->when($query->search(), fn ($q, string $search) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%")
                 ->orWhere('telegram_id', 'like', "%{$search}%")))
             ->when(filled($channelId), fn ($q) => $q->whereHas('orders', fn ($o) => $o->where('channel_id', $channelId)))
-            ->when($wholesaleOnly !== null, fn ($q) => $q->where('is_wholesale', $wholesaleOnly))
+            ->when($wholesaleOnly !== null, fn ($q) => $q->whereHas('customerProfile', fn ($p) => $p->where('is_wholesale', $wholesaleOnly)))
             ->withCount([
                 'orders as orders_count',
                 'orders as paid_count' => fn ($q) => $q->whereIn('financial_state', self::VALID_STATES),
@@ -212,7 +213,7 @@ class CustomerController extends Controller
 
         $data = $request->validate(['is_wholesale' => ['required', 'boolean']]);
 
-        $party->update([
+        $party->profileFor(PartyRoleType::Customer)->update([
             'is_wholesale' => $data['is_wholesale'],
             'wholesale_labeled_at' => now(),
             'wholesale_labeled_by' => $request->user()->id,

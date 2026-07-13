@@ -17,6 +17,7 @@ use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class SupplierController extends Controller
@@ -49,10 +50,11 @@ class SupplierController extends Controller
 
         $suppliers = Party::query()
             ->withRole(PartyRoleType::Supplier)
+            ->with('supplierProfile', 'bankAccounts')
             ->leftJoinSub($payableSub, 'payables', 'payables.party_id', '=', 'parties.id')
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('parties.name', 'like', "%{$search}%")
-                ->orWhere('parties.shop_name', 'like', "%{$search}%")
+                ->orWhereHas('supplierProfile', fn ($p) => $p->where('shop_name', 'like', "%{$search}%"))
                 ->orWhere('parties.phone', 'like', "%{$search}%")))
             ->select('parties.*', DB::raw('COALESCE(payables.payable_balance, 0) as payable_balance'))
             ->withCount('purchaseInvoices as invoices_count')
@@ -72,7 +74,10 @@ class SupplierController extends Controller
     {
         $data = $this->validateProfile($request);
 
-        Party::create($data + ['type' => PartyRoleType::Supplier->value]);
+        $supplier = Party::create(Arr::except($data, ['shop_name', 'bank_account_number'])
+            + ['type' => PartyRoleType::Supplier->value]);
+
+        $this->saveSupplierProfile($supplier, $data, $request->user()->id);
 
         return back()->with('success', 'تامین‌کننده جدید ثبت شد.');
     }
@@ -81,7 +86,10 @@ class SupplierController extends Controller
     {
         abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
-        $supplier->update($this->validateProfile($request));
+        $data = $this->validateProfile($request);
+
+        $supplier->update(Arr::except($data, ['shop_name', 'bank_account_number']));
+        $this->saveSupplierProfile($supplier, $data, $request->user()->id);
 
         return back()->with('success', 'اطلاعات تامین‌کننده به‌روزرسانی شد.');
     }
@@ -320,6 +328,37 @@ class SupplierController extends Controller
             'method' => 'nullable|string|in:bank_transfer,cash,card,other',
             'reference' => 'nullable|string|max:100',
         ]);
+    }
+
+    /**
+     * shop_name is supplier-role data (supplier_profiles) and the account number
+     * is a counterparty bank account (party_bank_accounts) — neither belongs on
+     * the shared Party identity any more. The form keeps its two familiar fields.
+     */
+    private function saveSupplierProfile(Party $supplier, array $data, int $userId): void
+    {
+        $supplier->profileFor(PartyRoleType::Supplier)->update([
+            'shop_name' => $data['shop_name'] ?? null,
+        ]);
+
+        if (blank($data['bank_account_number'] ?? null)) {
+            return;
+        }
+
+        $existing = $supplier->bankAccounts()->active()->where('is_default', true)->first()
+            ?? $supplier->bankAccounts()->active()->first();
+
+        $existing
+            ? $existing->update(['account_number' => $data['bank_account_number']])
+            : $supplier->bankAccounts()->create([
+                'account_holder' => $supplier->name,
+                'account_number' => $data['bank_account_number'],
+                'is_default' => true,
+                'is_active' => true,
+                'created_by' => $userId,
+            ]);
+
+        $supplier->unsetRelation('bankAccounts');
     }
 
     private function validateProfile(Request $request): array

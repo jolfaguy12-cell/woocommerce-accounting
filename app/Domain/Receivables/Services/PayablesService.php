@@ -5,6 +5,7 @@ namespace App\Domain\Receivables\Services;
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\JournalLine;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Costing\Models\PurchaseInvoice;
@@ -23,12 +24,12 @@ use Illuminate\Support\Collection;
  */
 class PayablesService
 {
+    public function __construct(private readonly PartyLedgerService $ledger) {}
+
     /** >0: we owe the supplier (payable). <0: the supplier owes us (overpaid/advance). 0: settled. */
     public function partyPayableBalance(Party $party): int
     {
-        $lines = $this->apAccount()->lines()->where('party_id', $party->id);
-
-        return (int) $lines->sum('credit') - (int) $lines->sum('debit');
+        return $this->ledger->supplierPayable($party);
     }
 
     /**

@@ -32,8 +32,12 @@ class MenuHelper
                 'icon' => 'user-profile',
                 'name' => 'کاربران',
                 'subItems' => [
+                    // The customer and wholesale lists are role-filtered views over
+                    // the same party identities the profile below shows in full.
+                    ['name' => 'طرف حساب‌ها', 'path' => '/parties'],
                     ['name' => 'مدیریت مشتریان', 'path' => '/customers'],
                     ['name' => 'مشتریان عمده', 'path' => '/wholesale-customers'],
+                    ['name' => 'بررسی موارد تکراری', 'path' => '/parties/duplicates'],
                 ],
             ],
             [

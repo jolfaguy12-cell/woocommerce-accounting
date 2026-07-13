@@ -44,7 +44,7 @@ it('lists only wholesale-labeled customers, excluding regular ones', function ()
 
     $wholesaleParty = Party::where('name', 'سارا محمدی')->firstOrFail();
     $regularParty = Party::where('name', 'رضا کاظمی')->firstOrFail();
-    $wholesaleParty->update(['is_wholesale' => true]);
+    $wholesaleParty->profileFor('customer')->update(['is_wholesale' => true]);
 
     $this->actingAs($this->admin)->get('/wholesale-customers')->assertOk()
         ->assertViewIs('pages.customers.wholesale-index')
@@ -57,7 +57,8 @@ it('lists only wholesale-labeled customers, excluding regular ones', function ()
 it('searches wholesale customers by name, phone, and telegram id', function () {
     app(OrderIngestPipeline::class)->ingest(9711, wholesaleTestOrder(9711), 'manual');
     $party = Party::where('name', 'سارا محمدی')->firstOrFail();
-    $party->update(['is_wholesale' => true, 'telegram_id' => '123456789']);
+    $party->profileFor('customer')->update(['is_wholesale' => true]);
+    $party->update(['telegram_id' => '123456789']);
 
     $this->actingAs($this->admin)->get('/wholesale-customers?search='.urlencode('محمدی'))->assertViewHas(
         'customers', fn ($customers) => $customers->count() === 1 && $customers->first()->id === $party->id,

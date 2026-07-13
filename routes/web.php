@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
+use App\Http\Controllers\Admin\PartyController;
 use App\Http\Controllers\Admin\PartyPaymentController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\PurchaseInvoiceController;
@@ -119,6 +120,19 @@ Route::middleware(['auth'])->group(function () {
         Route::post('products/{product}/quick-cost', [ProductController::class, 'storeQuickCost'])->name('products.quick-cost');
         Route::post('products/{product}/notes', [ProductController::class, 'storeNote'])->name('products.notes');
         Route::post('products/{product}/sync', [ProductController::class, 'syncFromHub'])->name('products.sync');
+
+        // The unified Party profile: one identity, many roles. The customer and
+        // supplier pages below stay as role-filtered views over these same
+        // parties — this adds the identity, roles, cross-role balances and the
+        // complete statement, which no single-role page could show.
+        // `duplicates` is declared BEFORE `{party}` or the wildcard swallows it.
+        Route::get('parties', [PartyController::class, 'index'])->name('parties.index');
+        Route::get('parties/duplicates', [PartyController::class, 'duplicates'])->name('parties.duplicates');
+        Route::get('parties/{party}', [PartyController::class, 'show'])->name('parties.show');
+        Route::post('parties/{party}/roles/activate', [PartyController::class, 'activateRole'])->name('parties.roles.activate');
+        Route::post('parties/{party}/roles/deactivate', [PartyController::class, 'deactivateRole'])->name('parties.roles.deactivate');
+        Route::post('parties/{party}/bank-accounts', [PartyController::class, 'storeBankAccount'])->name('parties.bank-accounts.store');
+        Route::delete('parties/{party}/bank-accounts/{bankAccount}', [PartyController::class, 'destroyBankAccount'])->name('parties.bank-accounts.destroy');
 
         // Customer management surfaces per-customer profit/purchase volume — sensitive, admin/accountant only.
         Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');

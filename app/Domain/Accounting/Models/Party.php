@@ -6,9 +6,12 @@ use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Accounting\Support\PhoneNormalizer;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Receivables\Models\Employee;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,11 +27,55 @@ class Party extends Model
 {
     protected $guarded = [];
 
-    protected $casts = [
-        'credit_limit' => 'integer',
-        'is_wholesale' => 'boolean',
-        'wholesale_labeled_at' => 'datetime',
-    ];
+    protected $casts = [];
+
+    /*
+     |--------------------------------------------------------------------------
+     | Role data that used to live on `parties`
+     |--------------------------------------------------------------------------
+     | credit_limit / is_wholesale / wholesale_labeled_* are customer data,
+     | shop_name is supplier data, bank_account_number was one supplier bank
+     | account. They now live on the role profile / party_bank_accounts, and the
+     | accessors below read them from there so that views, Alpine payloads and
+     | `$party->only([...])` keep working while a role's data has exactly one home.
+     |
+     | These are READ shims only — writes go through the profile explicitly (see
+     | CustomerController::setWholesale, SupplierController::update). The legacy
+     | columns still exist on `parties` but are no longer read or written; they
+     | are dropped in their own, final migration.
+     */
+
+    public function getIsWholesaleAttribute(): bool
+    {
+        return (bool) $this->customerProfile?->is_wholesale;
+    }
+
+    public function getWholesaleLabeledAtAttribute(): ?Carbon
+    {
+        return $this->customerProfile?->wholesale_labeled_at;
+    }
+
+    public function getWholesaleLabeledByAttribute(): ?int
+    {
+        return $this->customerProfile?->wholesale_labeled_by;
+    }
+
+    public function getCreditLimitAttribute(): int
+    {
+        return (int) ($this->customerProfile?->credit_limit ?? 0);
+    }
+
+    public function getShopNameAttribute(): ?string
+    {
+        return $this->supplierProfile?->shop_name;
+    }
+
+    public function getBankAccountNumberAttribute(): ?string
+    {
+        $accounts = $this->bankAccounts->where('is_active', true);
+
+        return ($accounts->firstWhere('is_default', true) ?? $accounts->first())?->account_number;
+    }
 
     protected static function booted(): void
     {
@@ -66,6 +113,42 @@ class Party extends Model
     public function roles(): HasMany
     {
         return $this->hasMany(PartyRole::class);
+    }
+
+    public function customerProfile(): HasOne
+    {
+        return $this->hasOne(CustomerProfile::class);
+    }
+
+    public function supplierProfile(): HasOne
+    {
+        return $this->hasOne(SupplierProfile::class);
+    }
+
+    public function partnerProfile(): HasOne
+    {
+        return $this->hasOne(PartnerProfile::class);
+    }
+
+    public function employee(): HasOne
+    {
+        return $this->hasOne(Employee::class);
+    }
+
+    /**
+     * The profile for a role, created on first use — so a caller never has to
+     * decide whether a party that has the role yet lacks its profile row (which
+     * is exactly what every party looked like before the backfill ran).
+     */
+    public function profileFor(string|PartyRoleType $role): ?Model
+    {
+        return match (PartyRoleType::coerce($role)) {
+            PartyRoleType::Customer => $this->customerProfile()->firstOrCreate([]),
+            PartyRoleType::Supplier => $this->supplierProfile()->firstOrCreate([]),
+            PartyRoleType::Partner => $this->partnerProfile()->firstOrCreate([]),
+            PartyRoleType::Employee => $this->employee()->firstOrCreate([]),
+            PartyRoleType::Other => null,
+        };
     }
 
     public function bankAccounts(): HasMany
@@ -126,6 +209,12 @@ class Party extends Model
             'deactivated_at' => null,
             'deactivated_by' => null,
         ])->save();
+
+        // Give the role its profile immediately. Otherwise a party that has the
+        // role but not (yet) its profile row is invisible to a whereHas filter —
+        // a brand-new customer from order sync would silently drop out of the
+        // "not wholesale" list.
+        $this->profileFor($role);
 
         $this->unsetRelation('roles');
 

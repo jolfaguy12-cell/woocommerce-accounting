@@ -176,3 +176,50 @@ it('seeds every account code the registry declares', function () {
         expect($code->account()->code)->toBe($code->value);
     }
 });
+
+it('moves the legacy role columns into role profiles and the counterparty bank account, without clobbering later edits', function () {
+    // Legacy rows: role data still squatting on `parties`, no profiles yet.
+    // Inserted one at a time — a bulk insert takes its column list from the
+    // first row, and these two rows carry different legacy columns.
+    DB::table('parties')->insert([
+        'type' => 'customer', 'name' => 'مشتری قدیمی', 'credit_limit' => 5_000_000, 'is_wholesale' => true,
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('parties')->insert([
+        'type' => 'supplier', 'name' => 'تأمین‌کننده قدیمی', 'shop_name' => 'فروشگاه قدیمی',
+        'bank_account_number' => '1234567890', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    PartyIdentityBackfill::roles();
+
+    $stats = PartyIdentityBackfill::profiles();
+
+    expect($stats['customer_profiles'])->toBe(1)
+        ->and($stats['supplier_profiles'])->toBe(1)
+        ->and($stats['bank_accounts'])->toBe(1);
+
+    $customer = Party::where('name', 'مشتری قدیمی')->firstOrFail();
+    $supplier = Party::where('name', 'تأمین‌کننده قدیمی')->firstOrFail();
+
+    expect($customer->credit_limit)->toBe(5_000_000)
+        ->and($customer->is_wholesale)->toBeTrue()
+        ->and($supplier->shop_name)->toBe('فروشگاه قدیمی')
+        ->and($supplier->bank_account_number)->toBe('1234567890');
+
+    // An edit made through the new UI must survive a re-run at deploy time —
+    // the backfill only inserts what is missing, it never overwrites.
+    $customer->profileFor('customer')->update(['is_wholesale' => false]);
+
+    expect(PartyIdentityBackfill::profiles())->toBe(['customer_profiles' => 0, 'supplier_profiles' => 0, 'bank_accounts' => 0])
+        ->and($customer->fresh()->is_wholesale)->toBeFalse();
+});
+
+it('gives a role its profile the moment the role is activated', function () {
+    $party = Party::create(['type' => 'other', 'name' => 'شرکت ز']);
+
+    expect($party->customerProfile()->exists())->toBeFalse();
+
+    $party->activateRole('customer');
+
+    expect($party->fresh()->customerProfile)->not->toBeNull()
+        ->and($party->fresh()->is_wholesale)->toBeFalse();
+});

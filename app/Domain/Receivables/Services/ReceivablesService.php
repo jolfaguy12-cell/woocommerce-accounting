@@ -3,12 +3,14 @@
 namespace App\Domain\Receivables\Services;
 
 use App\Domain\Accounting\Models\Party;
-use App\Domain\Accounting\Support\AccountCode;
+use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Receivables\Models\CreditOrder;
 use Illuminate\Support\Carbon;
 
 class ReceivablesService
 {
+    public function __construct(private readonly PartyLedgerService $ledger) {}
+
     /** Open credit-order balances per party, with overdue split (by due_date). */
     public function aging(): array
     {
@@ -35,9 +37,7 @@ class ReceivablesService
     /** Credit a customer holds with us (liability 2400 balance for the party). */
     public function customerCreditBalance(Party $party): int
     {
-        $lines = AccountCode::CustomerCredit->account()->lines()->where('party_id', $party->id);
-
-        return (int) $lines->sum('credit') - (int) $lines->sum('debit');
+        return $this->ledger->customerCredit($party);
     }
 
     /** This party's total open receivable balance — computed in PHP via remaining() so the clamp semantics never drift from CreditOrder's own. */

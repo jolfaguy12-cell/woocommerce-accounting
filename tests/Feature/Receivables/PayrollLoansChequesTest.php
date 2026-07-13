@@ -24,7 +24,9 @@ function accountBalance(string $code): int
 
 it('posts a payroll run with advance deductions', function () {
     $party = Party::create(['type' => 'employee', 'name' => 'کارمند انبار']);
-    $employee = Employee::create(['party_id' => $party->id, 'base_salary' => 30_000_000]);
+    // Activating the employee role already creates the party's employee profile,
+    // so this fills it in rather than inserting a second row.
+    $employee = Employee::updateOrCreate(['party_id' => $party->id], ['base_salary' => 30_000_000]);
 
     $run = app(PayrollService::class)->post('1405-04', [
         ['employee_id' => $employee->id, 'gross' => 30_000_000, 'advances_deducted' => 5_000_000],
