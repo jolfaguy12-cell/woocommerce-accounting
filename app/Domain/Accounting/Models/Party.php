@@ -11,8 +11,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * One real person or company = one Party, holding any number of simultaneous
@@ -25,6 +28,22 @@ use Illuminate\Support\Collection;
  */
 class Party extends Model
 {
+    /**
+     * Columns whose data now lives on a role profile (or party_bank_accounts).
+     * They still exist on `parties` until their final drop migration, and the
+     * accessors below READ from the profile — so a write here would land in a
+     * column nobody reads and be silently lost. Rejected outright instead: a
+     * loud failure now beats a wholesale flag that quietly stops working.
+     */
+    public const LEGACY_ROLE_COLUMNS = [
+        'credit_limit',
+        'is_wholesale',
+        'wholesale_labeled_at',
+        'wholesale_labeled_by',
+        'shop_name',
+        'bank_account_number',
+    ];
+
     protected $guarded = [];
 
     protected $casts = [];
@@ -85,6 +104,8 @@ class Party extends Model
             if ($party->isDirty('phone')) {
                 $party->normalized_phone = PhoneNormalizer::normalize($party->phone);
             }
+
+            $party->assertNoLegacyRoleWrite();
         });
 
         // Transitional bridge: seed the party's first role from the legacy
@@ -139,16 +160,63 @@ class Party extends Model
      * The profile for a role, created on first use — so a caller never has to
      * decide whether a party that has the role yet lacks its profile row (which
      * is exactly what every party looked like before the backfill ran).
+     *
+     * Never resets an existing profile: deactivating and later reactivating a
+     * role returns the same profile row, with its credit limit and wholesale
+     * label intact. A role can be turned off and on; its data is not a casualty.
      */
     public function profileFor(string|PartyRoleType $role): ?Model
     {
-        return match (PartyRoleType::coerce($role)) {
-            PartyRoleType::Customer => $this->customerProfile()->firstOrCreate([]),
-            PartyRoleType::Supplier => $this->supplierProfile()->firstOrCreate([]),
-            PartyRoleType::Partner => $this->partnerProfile()->firstOrCreate([]),
-            PartyRoleType::Employee => $this->employee()->firstOrCreate([]),
-            PartyRoleType::Other => null,
+        $relation = match (PartyRoleType::coerce($role)) {
+            PartyRoleType::Customer => $this->customerProfile(),
+            PartyRoleType::Supplier => $this->supplierProfile(),
+            PartyRoleType::Partner => $this->partnerProfile(),
+            PartyRoleType::Employee => $this->employee(),
+            PartyRoleType::Other => null, // «سایر» carries no role-specific data
         };
+
+        if ($relation === null) {
+            return null;
+        }
+
+        try {
+            return $relation->firstOrCreate([]);
+        } catch (QueryException $e) {
+            // Lost the race on party_id's unique index — adopt the row the other
+            // process just inserted rather than failing.
+            return $relation->first() ?? throw $e;
+        }
+    }
+
+    /**
+     * Refuse a write to a column whose data has moved to a role profile. Such a
+     * write would succeed silently against a column no reader looks at, so the
+     * value would simply disappear — the failure mode this guard exists to make
+     * impossible. Write through profileFor() instead.
+     *
+     * `type` is exempt on INSERT only: it is still NOT NULL, and the created
+     * hook bootstraps the party's first role from it. Changing it afterwards is
+     * meaningless — roles live in party_roles — so that is rejected too.
+     */
+    private function assertNoLegacyRoleWrite(): void
+    {
+        $dirty = array_keys($this->getDirty());
+
+        if ($offending = array_intersect($dirty, self::LEGACY_ROLE_COLUMNS)) {
+            $columns = implode(', ', $offending);
+
+            throw new LogicException(
+                "Party [{$columns}] moved to a role profile and is no longer read from `parties`. "
+                .'Write it through $party->profileFor($role) (or party_bank_accounts) instead.'
+            );
+        }
+
+        if ($this->exists && in_array('type', $dirty, true)) {
+            throw new LogicException(
+                'Party.type is the legacy single-role column and cannot be changed. '
+                .'Use activateRole()/deactivateRole() — a party can hold several roles at once.'
+            );
+        }
     }
 
     public function bankAccounts(): HasMany
@@ -188,40 +256,67 @@ class Party extends Model
         $query->whereHas('roles', fn (Builder $q) => $q->where('role', $role)->where('is_active', true));
     }
 
-    /** Idempotent: re-activating a role the party once lost updates that same row, never inserts a second one. */
+    /**
+     * Idempotent, atomic and race-safe.
+     *
+     * Idempotent: re-activating a role the party once lost updates that same row
+     * (the unique index guarantees there is only ever one), and a role that is
+     * already active is returned untouched — order sync calls this on every
+     * resolve, and rewriting activated_at each time would churn the row and spam
+     * the activity log with a change that changed nothing.
+     *
+     * Atomic: the role row and its profile are created together or not at all,
+     * so a party can never end up holding a role with no profile — which a
+     * whereHas filter cannot see (a brand-new customer would silently drop out
+     * of the "not wholesale" list).
+     *
+     * Race-safe: two concurrent activations (webhook + poller resolving the same
+     * customer) both try to insert; the unique index rejects the loser, which
+     * then adopts the winner's row rather than failing the request. Same
+     * technique JournalPoster uses for its idempotency key.
+     */
     public function activateRole(string|PartyRoleType $role, ?int $by = null): PartyRole
     {
         $role = PartyRoleType::coerce($role);
 
-        $partyRole = $this->roles()->firstOrNew(['role' => $role->value]);
+        return DB::transaction(function () use ($role, $by) {
+            $partyRole = $this->roles()->firstOrNew(['role' => $role->value]);
 
-        // Already active: return untouched. Order sync calls this on every
-        // resolve, and rewriting activated_at each time would churn the row and
-        // spam the activity log with a "change" that changed nothing.
-        if ($partyRole->exists && $partyRole->is_active) {
+            if (! ($partyRole->exists && $partyRole->is_active)) {
+                $attributes = [
+                    'is_active' => true,
+                    'activated_at' => now(),
+                    'activated_by' => $by,
+                    'deactivated_at' => null,
+                    'deactivated_by' => null,
+                ];
+
+                try {
+                    $partyRole->fill($attributes)->save();
+                } catch (QueryException $e) {
+                    $winner = $this->roles()->where('role', $role->value)->first();
+
+                    if (! $winner) {
+                        throw $e; // not the unique race — a real failure
+                    }
+
+                    $partyRole = $winner->is_active ? $winner : tap($winner)->update($attributes);
+                }
+            }
+
+            $this->profileFor($role);
+
+            $this->unsetRelation('roles');
+
             return $partyRole;
-        }
-
-        $partyRole->fill([
-            'is_active' => true,
-            'activated_at' => now(),
-            'activated_by' => $by,
-            'deactivated_at' => null,
-            'deactivated_by' => null,
-        ])->save();
-
-        // Give the role its profile immediately. Otherwise a party that has the
-        // role but not (yet) its profile row is invisible to a whereHas filter —
-        // a brand-new customer from order sync would silently drop out of the
-        // "not wholesale" list.
-        $this->profileFor($role);
-
-        $this->unsetRelation('roles');
-
-        return $partyRole;
+        });
     }
 
-    /** Never deletes: the party, its other roles and all of its journal history stay exactly as they were. */
+    /**
+     * Never deletes: the party, its other roles, its role PROFILE and all of its
+     * journal history stay exactly as they were. Only the role row is flagged
+     * inactive — so reactivating later restores the same profile, not a blank one.
+     */
     public function deactivateRole(string|PartyRoleType $role, ?int $by = null): ?PartyRole
     {
         $role = PartyRoleType::coerce($role);

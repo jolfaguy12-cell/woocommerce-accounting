@@ -223,3 +223,82 @@ it('gives a role its profile the moment the role is activated', function () {
     expect($party->fresh()->customerProfile)->not->toBeNull()
         ->and($party->fresh()->is_wholesale)->toBeFalse();
 });
+
+it('refuses a write to a legacy role column instead of losing it silently', function () {
+    $party = Party::create(['type' => 'customer', 'name' => 'شرکت ح']);
+
+    // The column still exists, but nothing reads it — so this write would vanish.
+    expect(fn () => $party->update(['is_wholesale' => true]))
+        ->toThrow(LogicException::class, 'role profile');
+
+    expect(fn () => $party->update(['shop_name' => 'فروشگاه']))->toThrow(LogicException::class);
+    expect(fn () => $party->update(['credit_limit' => 100]))->toThrow(LogicException::class);
+    expect(fn () => $party->update(['bank_account_number' => '123']))->toThrow(LogicException::class);
+
+    // The supported path works and is what the accessor reads back.
+    $party->profileFor('customer')->update(['is_wholesale' => true]);
+
+    expect($party->fresh()->is_wholesale)->toBeTrue();
+});
+
+it('refuses to change parties.type on an existing party', function () {
+    $party = Party::create(['type' => 'customer', 'name' => 'شرکت ط']);
+
+    expect(fn () => $party->update(['type' => 'supplier']))
+        ->toThrow(LogicException::class, 'activateRole');
+
+    // Roles are how a party becomes a supplier — and it stays a customer too.
+    $party->activateRole('supplier');
+
+    expect($party->fresh()->hasRole('supplier'))->toBeTrue()
+        ->and($party->fresh()->hasRole('customer'))->toBeTrue();
+});
+
+it('keeps the role profile and its data through deactivation and reactivation', function () {
+    $party = Party::create(['type' => 'customer', 'name' => 'شرکت ی']);
+    $profile = $party->profileFor('customer');
+    $profile->update(['credit_limit' => 7_500_000, 'is_wholesale' => true]);
+
+    $party->deactivateRole('customer');
+
+    // Deactivation flags the role. It does not delete the profile.
+    expect($party->fresh()->customerProfile)->not->toBeNull()
+        ->and($party->fresh()->customerProfile->credit_limit)->toBe(7_500_000);
+
+    $party->activateRole('customer');
+
+    $reactivated = $party->fresh();
+
+    expect($reactivated->customerProfile->id)->toBe($profile->id) // same row, not a fresh blank one
+        ->and($reactivated->credit_limit)->toBe(7_500_000)
+        ->and($reactivated->is_wholesale)->toBeTrue()
+        ->and($reactivated->customerProfile()->count())->toBe(1);
+});
+
+it('creates the role and its profile atomically', function () {
+    $party = Party::create(['type' => 'other', 'name' => 'شرکت اتمی']);
+
+    $party->activateRole('supplier');
+
+    // Never a role without its profile: a whereHas filter cannot see such a party.
+    expect($party->fresh()->hasRole('supplier'))->toBeTrue()
+        ->and($party->fresh()->supplierProfile)->not->toBeNull()
+        ->and(Party::withRole('supplier')->whereHas('supplierProfile')->pluck('id')->all())->toContain($party->id);
+});
+
+it('adopts the winning row when two activations race for the same role', function () {
+    $party = Party::create(['type' => 'customer', 'name' => 'شرکت مسابقه']);
+
+    // Simulate the loser of the race: the row already exists (inserted by the
+    // other process) when this activation tries to write it.
+    DB::table('party_roles')->insert([
+        'party_id' => $party->id, 'role' => 'partner', 'is_active' => true,
+        'activated_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $role = $party->activateRole('partner');
+
+    expect($role->is_active)->toBeTrue()
+        ->and(PartyRole::where('party_id', $party->id)->where('role', 'partner')->count())->toBe(1)
+        ->and($party->fresh()->partnerProfile)->not->toBeNull();
+});
