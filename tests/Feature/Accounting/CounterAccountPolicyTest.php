@@ -51,6 +51,7 @@ dataset('control accounts', [
     'inventory' => [AccountCode::Inventory],
     'cheques receivable' => [AccountCode::ChequesReceivable],
     'cheques payable' => [AccountCode::ChequesPayable],
+    'retained earnings' => [AccountCode::RetainedEarnings],
 ]);
 
 it('refuses a control account as the counter-account', function (AccountCode $code) {
@@ -105,24 +106,26 @@ it('refuses an account that is simply not on the allowlist', function () {
         ->toThrow(InvalidArgumentException::class);
 });
 
-it('allows exactly the eligible income, expense and adjustment accounts', function () {
+it('allows exactly the eligible income and expense accounts, and posts each of them', function () {
+    // The adjustment account (9999) is deliberately NOT here: it is allowlisted but
+    // admin-only, and a policy asked without a user answers with the safest possible
+    // list — so a caller that forgets to pass one gets fewer accounts, never more.
     $eligible = app(CounterAccountPolicy::class)->eligible()->pluck('code')->sort()->values()->all();
 
-    expect($eligible)->toBe(['4900', '6000', '6350', '6370', '9999']);
+    expect($eligible)->toBe(['4900', '6000', '6350', '6370']);
 
-    // And each of them really does post.
     foreach ($eligible as $code) {
         $transaction = ($this->attempt)(Account::firstWhere('code', $code));
         expect($transaction->isPosted())->toBeTrue();
     }
 
-    expect(AccountTransaction::count())->toBe(5);
+    expect(AccountTransaction::count())->toBe(4);
 });
 
 it('never offers the form an account the service would refuse', function () {
-    // The dropdown and the guard read the SAME policy — a form that offered a
-    // control account would be a bug report waiting to happen, and a form that
-    // offered one the service then accepted would be the breach itself.
+    // The dropdown and the guard read the SAME policy, for the SAME user — a form that
+    // offered a control account would be a bug report waiting to happen, and one that
+    // offered an account the service then accepted would be the breach itself.
     $offered = $this->actingAs($this->admin)
         ->get('/financial-operations/create?type=withdrawal')
         ->assertOk()
@@ -132,7 +135,7 @@ it('never offers the form an account the service would refuse', function () {
 
     foreach ($offered as $account) {
         expect(CounterAccountPolicy::CONTROL_ACCOUNTS)->not->toHaveKey($account->code);
-        expect(app(CounterAccountPolicy::class)->isEligible($account))->toBeTrue();
+        expect(app(CounterAccountPolicy::class)->isEligible($account, $this->admin))->toBeTrue();
     }
 });
 

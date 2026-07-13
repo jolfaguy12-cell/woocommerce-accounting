@@ -39,6 +39,7 @@ enum AccountCode: string
     // equity
     case Capital = '3000';
     case PartnerWithdrawal = '3100';
+    case RetainedEarnings = '3200';
 
     // revenue
     case SalesRevenue = '4000';

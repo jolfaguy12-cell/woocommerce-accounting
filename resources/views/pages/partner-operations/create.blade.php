@@ -18,18 +18,29 @@
 <div class="mx-auto max-w-2xl space-y-4"
      x-data="{
         types: {{ Illuminate\Support\Js::from($types) }},
+        methods: {{ Illuminate\Support\Js::from($interestMethods) }},
         type: '{{ old('type') }}',
         party: '{{ old('party_id') }}',
         amount: '{{ old('amount') }}',
+        method: '{{ old('interest_method', 'none') }}',
         confirmed: false,
         get selectedType() { return this.types.find(t => t.value === this.type); },
         get movesCash() { return this.selectedType ? this.selectedType.moves_cash : false; },
         get needsCounter() { return this.selectedType ? this.selectedType.needs_counter : false; },
+        get createsLoan() { return this.selectedType ? this.selectedType.creates_loan : false; },
+        get selectedMethod() { return this.methods.find(m => m.value === this.method); },
+        get needsRate() { return this.createsLoan && this.selectedMethod && this.selectedMethod.needs_rate; },
+        get needsAmount() { return this.createsLoan && this.selectedMethod && this.selectedMethod.needs_amount; },
         money(v) { return (parseInt(v || 0, 10) || 0).toLocaleString('fa-IR'); },
         get sentence() {
             if (!this.selectedType || !this.party || !this.amount) return null;
             const label = this.selectedType.label;
             const amount = this.money(this.amount);
+
+            if (this.createsLoan) {
+                return `«${label}» به مبلغ ${amount} تومان ثبت می‌شود. این یک وام واقعی است: یک قرارداد وام با برنامهٔ اقساط ساخته می‌شود و بازپرداخت آن از صفحهٔ «وام و اقساط» پیگیری می‌شود — نه از سرمایهٔ شریک.`;
+            }
+
             return this.movesCash
                 ? `«${label}» به مبلغ ${amount} تومان ثبت می‌شود و وجه آن از/به حساب بانکی انتخاب‌شده جابه‌جا می‌گردد.`
                 : `«${label}» به مبلغ ${amount} تومان ثبت می‌شود. در این عملیات هیچ وجهی جابه‌جا نمی‌شود؛ فقط مانده‌های حسابداری شریک تغییر می‌کند.`;
@@ -120,6 +131,40 @@
                 </div>
             </div>
         </x-common.component-card>
+
+        {{-- Only for the two loan types: a partner loan is a loan, and a loan without a
+             maturity or a schedule is just money that left with no plan to come back. --}}
+        <template x-if="createsLoan">
+            <x-common.component-card title="شرایط وام و برنامه اقساط">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="{{ $labelClass }}">روش محاسبه سود</label>
+                        <select name="interest_method" x-model="method" class="{{ $selectClass }}">
+                            @foreach ($interestMethods as $m)
+                                <option value="{{ $m['value'] }}">{{ $m['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">تعداد اقساط</label>
+                        <input type="number" name="installment_count" min="0" max="600" value="{{ old('installment_count') }}"
+                               dir="ltr" class="{{ $inputClass }}">
+                    </div>
+                    <div x-show="needsRate" x-cloak>
+                        <label class="{{ $labelClass }}">نرخ سود سالانه (٪)</label>
+                        <input type="number" step="0.001" name="interest_rate" value="{{ old('interest_rate') }}" dir="ltr" class="{{ $inputClass }}">
+                    </div>
+                    <div x-show="needsAmount" x-cloak>
+                        <label class="{{ $labelClass }}">مبلغ کل سود (تومان)</label>
+                        <input type="number" name="interest_amount" min="0" value="{{ old('interest_amount') }}" dir="ltr" class="{{ $inputClass }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">تاریخ سررسید نهایی (اختیاری)</label>
+                        <input type="date" name="maturity_date" value="{{ old('maturity_date') }}" dir="ltr" class="{{ $inputClass }}">
+                    </div>
+                </div>
+            </x-common.component-card>
+        </template>
 
         <x-common.component-card title="تأیید نهایی">
             <template x-if="sentence">

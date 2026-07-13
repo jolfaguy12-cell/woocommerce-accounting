@@ -4,6 +4,7 @@ namespace App\Domain\Accounting\Support;
 
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Expenses\Models\BankAccount;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -47,6 +48,7 @@ class CounterAccountPolicy
         '2500' => 'سود سهم شرکا پرداختنی (عملیات شریک)',           // PartnerProfitPayable
         '3000' => 'سرمایه (آورده / کاهش سرمایه شریک)',             // Capital
         '3100' => 'برداشت شریک (عملیات شریک)',                     // PartnerWithdrawal
+        '3200' => 'سود (زیان) انباشته (توزیع سود شریک)',           // RetainedEarnings
         '1300' => 'موجودی کالا (فاکتور خرید)',                     // Inventory
         '1250' => 'اسناد دریافتنی (چک‌ها)',                        // ChequesReceivable
         '2100' => 'اسناد پرداختنی (چک‌ها)',                        // ChequesPayable
@@ -58,13 +60,19 @@ class CounterAccountPolicy
      * (a leaf — a parent account is a heading, and posting to it double-counts
      * against its children), and explicitly allowlisted.
      *
+     * $user is the person the list is FOR. Adjustment accounts are admin-only, and
+     * omitting $user means "the safest possible list" — so a caller that forgets to
+     * pass one gets fewer accounts, never more.
+     *
      * @return Collection<int, Account>
      */
-    public function eligible(): Collection
+    public function eligible(?User $user = null): Collection
     {
+        $codes = array_diff($this->allowedCodes(), $this->mayAdjust($user) ? [] : $this->adjustmentCodes());
+
         return Account::query()
             ->where('is_active', true)
-            ->whereIn('code', $this->allowedCodes())
+            ->whereIn('code', $codes)
             ->whereNotIn('code', array_keys(self::CONTROL_ACCOUNTS))
             ->whereNotIn('id', BankAccount::pluck('account_id'))
             ->whereDoesntHave('children')
@@ -72,16 +80,37 @@ class CounterAccountPolicy
             ->get();
     }
 
-    public function isEligible(Account $account): bool
+    public function isEligible(Account $account, ?User $user = null): bool
     {
-        return $this->eligible()->contains('id', $account->id);
+        return $this->eligible($user)->contains('id', $account->id);
+    }
+
+    /** An account that asserts the books were wrong, rather than that money moved. */
+    public function isAdjustment(Account $account): bool
+    {
+        return in_array($account->code, $this->adjustmentCodes(), true);
+    }
+
+    public function mayAdjust(?User $user): bool
+    {
+        $roles = (array) config('accounting.adjustment_account_roles', ['admin']);
+
+        return $user !== null && $user->hasAnyRole($roles);
     }
 
     /** @throws InvalidArgumentException with the workflow to use instead, when there is one. */
-    public function assertEligible(Account $account): void
+    public function assertEligible(Account $account, ?User $user = null): void
     {
-        if ($this->isEligible($account)) {
+        if ($this->isEligible($account, $user)) {
             return;
+        }
+
+        // Said before the generic refusal, because "not allowed" would be a lie:
+        // the account IS allowed — just not to this person.
+        if ($this->isAdjustment($account) && ! $this->mayAdjust($user)) {
+            throw new InvalidArgumentException(
+                "حساب «{$account->name}» یک حساب تعدیل است و فقط مدیر سیستم می‌تواند از آن استفاده کند."
+            );
         }
 
         if ($workflow = self::CONTROL_ACCOUNTS[$account->code] ?? null) {
@@ -116,5 +145,11 @@ class CounterAccountPolicy
     private function allowedCodes(): array
     {
         return (array) config('accounting.direct_operation_counter_accounts', []);
+    }
+
+    /** @return list<string> */
+    private function adjustmentCodes(): array
+    {
+        return (array) config('accounting.adjustment_counter_accounts', []);
     }
 }

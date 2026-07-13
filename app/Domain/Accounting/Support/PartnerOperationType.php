@@ -26,10 +26,10 @@ enum PartnerOperationType: string
     /** بازپرداخت هزینه شریک — they paid a company expense from their own pocket; we now owe them. */
     case ExpenseReimbursement = 'expense_reimbursement';
 
-    /** توزیع سود — declaring a partner's profit share: capital becomes a payable. */
+    /** توزیع سود — declaring a partner's share of RETAINED EARNINGS as a debt owed to them. */
     case ProfitDistribution = 'profit_distribution';
 
-    /** سود سهم شرکا پرداختنی — actually paying out a declared profit share. */
+    /** پرداخت سود شریک — actually paying out a share that was already declared. */
     case ProfitPayablePayment = 'profit_payable_payment';
 
     /** وام از شریک — they lend the company money. A real loan, with a schedule. */
@@ -49,7 +49,9 @@ enum PartnerOperationType: string
             self::Withdrawal => 'برداشت شریک',
             self::ExpenseReimbursement => 'بازپرداخت هزینه شریک',
             self::ProfitDistribution => 'توزیع سود',
-            self::ProfitPayablePayment => 'سود سهم شرکا پرداختنی',
+            // «سود سهم شرکا پرداختنی» is the name of the ACCOUNT (2500) this
+            // settles, not the name of the action. The action is paying it.
+            self::ProfitPayablePayment => 'پرداخت سود شریک',
             self::LoanFromPartner => 'وام از شریک',
             self::LoanToPartner => 'وام به شریک',
             self::CurrentAccountSettlement => 'تسویه حساب جاری شریک',
@@ -78,6 +80,20 @@ enum PartnerOperationType: string
     public function needsCounterAccount(): bool
     {
         return $this === self::ExpenseReimbursement;
+    }
+
+    /**
+     * A partner loan is a LOAN, not a partner-shaped journal entry.
+     *
+     * It has a maturity date, an interest method and a repayment schedule, and none
+     * of that exists unless a Loan contract is created for it. So these two types do
+     * not post their own lines at all — they delegate to LoanService, which posts
+     * exactly one entry, and this row records the same event on the partner's file
+     * through `loan_id`. Two entries for one disbursement would double the money.
+     */
+    public function createsLoan(): bool
+    {
+        return in_array($this, [self::LoanFromPartner, self::LoanToPartner], true);
     }
 
     /**

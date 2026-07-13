@@ -26,6 +26,7 @@ class PartnerOperation extends Model
     protected $casts = [
         'amount' => 'integer',
         'type' => PartnerOperationType::class,
+        'loan_terms' => 'array',
         'operation_date' => 'date',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',

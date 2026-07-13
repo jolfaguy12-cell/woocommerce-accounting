@@ -33,6 +33,7 @@ class ChartOfAccountsSeeder extends Seeder
             // equity
             ['3000', 'سرمایه / تراز افتتاحیه', 'equity'],
             ['3100', 'برداشت شرکا', 'equity'],
+            ['3200', 'سود (زیان) انباشته', 'equity'],
             // revenue
             ['4000', 'درآمد فروش', 'revenue'],
             ['4100', 'درآمد حمل دریافتی از مشتری', 'revenue'],

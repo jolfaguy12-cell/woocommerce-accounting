@@ -35,6 +35,32 @@ return [
         '6000', // هزینه‌های عملیاتی — uncategorised operating expense (a CATEGORISED one goes through ExpenseRecorder)
         '6350', // کارمزد بانکی
         '6370', // جریمه دیرکرد
-        '9999', // حساب تعدیل رند کردن — classified adjustment
+        '9999', // حساب تعدیل — allowlisted, but restricted further below
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Adjustment accounts — allowlisted, but never routine
+    |--------------------------------------------------------------------------
+    |
+    | An adjustment account is the one counter-account that does not claim the
+    | money went anywhere: it says "the books were wrong, and this makes them
+    | right". That is occasionally necessary and always suspicious — it is the
+    | single line an operator would reach for to make an unexplained difference
+    | disappear, and every unexplained difference it absorbs is a reconciliation
+    | that will now never happen.
+    |
+    | So it is allowlisted (it must be reachable — rounding differences are real)
+    | but fenced: admins only, an explicit written reason, an external reference,
+    | and a second person's approval before it ever reaches the ledger, whatever
+    | the amount and whatever `ops.approval_threshold` says. An accountant never
+    | sees it in the dropdown at all.
+    |
+    */
+    'adjustment_counter_accounts' => [
+        '9999', // حساب تعدیل رند کردن
+    ],
+
+    // Who may use an adjustment account at all.
+    'adjustment_account_roles' => ['admin'],
 ];

@@ -17,6 +17,7 @@ use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -104,7 +105,8 @@ class FinancialOperationController extends Controller
                     'name' => $b->name,
                     'balance' => $b->account->balance(),
                 ]),
-            'counterAccounts' => $this->counterAccounts(),
+            'counterAccounts' => $this->counterAccounts($request->user()),
+            'adjustmentCodes' => (array) config('accounting.adjustment_counter_accounts', []),
             'purposes' => AccountTransaction::PURPOSES,
             'methods' => AccountTransfer::METHODS,
             'parties' => Party::orderBy('name')->limit(300)->get(['id', 'name']),
@@ -279,13 +281,15 @@ class FinancialOperationController extends Controller
     }
 
     /**
-     * The form offers exactly what the service will accept — same policy object,
-     * so the dropdown can never drift into offering an account that then gets
-     * refused (or, far worse, quietly accepted).
+     * The form offers exactly what the service will accept — same policy object and
+     * the same user, so the dropdown can never drift into offering an account that
+     * then gets refused (or, far worse, quietly accepted). An accountant is not
+     * shown the adjustment account at all; an admin is, and is then held to a
+     * reason, a reference and a second approver.
      */
-    private function counterAccounts()
+    private function counterAccounts(?User $user)
     {
-        return $this->counterAccountPolicy->eligible();
+        return $this->counterAccountPolicy->eligible($user);
     }
 
     private function rowForTransfer(AccountTransfer $t): array

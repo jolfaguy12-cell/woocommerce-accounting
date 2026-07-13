@@ -54,6 +54,17 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">ثبت‌کننده</p>
                 <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $operation->creator?->name ?? '—' }}</p>
             </div>
+            @if ($operation->loan)
+                {{-- A partner loan IS a loan: its schedule, its repayments and its
+                     outstanding principal all live on the loan, not here. --}}
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">قرارداد وام</p>
+                    <a href="{{ route('loans.show', $operation->loan) }}"
+                       class="mt-1 block text-sm font-medium text-brand-500 hover:underline">
+                        مشاهده وام و برنامه اقساط
+                    </a>
+                </div>
+            @endif
         </div>
 
         @if ($operation->isReversed())

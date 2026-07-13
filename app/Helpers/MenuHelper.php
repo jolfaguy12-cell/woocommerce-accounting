@@ -108,6 +108,22 @@ class MenuHelper
                 ],
             ],
             [
+                'name' => 'وام و اقساط',
+                'icon' => 'scale-balance',
+                'subItems' => [
+                    ['name' => 'ثبت وام جدید', 'path' => '/loans/create', 'pro' => false],
+                    ['name' => 'مشاهده وام‌ها', 'path' => '/loans', 'pro' => false],
+                ],
+            ],
+            [
+                'name' => 'چک‌ها',
+                'icon' => 'expense-minus',
+                'subItems' => [
+                    ['name' => 'ثبت چک جدید', 'path' => '/cheques/create', 'pro' => false],
+                    ['name' => 'مشاهده چک‌ها', 'path' => '/cheques', 'pro' => false],
+                ],
+            ],
+            [
                 'name' => 'ابزار ها',
                 'icon' => 'exchange-arrows',
                 'subItems' => [

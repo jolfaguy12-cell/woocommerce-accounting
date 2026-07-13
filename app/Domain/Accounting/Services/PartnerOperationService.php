@@ -2,7 +2,9 @@
 
 namespace App\Domain\Accounting\Services;
 
+use App\Domain\Accounting\Exceptions\OperationStateException;
 use App\Domain\Accounting\Models\Account;
+use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\PartnerOperation;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Support\AccountCode;
@@ -12,11 +14,17 @@ use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
 use App\Domain\Accounting\Support\PartnerOperationType;
 use App\Domain\Expenses\Models\BankAccount;
+use App\Domain\Receivables\Models\LoanInstallment;
+use App\Domain\Receivables\Services\LoanService;
+use App\Domain\Receivables\Support\InterestMethod;
+use App\Domain\Receivables\Support\LoanDirection;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * A partner's dealings with the company, each kept on its own accounts.
@@ -39,6 +47,7 @@ class PartnerOperationService extends FinancialOperationService
         OperationPolicy $policy,
         private readonly PartyLedgerService $ledger,
         private readonly CounterAccountPolicy $counterAccounts,
+        private readonly LoanService $loans,
     ) {
         parent::__construct($poster, $policy);
     }
@@ -83,6 +92,9 @@ class PartnerOperationService extends FinancialOperationService
                 'description' => $data['description'],
                 'reference' => $data['reference'] ?? null,
                 'notes' => $data['notes'] ?? null,
+                // Held until the operation posts: an operation awaiting approval may sit
+                // for days, and the terms approved must be the terms recorded.
+                'loan_terms' => $type->createsLoan() ? $this->loanTerms($data) : null,
                 'created_by' => $data['created_by'] ?? null,
             ]);
 
@@ -201,28 +213,25 @@ class PartnerOperationService extends FinancialOperationService
                 $party(AccountCode::PartnerCurrentAccount, 'credit', 'هزینه پرداخت‌شده توسط شریک'),
             ],
 
-            // Declaring a profit share: equity becomes a debt to the partner. Still no
-            // cash — the money is owed, not yet paid.
+            // Declaring a profit share: the earnings the company has ACCUMULATED become a
+            // debt owed to the partner. Still no cash — the money is owed, not yet paid.
+            //
+            // Taken out of retained earnings (3200), never out of Capital (3000). Capital
+            // is what the partner PUT IN, and paying them their earnings does not give any
+            // of it back. Debiting 3000 would make a partner who has been paid their share
+            // look as though they had progressively withdrawn their stake — after enough
+            // profitable years, a founder who invested 100m and was paid 100m of earnings
+            // would read as owning nothing at all. No party_id: retained earnings is a
+            // company-wide pool, not a per-partner balance.
             PartnerOperationType::ProfitDistribution => [
-                $party(AccountCode::Capital, 'debit', 'تخصیص سود به شریک'),
+                ['account' => AccountCode::RetainedEarnings, 'debit' => $amount,
+                    'memo' => "تخصیص سود به {$operation->party->name}"],
                 $party(AccountCode::PartnerProfitPayable, 'credit'),
             ],
 
-            // Paying out a share that was already declared above.
+            // Paying out a share that was already declared above («پرداخت سود شریک»).
             PartnerOperationType::ProfitPayablePayment => [
                 $party(AccountCode::PartnerProfitPayable, 'debit'),
-                ['account' => $bank, 'credit' => $amount],
-            ],
-
-            // A loan, not a contribution: this must be paid back, and it never becomes
-            // part of their stake.
-            PartnerOperationType::LoanFromPartner => [
-                ['account' => $bank, 'debit' => $amount],
-                $party(AccountCode::LoansPayable, 'credit'),
-            ],
-
-            PartnerOperationType::LoanToPartner => [
-                $party(AccountCode::LoansReceivable, 'debit'),
                 ['account' => $bank, 'credit' => $amount],
             ],
 
@@ -230,7 +239,103 @@ class PartnerOperationService extends FinancialOperationService
                 $party(AccountCode::PartnerCurrentAccount, 'debit'),
                 ['account' => $bank, 'credit' => $amount],
             ],
+
+            // Never reached: a partner loan is a LOAN, and LoanService posts it. See
+            // postEntry(). Listed so the match stays exhaustive and a future type cannot
+            // fall through this switch silently.
+            PartnerOperationType::LoanFromPartner,
+            PartnerOperationType::LoanToPartner => throw new LogicException(
+                'A partner loan is posted by LoanService, not here — see PartnerOperationService::postEntry().'
+            ),
         };
+    }
+
+    /**
+     * A partner loan does not post its own lines: it creates a real Loan contract, and
+     * THAT posts — once. This operation then records the same event on the partner's file
+     * by pointing at the loan it created.
+     *
+     * Before this, the two loan types posted a partner-shaped entry straight to 2200/1600
+     * with no Loan row behind it: the money was in the ledger, and the loan had no maturity
+     * date, no interest and no schedule — nothing to repay against, and nothing to say the
+     * repayment was ever due. And posting an entry HERE as well as in LoanService would put
+     * the same disbursement in the books twice, in a way that still balances perfectly.
+     */
+    protected function postEntry(Model $operation, ?int $by): JournalEntry
+    {
+        /** @var PartnerOperation $operation */
+        if (! $operation->type->createsLoan()) {
+            return parent::postEntry($operation, $by);
+        }
+
+        $terms = (array) ($operation->loan_terms ?? []);
+
+        $loan = $this->loans->create([
+            'party' => $operation->party,
+            'direction' => $operation->type === PartnerOperationType::LoanFromPartner
+                ? LoanDirection::Payable      // they lent to us — «وام دریافتی»
+                : LoanDirection::Receivable,  // we lent to them — «وام پرداختی»
+            'principal' => $operation->amount,
+            'bank_account_id' => $operation->bank_account_id,
+            'received_at' => $operation->operation_date,
+            'maturity_date' => $terms['maturity_date'] ?? null,
+            'interest_method' => $terms['interest_method'] ?? null,
+            'interest_rate' => $terms['interest_rate'] ?? null,
+            'interest_amount' => $terms['interest_amount'] ?? null,
+            'installment_count' => $terms['installment_count'] ?? 0,
+            'reference' => $operation->reference,
+            'notes' => $operation->description,
+            'created_by' => $operation->created_by ?? $by,
+            // This operation has already cleared its own approval gate; making the loan sit
+            // through a second, identical approval of the very same money would deadlock it.
+        ], requireApproval: false);
+
+        $operation->forceFill(['loan_id' => $loan->id])->save();
+
+        return $loan->journalEntry;
+    }
+
+    /** A loan with repayments behind it cannot be undone from this end. */
+    protected function assertReversible(Model $operation): void
+    {
+        /** @var PartnerOperation $operation */
+        $loan = $operation->loan;
+
+        if ($loan && $loan->installments()->where('status', LoanInstallment::PAID)->exists()) {
+            throw new OperationStateException(
+                'این وام اقساط پرداخت‌شده دارد. ابتدا اقساط را از صفحهٔ وام برگشت بزنید، سپس این عملیات را.'
+            );
+        }
+    }
+
+    /**
+     * The shared journal entry has just been reversed by the base class. The loan must
+     * follow it into the reversed state — but must NOT post a reversal of its own, or the
+     * money would come back twice.
+     */
+    protected function afterReversal(Model $operation, JournalEntry $reversal): void
+    {
+        /** @var PartnerOperation $operation */
+        if ($loan = $operation->loan) {
+            $this->loans->markReversedByOwner(
+                $loan,
+                $reversal,
+                (string) $operation->reversal_reason,
+                User::findOrFail($operation->reversed_by),
+            );
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function loanTerms(array $data): array
+    {
+        return [
+            'maturity_date' => $data['maturity_date'] ?? null,
+            'interest_method' => $data['interest_method'] ?? InterestMethod::None->value,
+            'interest_rate' => $data['interest_rate'] ?? null,
+            'interest_amount' => $data['interest_amount'] ?? null,
+            'installment_count' => (int) ($data['installment_count'] ?? 0),
+        ];
     }
 
     protected function description(Model $operation): string

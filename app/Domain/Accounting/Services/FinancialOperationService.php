@@ -4,6 +4,7 @@ namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Exceptions\NegativeBalanceException;
 use App\Domain\Accounting\Exceptions\OperationStateException;
+use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
 use App\Domain\Expenses\Models\BankAccount;
@@ -56,7 +57,7 @@ abstract class FinancialOperationService
      */
     protected function finalizeCreation(Model $operation, ?int $by): Model
     {
-        if ($this->policy->requiresApproval((int) $operation->amount)) {
+        if ($this->requiresApproval($operation)) {
             $operation->forceFill([
                 'status' => OperationStatus::PendingApproval->value,
                 'submitted_by' => $by,
@@ -68,6 +69,24 @@ abstract class FinancialOperationService
 
         return $this->post($operation, $by);
     }
+
+    /**
+     * Does this operation need a second pair of eyes before it can reach the ledger?
+     *
+     * By default: only above the configured amount threshold. A subclass may widen
+     * it — some operations are high-risk at any amount, and the amount is the least
+     * interesting thing about them (see AccountTransactionService and adjustments).
+     */
+    protected function requiresApproval(Model $operation): bool
+    {
+        return $this->policy->requiresApproval((int) $operation->amount);
+    }
+
+    /** Extra approval conditions beyond "is not the creator, has the role". */
+    protected function assertApprovable(Model $operation, User $approver): void {}
+
+    /** Extra reversal conditions. Default: anything posted may be reversed. */
+    protected function assertReversible(Model $operation): void {}
 
     /**
      * Approve a pending operation and post it. The approver is never the creator
@@ -82,6 +101,8 @@ abstract class FinancialOperationService
         if (! $this->policy->canApprove($approver, $operation)) {
             throw new OperationStateException('This user may not approve this operation (either they created it, or their role does not permit approval).');
         }
+
+        $this->assertApprovable($operation, $approver);
 
         $operation->forceFill([
             'approved_by' => $approver->id,
@@ -108,13 +129,7 @@ abstract class FinancialOperationService
         $this->assertBalancesAllowed($operation);
 
         return DB::transaction(function () use ($operation, $by) {
-            $entry = $this->poster->post([
-                'entry_date' => $this->entryDate($operation),
-                'description' => $this->description($operation),
-                'idempotency_key' => $this->idempotencyKey($operation),
-                'source' => $operation,
-                'created_by' => $operation->created_by ?? $by,
-            ], $this->lines($operation));
+            $entry = $this->postEntry($operation, $by);
 
             $operation->forceFill([
                 'status' => OperationStatus::Posted->value,
@@ -124,6 +139,26 @@ abstract class FinancialOperationService
 
             return $operation->fresh();
         });
+    }
+
+    /**
+     * The journal entry this operation results in.
+     *
+     * Overridable because some operations do not OWN their entry: a partner loan is
+     * a loan, and the loan's own service posts it. Such an operation returns that
+     * same entry here and posts nothing of its own — one disbursement, one entry.
+     * Posting a second, partner-shaped entry alongside the loan's would double the
+     * money in the ledger while looking perfectly balanced.
+     */
+    protected function postEntry(Model $operation, ?int $by): JournalEntry
+    {
+        return $this->poster->post([
+            'entry_date' => $this->entryDate($operation),
+            'description' => $this->description($operation),
+            'idempotency_key' => $this->idempotencyKey($operation),
+            'source' => $operation,
+            'created_by' => $operation->created_by ?? $by,
+        ], $this->lines($operation));
     }
 
     /**
@@ -141,6 +176,8 @@ abstract class FinancialOperationService
             throw new OperationStateException('This user may not reverse financial operations.');
         }
 
+        $this->assertReversible($operation);
+
         return DB::transaction(function () use ($operation, $reason, $by) {
             $reversal = $this->poster->reverse($operation->journalEntry, $reason, $by->id);
 
@@ -152,9 +189,14 @@ abstract class FinancialOperationService
                 'reversed_at' => now(),
             ])->save();
 
+            $this->afterReversal($operation, $reversal);
+
             return $operation->fresh();
         });
     }
+
+    /** Anything the operation owns that must follow it into the reversed state. */
+    protected function afterReversal(Model $operation, JournalEntry $reversal): void {}
 
     /** Abandon an operation that never reached the ledger. Nothing to unwind — so nothing is posted. */
     public function cancel(Model $operation, string $reason, User $by): Model

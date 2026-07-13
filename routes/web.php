@@ -5,10 +5,12 @@ use App\Http\Controllers\Admin\AlertNotificationController;
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\BankDepositController;
+use App\Http\Controllers\Admin\ChequeController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\FinancialOperationController;
+use App\Http\Controllers\Admin\LoanController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
@@ -217,6 +219,32 @@ Route::middleware(['auth'])->group(function () {
         Route::post('partner-operations/{partnerOperation}/approve', [PartnerOperationController::class, 'approve'])->name('partner-operations.approve');
         Route::post('partner-operations/{partnerOperation}/reverse', [PartnerOperationController::class, 'reverse'])->name('partner-operations.reverse');
         Route::post('partner-operations/{partnerOperation}/cancel', [PartnerOperationController::class, 'cancel'])->name('partner-operations.cancel');
+
+        // «وام و اقساط» — loans in both directions. «وام دریافتی» is money we borrowed
+        // (a liability, 2200); «وام پرداختی» is money we lent (an asset, 1600). The
+        // outstanding principal is never stored — it is read back out of the ledger.
+        // `create` before `{loan}` or the wildcard swallows the literal.
+        Route::get('loans', [LoanController::class, 'index'])->name('loans.index');
+        Route::get('loans/create', [LoanController::class, 'create'])->name('loans.create');
+        Route::post('loans', [LoanController::class, 'store'])->name('loans.store');
+        Route::get('loans/{loan}', [LoanController::class, 'show'])->name('loans.show');
+        Route::post('loans/{loan}/approve', [LoanController::class, 'approve'])->name('loans.approve');
+        Route::post('loans/{loan}/cancel', [LoanController::class, 'cancel'])->name('loans.cancel');
+        Route::post('loans/{loan}/reverse', [LoanController::class, 'reverse'])->name('loans.reverse');
+        Route::post('loans/{loan}/installments', [LoanController::class, 'payInstallment'])->name('loans.installments.pay');
+        Route::post('loans/{loan}/installments/{installment}/reverse', [LoanController::class, 'reverseInstallment'])
+            ->name('loans.installments.reverse');
+
+        // «چک‌ها» — a cheque is a promise, and 1250/2100 are where a promise lives until
+        // it is kept. Only clearing touches a real bank account.
+        Route::get('cheques', [ChequeController::class, 'index'])->name('cheques.index');
+        Route::get('cheques/create', [ChequeController::class, 'create'])->name('cheques.create');
+        Route::post('cheques', [ChequeController::class, 'store'])->name('cheques.store');
+        Route::get('cheques/{cheque}', [ChequeController::class, 'show'])->name('cheques.show');
+        Route::post('cheques/{cheque}/clear', [ChequeController::class, 'clear'])->name('cheques.clear');
+        Route::post('cheques/{cheque}/bounce', [ChequeController::class, 'bounce'])->name('cheques.bounce');
+        Route::post('cheques/{cheque}/cancel', [ChequeController::class, 'cancel'])->name('cheques.cancel');
+        Route::post('cheques/{cheque}/reverse', [ChequeController::class, 'reverse'])->name('cheques.reverse');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');

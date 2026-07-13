@@ -2,6 +2,7 @@
 
 namespace App\Domain\Accounting\Services;
 
+use App\Domain\Accounting\Exceptions\OperationStateException;
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\AccountTransaction;
 use App\Domain\Accounting\Support\CounterAccountPolicy;
@@ -9,6 +10,7 @@ use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
 use App\Domain\Expenses\Models\BankAccount;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +47,11 @@ class AccountTransactionService extends FinancialOperationService
         $direction = $data['direction'];
         $amount = (int) $data['amount'];
 
-        $this->assertRecordable($bankAccount, $counter, $direction, $amount);
+        // The person doing this, not the person the form was rendered for: the gate
+        // has to hold when the request never went through the form at all.
+        $actor = isset($data['created_by']) ? User::find($data['created_by']) : null;
+
+        $this->assertRecordable($bankAccount, $counter, $direction, $amount, $actor, $data);
 
         $date = $data['transaction_date'] instanceof Carbon
             ? $data['transaction_date']
@@ -75,7 +81,38 @@ class AccountTransactionService extends FinancialOperationService
         });
     }
 
-    private function assertRecordable(BankAccount $bankAccount, Account $counter, string $direction, int $amount): void
+    /**
+     * An adjustment is never routine, whatever it is worth.
+     *
+     * The amount threshold is the wrong question here: a 5,000-Toman adjustment and
+     * a 5,000,000-Toman one are the same act — asserting that the books were wrong.
+     * The risk is not the size, it is that an unexplained difference gets absorbed
+     * instead of reconciled. So every adjustment waits for a second person,
+     * regardless of `ops.approval_threshold` (which may not even be set).
+     */
+    protected function requiresApproval(Model $operation): bool
+    {
+        /** @var AccountTransaction $operation */
+        return $this->isAdjustment($operation) || parent::requiresApproval($operation);
+    }
+
+    /** Only an admin may approve an adjustment — not merely anyone with the approve role. */
+    protected function assertApprovable(Model $operation, User $approver): void
+    {
+        /** @var AccountTransaction $operation */
+        if ($this->isAdjustment($operation) && ! $this->counterAccounts->mayAdjust($approver)) {
+            throw new OperationStateException('تأیید سند تعدیل فقط از عهدهٔ مدیر سیستم برمی‌آید.');
+        }
+    }
+
+    private function isAdjustment(AccountTransaction $operation): bool
+    {
+        $counter = $operation->counterAccount ?? Account::find($operation->counter_account_id);
+
+        return $counter !== null && $this->counterAccounts->isAdjustment($counter);
+    }
+
+    private function assertRecordable(BankAccount $bankAccount, Account $counter, string $direction, int $amount, ?User $actor, array $data): void
     {
         if (! in_array($direction, [AccountTransaction::DIRECTION_IN, AccountTransaction::DIRECTION_OUT], true)) {
             throw new InvalidArgumentException("جهت تراکنش نامعتبر است: [{$direction}].");
@@ -98,8 +135,23 @@ class AccountTransactionService extends FinancialOperationService
         // THE gate. A direct operation may reach nothing but income, expense and
         // classified adjustments — never a control account, whose balance belongs
         // to a typed workflow (payments, invoices, loans, payroll, partner ops).
-        // Enforced here rather than in the form, so no caller can bypass it.
-        $this->counterAccounts->assertEligible($counter);
+        // Enforced here rather than in the form, so no caller can bypass it. The
+        // actor is passed in because eligibility is per-person: adjustments are
+        // admin-only, and a hand-crafted POST must fail exactly as the form would.
+        $this->counterAccounts->assertEligible($counter, $actor);
+
+        // An adjustment that cannot say WHY, and point at something outside this
+        // system that shows it, is indistinguishable from a plug. Required in the
+        // service, not just the form, so the HTTP endpoint cannot skip it either.
+        if ($this->counterAccounts->isAdjustment($counter)) {
+            if (blank($data['notes'] ?? null)) {
+                throw new InvalidArgumentException('برای سند تعدیل، ذکر دلیل الزامی است.');
+            }
+
+            if (blank($data['reference'] ?? null)) {
+                throw new InvalidArgumentException('برای سند تعدیل، شماره سند/مرجع الزامی است.');
+            }
+        }
     }
 
     protected function lines(Model $operation): array

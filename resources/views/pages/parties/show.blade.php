@@ -6,6 +6,8 @@
     $tabs = [
         'overview' => 'نمای کلی',
         'statement' => 'گردش کامل حساب',
+        'loans' => 'وام و اقساط',
+        'cheques' => 'چک‌ها',
         'roles' => 'مدیریت نقش‌ها',
         'bank-accounts' => 'حساب‌های بانکی طرف حساب',
         'duplicates' => 'بررسی موارد تکراری',
@@ -93,6 +95,10 @@
         @include('pages.parties.partials.overview')
     @elseif ($tab === 'statement')
         @include('pages.parties.partials.statement')
+    @elseif ($tab === 'loans')
+        @include('pages.parties.partials.loans')
+    @elseif ($tab === 'cheques')
+        @include('pages.parties.partials.cheques')
     @elseif ($tab === 'roles')
         @include('pages.parties.partials.roles')
     @elseif ($tab === 'bank-accounts')

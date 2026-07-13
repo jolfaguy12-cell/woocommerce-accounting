@@ -6,11 +6,16 @@ use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Models\PartyBankAccount;
 use App\Domain\Accounting\Services\PartyDuplicateService;
 use App\Domain\Accounting\Services\PartyLedgerService;
+use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Accounting\Support\PartyRoleType;
+use App\Domain\Receivables\Models\Cheque;
+use App\Domain\Receivables\Models\Loan;
+use App\Domain\Receivables\Services\LoanService;
 use App\Http\Controllers\Controller;
 use App\Support\Design\TableQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -29,6 +34,7 @@ class PartyController extends Controller
     public function __construct(
         private readonly PartyLedgerService $ledger,
         private readonly PartyDuplicateService $duplicates,
+        private readonly LoanService $loans,
     ) {}
 
     public function index(Request $request): View
@@ -91,7 +97,37 @@ class PartyController extends Controller
             'statement' => $tab === 'statement' ? $this->ledger->statement($party, $statementQuery) : null,
             'statementQuery' => $statementQuery,
             'duplicateMatches' => $tab === 'duplicates' ? $this->duplicates->matchesFor($party) : collect(),
+            // Same rule as the statement: a tab pays for its own query and no other's.
+            // «مانده اصل وام» is read from the ledger per loan, never from a column.
+            'loans' => $tab === 'loans' ? $this->partyLoans($party) : collect(),
+            'cheques' => $tab === 'cheques'
+                ? Cheque::where('party_id', $party->id)->with('bankAccount')->orderBy('due_date')->get()
+                : collect(),
         ]);
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    private function partyLoans(Party $party)
+    {
+        return Loan::where('party_id', $party->id)
+            ->with(['bankAccount', 'installments'])
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (Loan $loan) {
+                $next = $loan->nextInstallment();
+                $paid = $this->loans->paidTotals($loan);
+
+                return [
+                    'loan' => $loan,
+                    'direction' => $loan->direction->label(),
+                    'principal' => (int) $loan->principal,
+                    'remaining_principal' => $this->loans->remainingPrincipal($loan),
+                    'paid_total' => $paid['total'],
+                    'next_due_fa' => $next?->due_date ? JalaliPeriod::fmtDateTime($next->due_date) : null,
+                    'status' => $loan->status->badgeStatus(),
+                    'status_label' => $loan->status->label(),
+                ];
+            });
     }
 
     /** Duplicate REVIEW: suggestions for a human. Nothing here merges anything. */
