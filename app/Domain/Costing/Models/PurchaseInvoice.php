@@ -16,6 +16,7 @@ class PurchaseInvoice extends Model
 
     protected $casts = [
         'invoice_date' => 'date',
+        'expected_delivery_date' => 'date',
         'shipping_cost' => 'integer',
     ];
 

@@ -95,11 +95,22 @@
                         </div>
                         <ul class="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300">
                             @foreach ($receipt->lines as $receiptLine)
-                                <li>
-                                    {{ $receiptLine->invoiceLine->costItem->name }} —
-                                    {{ number_format($receiptLine->qty) }} عدد
-                                    @if ($receiptLine->package_count)
-                                        ({{ number_format($receiptLine->package_count) }} {{ $receiptLine->package_label ?? 'بسته' }})
+                                <li class="flex items-center justify-between gap-2">
+                                    <span>
+                                        {{ $receiptLine->invoiceLine->costItem->name }} —
+                                        {{ number_format($receiptLine->qty) }} عدد
+                                        @if ($receiptLine->package_count)
+                                            ({{ number_format($receiptLine->package_count) }} {{ $receiptLine->package_label ?? 'بسته' }})
+                                        @endif
+                                        @if ($receiptLine->via_toggle)
+                                            <span class="text-xs text-gray-400">(سوییچ سریع)</span>
+                                        @endif
+                                    </span>
+                                    @if (auth()->user()->hasAnyRole(['admin', 'accountant', 'warehouse']) && $invoice->status !== 'cancelled')
+                                        <button type="button" class="shrink-0 text-xs text-brand-500 hover:underline"
+                                            @click="$dispatch('open-edit-receipt-line-modal', { id: {{ $receiptLine->id }}, name: @js($receiptLine->invoiceLine->costItem->name), qty: {{ $receiptLine->qty }} })">
+                                            ویرایش
+                                        </button>
                                     @endif
                                 </li>
                             @endforeach
@@ -171,6 +182,11 @@
     </x-common.component-card>
 
     <x-common.component-card title="اقلام فاکتور">
+        @php
+            $canToggleOn = fn ($l) => $l->received_qty === 0 && $l->receiptLines->isEmpty();
+            $canToggleOff = fn ($l) => $l->receiptLines->count() === 1 && $l->receiptLines->first()->via_toggle && $l->returned_qty === 0;
+            $canToggle = auth()->user()->hasAnyRole(['admin', 'accountant', 'warehouse']) && $invoice->status !== 'cancelled';
+        @endphp
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -182,6 +198,7 @@
                         <th class="text-right font-normal">بهای تمام‌شده (واحد)</th>
                         <th class="text-right font-normal">جمع ردیف</th>
                         <th class="text-right font-normal">توضیحات</th>
+                        <th class="text-right font-normal">دریافت کامل</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -200,6 +217,17 @@
                             <x-tables.num class="font-medium" :value="$line->landed_unit_cost" />
                             <x-tables.num :value="$line->qty * $line->unit_price" tone="muted" />
                             <td class="text-gray-500 dark:text-gray-400">{{ $line->note ?? '—' }}</td>
+                            <td class="py-2">
+                                @if ($canToggle && ($line->received_qty === 0 ? $canToggleOn($line) : ($line->received_qty >= $line->qty && $canToggleOff($line))))
+                                    <form method="POST" action="{{ route('purchases.lines.toggle', [$invoice, $line]) }}"
+                                        @if ($line->received_qty > 0) onsubmit="return confirm('علامت دریافت این ردیف بازگردانده شود؟')" @endif>
+                                        @csrf
+                                        <x-ui.toggle-switch name="received" :checked="$line->received_qty > 0" />
+                                    </form>
+                                @else
+                                    <x-ui.toggle-switch name="received" :checked="$line->received_qty > 0" :disabled="true" />
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -208,15 +236,18 @@
                         <td colspan="5" class="py-2 text-left">جمع کالا:</td>
                         <x-tables.num  :value="$invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price)" type="toman" />
                         <td></td>
+                        <td></td>
                     </tr>
                     <tr class="text-gray-600 dark:text-gray-300">
                         <td colspan="5" class="py-1 text-left">هزینه حمل:</td>
                         <x-tables.num  :value="$invoice->shipping_cost" type="toman" />
                         <td></td>
+                        <td></td>
                     </tr>
                     <tr class="text-lg font-bold text-gray-800 dark:text-white/90">
                         <td colspan="5" class="py-1 text-left">مبلغ کل فاکتور:</td>
                         <x-tables.num  :value="$invoice->lines->sum(fn ($l) => $l->qty * $l->unit_price) + $invoice->shipping_cost" type="toman" />
+                        <td></td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -275,6 +306,35 @@
                 <div class="flex justify-end gap-3">
                     <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
                     <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت دریافت</button>
+                </div>
+            </form>
+        </x-ui.modal>
+    </div>
+@endif
+
+@if (auth()->user()->hasAnyRole(['admin', 'accountant', 'warehouse']))
+    <div x-data="{ open: false, receiptLineId: null, itemName: '', qty: 0 }"
+        @open-edit-receipt-line-modal.window="open = true; receiptLineId = $event.detail.id; itemName = $event.detail.name; qty = $event.detail.qty">
+        <x-ui.modal :isOpen="$errors->has('lines') && old('reason') === null && old('qty') !== null" @open-edit-receipt-line-modal.window="open = true" class="max-w-md p-6">
+            <h4 class="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">ویرایش تعداد دریافتی — <span x-text="itemName"></span></h4>
+
+            <form method="POST" x-bind:action="'{{ route('purchases.receipt-lines.update', [$invoice, '__ID__']) }}'.replace('__ID__', receiptLineId)" class="space-y-4">
+                @csrf
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">تعداد جدید</label>
+                    <input type="number" name="qty" min="0" required dir="ltr" x-model.number="qty"
+                        class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    <p class="mt-1 text-xs text-gray-400">صفر یعنی این محموله اشتباه ثبت شده و کاملاً حذف می‌شود.</p>
+                    @error('lines')<p class="mt-1 text-xs text-error-500">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">دلیل اصلاح</label>
+                    <input type="text" name="reason" required maxlength="255"
+                        class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" @click="open = false" class="rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">انصراف</button>
+                    <button type="submit" class="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600">ثبت اصلاح</button>
                 </div>
             </form>
         </x-ui.modal>

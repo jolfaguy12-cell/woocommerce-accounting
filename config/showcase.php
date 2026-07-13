@@ -285,6 +285,16 @@ return [
             'description' => 'ورودی مبلغ با جداکننده هزارگان هنگام تایپ که مقدار خام عددی را در یک فیلد مخفی برای سرور نگه می‌دارد.',
             'variants' => ['جداکننده هزارگان + فیلد مخفی'],
         ],
+        [
+            'id' => 'form-05',
+            'tech' => 'toggle-switch',
+            'category' => 'forms',
+            'name' => 'کلید سوییچی',
+            'component' => '<x-ui.toggle-switch name checked disabled>',
+            'source' => 'resources/views/components/ui/toggle-switch.blade.php',
+            'description' => 'کلید روشن/خاموش که بلافاصله فرم اطراف خود را ثبت می‌کند (بدون AJAX) — برای اقدامات آنی مثل «دریافت کامل کالا».',
+            'variants' => ['فعال', 'غیرفعال (disabled)'],
+        ],
 
         // ---- Buttons & actions ---------------------------------------
         [

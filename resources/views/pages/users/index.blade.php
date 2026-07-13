@@ -167,6 +167,14 @@
             </div>
 
             <div>
+                <label class="{{ $labelClass }}">شناسه چت تلگرام (اختیاری)</label>
+                <input type="text" name="telegram_id" dir="ltr" placeholder="مثلاً 123456789"
+                    value="{{ old('_form') === $formKey ? old('telegram_id') : $user['telegram_id'] }}" class="{{ $inputClass }} text-left">
+                <p class="mt-1 text-xs text-gray-400">برای دریافت هشدارها در تلگرام؛ کاربر این عدد را از رباتی مثل @userinfobot می‌گیرد.</p>
+                @if ($formErrors && $errors->has('telegram_id'))<p class="mt-1 text-xs text-error-500">{{ $errors->first('telegram_id') }}</p>@endif
+            </div>
+
+            <div>
                 <label class="{{ $labelClass }}">رمز عبور جدید (اختیاری)</label>
                 <input type="password" name="password" dir="ltr" autocomplete="new-password" class="{{ $inputClass }} text-left">
                 @if ($formErrors && $errors->has('password'))<p class="mt-1 text-xs text-error-500">{{ $errors->first('password') }}</p>@endif

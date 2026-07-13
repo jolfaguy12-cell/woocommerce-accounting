@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\AccountingPeriod;
+use App\Domain\Accounting\Models\Setting;
 use App\Domain\Reports\Models\PartnerReport;
 use App\Domain\Sync\Models\WebhookEvent;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Spatie\Permission\Models\Role;
 
@@ -51,6 +54,8 @@ class SettingController extends Controller
 
     public function apiWebhookManagement(): View
     {
+        $telegramToken = Setting::getEncrypted('telegram_bot_token');
+
         return view('pages.system-settings.api-webhook-management', [
             'title' => 'مدیریت وبهوک‌ها و API',
             'hub' => [
@@ -62,6 +67,28 @@ class SettingController extends Controller
             ],
             'webhookEventCounts' => WebhookEvent::selectRaw('status, count(*) as count')
                 ->groupBy('status')->pluck('count', 'status'),
+            // Never pass the raw token to the view — only whether it's set and a masked hint.
+            'telegram' => [
+                'configured' => filled($telegramToken),
+                'masked' => $telegramToken ? '••••'.substr($telegramToken, -4) : null,
+            ],
         ]);
+    }
+
+    /** Saves the Telegram bot token, encrypted at rest — never logged or shown back in full (see Setting::setEncrypted()). */
+    public function updateTelegram(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['bot_token' => 'required|string|min:20|max:255']);
+
+        Setting::setEncrypted('telegram_bot_token', $data['bot_token']);
+
+        return back()->with('success', 'کلید ربات تلگرام ذخیره شد.');
+    }
+
+    public function resetTelegram(): RedirectResponse
+    {
+        Setting::setEncrypted('telegram_bot_token', null);
+
+        return back()->with('success', 'کلید ربات تلگرام حذف شد.');
     }
 }

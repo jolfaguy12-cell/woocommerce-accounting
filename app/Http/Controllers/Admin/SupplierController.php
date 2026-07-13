@@ -6,6 +6,7 @@ use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Costing\Models\PurchaseInvoiceLine;
+use App\Domain\Costing\Services\OverdueReceivingService;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Services\PayablesService;
 use App\Domain\Receivables\Services\PaymentRecorder;
@@ -266,6 +267,38 @@ class SupplierController extends Controller
         ]);
     }
 
+    /** Overdue receiving for this supplier only, grouped by invoice (see OverdueReceivingService's docblock for the definition). */
+    public function overdue(Request $request, Party $supplier, OverdueReceivingService $overdue): View
+    {
+        abort_unless($supplier->type === 'supplier', 404);
+
+        $query = new TableQuery(
+            request: $request,
+            sortable: [
+                'invoice_no' => 'purchase_invoices.invoice_no',
+                'item_name' => 'cost_items.name',
+                'outstanding_qty' => 'outstanding_qty',
+                'age_days' => 'age_days',
+            ],
+            filters: [],
+            defaultSort: '-age_days',
+        );
+
+        $rows = $overdue->overdueLineRowsQuery($supplier->id)
+            ->with('receiptLines')
+            ->tap(fn ($q) => $query->apply($q))
+            ->paginate($query->perPage())
+            ->withQueryString();
+
+        return view('pages.suppliers.overdue', [
+            'title' => 'کالاهای دریافت‌نشده — '.$supplier->name,
+            'supplier' => $supplier,
+            'tabs' => $this->tabsFor($supplier),
+            'rows' => $rows,
+            'query' => $query,
+        ]);
+    }
+
     /** Same tab set on every supplier sub-page — each is its own route/TableQuery (see show()'s docblock). */
     private function tabsFor(Party $supplier): array
     {
@@ -274,6 +307,7 @@ class SupplierController extends Controller
             ['key' => 'invoices', 'label' => 'فاکتورهای خرید', 'url' => route('purchases.index', ['supplier_party_id' => $supplier->id])],
             ['key' => 'purchases', 'label' => 'سابقه خرید', 'url' => route('suppliers.purchase-history', $supplier)],
             ['key' => 'transactions', 'label' => 'تراکنش‌های مالی', 'url' => route('suppliers.transactions', $supplier)],
+            ['key' => 'overdue', 'label' => 'کالاهای دریافت‌نشده', 'url' => route('suppliers.overdue', $supplier)],
         ];
     }
 

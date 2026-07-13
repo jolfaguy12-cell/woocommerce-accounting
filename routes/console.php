@@ -22,3 +22,13 @@ Schedule::command('acc:sync:relink-order-items')->dailyAt('04:30')->withoutOverl
 // too expensive to recompute on every dashboard refresh (dashboard/reports
 // just read the latest snapshot instead, see InventorySnapshotService).
 Schedule::command('acc:products:snapshot-inventory')->everyFourHours()->withoutOverlapping();
+
+// Flags purchase invoices still not fully received 5 days after invoice_date
+// (or after expected_delivery_date) — business hours, not the 3am sync slot,
+// since this alerts staff who need to act on it the same day.
+Schedule::command('acc:purchases:detect-overdue-receipts')->dailyAt('09:00')->withoutOverlapping();
+
+// Safety net: re-queues any telegram alert deliveries stuck pending/failed
+// (queue worker downtime, or a transient API error that exhausted the job's
+// own retries) — same dual pattern as the poll+backfill pairs above.
+Schedule::command('acc:alerts:retry-telegram')->everyFifteenMinutes()->withoutOverlapping();

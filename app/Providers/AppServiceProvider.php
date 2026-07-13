@@ -8,6 +8,7 @@ use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Models\ChannelCost;
 use App\Domain\Channels\Models\ChannelSource;
 use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Models\PurchaseInvoiceReceiptLine;
 use App\Domain\Costing\Models\PurchaseReturn;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Expenses\Models\BankAccount;
@@ -50,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             'review_item' => ReviewItem::class,
             'journal_entry' => JournalEntry::class,
             'purchase_invoice' => PurchaseInvoice::class,
+            'purchase_invoice_receipt_line' => PurchaseInvoiceReceiptLine::class,
             'product_mirror' => ProductMirror::class,
             'order' => Order::class,
             'channel' => Channel::class,

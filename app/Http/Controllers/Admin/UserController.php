@@ -23,6 +23,7 @@ class UserController extends Controller
                 'name' => $u->name,
                 'email' => $u->email,
                 'roles' => $u->getRoleNames()->all(),
+                'telegram_id' => $u->telegram_id,
                 'created_at' => $u->created_at,
             ]),
             'roles' => Role::orderBy('name')->pluck('name'),
@@ -55,13 +56,15 @@ class UserController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'role' => 'required|string|exists:roles,name',
+            // Chat id used by SendTelegramAlertJob/TelegramNotifier — the staff member gets this from a bot like @userinfobot.
+            'telegram_id' => 'nullable|string|max:64',
         ]);
 
         if ($this->demotesLastAdmin($user, $data['role'])) {
             return back()->withErrors(['role' => 'باید حداقل یک مدیر فعال باقی بماند.']);
         }
 
-        $user->fill(['name' => $data['name'], 'email' => $data['email']]);
+        $user->fill(['name' => $data['name'], 'email' => $data['email'], 'telegram_id' => $data['telegram_id'] ?? null]);
         if (! empty($data['password'])) {
             $user->password = $data['password'];
         }

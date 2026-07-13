@@ -4,8 +4,13 @@ use App\Domain\Alerts\Models\AlertType;
 use App\Domain\Alerts\Services\AlertDispatcher;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
+    // dispatch() now also queues a real Telegram send (SendTelegramAlertJob) per
+    // pending delivery; fake the queue so these dispatch/targeting/rendering
+    // tests never make a real outbound call to api.telegram.org.
+    Queue::fake();
     $this->seed(RoleSeeder::class);
 
     $this->alertType = AlertType::create([
@@ -27,13 +32,18 @@ it('renders template placeholders and only delivers to role-matching users with 
     expect($event->rendered_message)->toBe('سفارش #55 به مبلغ 1,000 تومان.')
         ->and($event->status)->toBe('dispatched');
 
+    // 2 role-matching recipients (admins) × 2 channels each (telegram + in_app) — the
+    // warehouse user is never a recipient, this alert type's roles are admin/accountant.
     $deliveries = $event->deliveries;
-    expect($deliveries)->toHaveCount(2);
+    expect($deliveries)->toHaveCount(4);
 
-    $adminDelivery = $deliveries->firstWhere('user_id', $adminWithTelegram->id);
-    expect($adminDelivery->status)->toBe('pending')->and($adminDelivery->channel)->toBe('telegram');
+    $adminTelegram = $deliveries->first(fn ($d) => $d->user_id === $adminWithTelegram->id && $d->channel === 'telegram');
+    expect($adminTelegram->status)->toBe('pending');
 
-    $noTelegramDelivery = $deliveries->firstWhere('user_id', $adminWithoutTelegram->id);
+    $adminInApp = $deliveries->first(fn ($d) => $d->user_id === $adminWithTelegram->id && $d->channel === 'in_app');
+    expect($adminInApp->status)->toBe('sent')->and($adminInApp->read_at)->toBeNull();
+
+    $noTelegramDelivery = $deliveries->first(fn ($d) => $d->user_id === $adminWithoutTelegram->id && $d->channel === 'telegram');
     expect($noTelegramDelivery->status)->toBe('skipped_no_telegram_id');
 
     expect($deliveries->firstWhere('user_id', $warehouseWithTelegram->id))->toBeNull();

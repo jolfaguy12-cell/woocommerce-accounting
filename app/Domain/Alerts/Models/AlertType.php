@@ -46,6 +46,7 @@ class AlertType extends Model
         return match ($this->code) {
             'zibal_gateway_mismatch' => ['order_id', 'order_status', 'gateway_status', 'amount'],
             'zibal_new_bank_account_detected' => ['iban', 'holder_name'],
+            'purchase_receipt_overdue' => ['invoice_no', 'supplier_name', 'outstanding_qty', 'days_overdue'],
             default => [],
         };
     }

@@ -6,6 +6,8 @@ use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Models\PurchaseInvoiceLine;
+use App\Domain\Costing\Models\PurchaseInvoiceReceiptLine;
 use App\Domain\Costing\Services\ProductMappingResolver;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Costing\Services\PurchaseReturnService;
@@ -133,7 +135,7 @@ class PurchaseInvoiceController extends Controller
     public function show(PurchaseInvoice $invoice): View
     {
         $invoice->load([
-            'supplier', 'lines.costItem', 'lines.product', 'attachments', 'journalEntry',
+            'supplier', 'lines.costItem', 'lines.product', 'lines.receiptLines', 'attachments', 'journalEntry',
             'receipts' => fn ($q) => $q->orderByDesc('received_at')->orderByDesc('id'),
             'receipts.lines.invoiceLine.costItem',
             'receipts.creator',
@@ -271,6 +273,49 @@ class PurchaseInvoiceController extends Controller
         }
 
         return redirect()->route('purchases.show', $invoice)->with('success', 'دریافت کالا ثبت شد.');
+    }
+
+    /**
+     * One-click "received"/"unreceived" for a line untouched since it was
+     * ordered — see PurchaseInvoiceService::toggleReceived()'s docblock for
+     * exactly when the OFF direction is (and isn't) allowed.
+     */
+    public function toggleReceipt(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceLine $line, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    {
+        abort_unless($line->purchase_invoice_id === $invoice->id, 404);
+
+        $data = $request->validate(['received' => 'required|boolean']);
+
+        try {
+            $purchaseInvoices->toggleReceived($line, $data['received'], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['lines' => 'دوره حسابداری این تاریخ قفل است.']);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['lines' => $e->getMessage()]);
+        }
+
+        return redirect()->route('purchases.show', $invoice)->with('success', $data['received'] ? 'ردیف به‌صورت کامل دریافت‌شده علامت خورد.' : 'وضعیت دریافت ردیف بازگردانده شد.');
+    }
+
+    /** In-place correction of an already-recorded delivery's quantity — see PurchaseInvoiceService::updateReceiptLine(). */
+    public function updateReceiptLine(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceReceiptLine $receiptLine, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    {
+        abort_unless($receiptLine->invoiceLine->purchase_invoice_id === $invoice->id, 404);
+
+        $data = $request->validate([
+            'qty' => 'required|integer|min:0',
+            'reason' => 'required|string|max:255',
+        ]);
+
+        try {
+            $purchaseInvoices->updateReceiptLine($receiptLine, $data['qty'], $data['reason'], $request->user()->id);
+        } catch (PeriodLockedException) {
+            return back()->withErrors(['lines' => 'دوره حسابداری این تاریخ قفل است.']);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['lines' => $e->getMessage()]);
+        }
+
+        return redirect()->route('purchases.show', $invoice)->with('success', 'تعداد دریافتی اصلاح شد.');
     }
 
     /** Goods physically returned to the supplier — only from qty already received and not already returned. */

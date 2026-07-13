@@ -240,6 +240,23 @@
         </div>
         @break
 
+    @case('form-05')
+        <form class="flex flex-wrap items-center gap-6" onsubmit="return false;">
+            <div class="flex items-center gap-2">
+                <x-ui.toggle-switch name="showcase_toggle_on" :checked="true" />
+                <span class="text-theme-xs text-gray-600 dark:text-gray-300">فعال</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <x-ui.toggle-switch name="showcase_toggle_off" :checked="false" />
+                <span class="text-theme-xs text-gray-600 dark:text-gray-300">غیرفعال</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <x-ui.toggle-switch name="showcase_toggle_disabled" :checked="true" :disabled="true" />
+                <span class="text-theme-xs text-gray-600 dark:text-gray-300">قفل‌شده (disabled)</span>
+            </div>
+        </form>
+        @break
+
     {{-- ============ Buttons & actions ============ --}}
     @case('button-01')
         <div class="flex flex-wrap items-center gap-3">

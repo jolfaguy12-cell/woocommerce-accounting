@@ -2,6 +2,7 @@
 
 namespace App\Helpers;
 
+use App\Domain\Costing\Services\OverdueReceivingService;
 use App\Domain\Orders\Models\OrderNoteRecipient;
 
 class MenuHelper
@@ -80,6 +81,7 @@ class MenuHelper
                     ['name' => 'ثبت خرید', 'path' => '/new-buy-order/create', 'pro' => false],
                     ['name' => 'مشاهده خرید ها', 'path' => '/new-buy-order', 'pro' => false],
                     ['name' => 'مدیریت تامین‌کننده‌ها', 'path' => '/suppliers', 'pro' => false],
+                    ['name' => 'کالاهای دریافت‌نشده', 'path' => '/unreceived-goods', 'badge' => self::overdueUnreceivedGoodsCount()],
                 ],
             ],
             [
@@ -123,6 +125,16 @@ class MenuHelper
         return OrderNoteRecipient::where('user_id', auth()->id())
             ->whereNull('read_at')
             ->count();
+    }
+
+    /** Count of purchase invoices currently flagged overdue (see OverdueReceivingService) — same badge slot as unreadNotesCount(). */
+    private static function overdueUnreceivedGoodsCount(): int
+    {
+        if (! auth()->check()) {
+            return 0;
+        }
+
+        return app(OverdueReceivingService::class)->overdueInvoicesQuery()->count();
     }
 
     public static function getMenuGroups()

@@ -10,7 +10,15 @@
 @section('content')
 <x-common.page-breadcrumb pageTitle="مدیریت وبهوک‌ها و API" />
 
-<div class="space-y-4">
+@if (session('success'))
+    <x-ui.alert variant="success" :message="session('success')" class="mb-4" />
+@endif
+@if ($errors->has('bot_token'))
+    <x-ui.alert variant="error" :message="$errors->first('bot_token')" class="mb-4" />
+@endif
+
+<x-nav.tabs :tabs="['hub' => 'اتصال هاب', 'telegram' => 'تلگرام']" :panels="true">
+<div x-show="tab === 'hub'" class="space-y-4">
     <p class="text-sm text-gray-500 dark:text-gray-400">این سیستم فقط وبهوک ورودی از هاب را دریافت می‌کند؛ مدیریت اندپوینت وبهوک در سمت هاب انجام می‌شود.</p>
 
     <x-common.component-card title="اتصال هاب">
@@ -60,4 +68,38 @@
         'چرخش/تغییر کلید امضای وبهوک از UI نیازمند هماهنگی با ثبت اندپوینت در سمت هاب است (تصمیم معماری sync)',
     ]" />
 </div>
+
+<div x-show="tab === 'telegram'" class="space-y-4">
+    <x-common.component-card title="ربات تلگرام هشدارها">
+        <div class="flex items-center justify-between border-b border-gray-100 py-2.5 text-sm dark:border-gray-800">
+            <span class="text-gray-500 dark:text-gray-400">کلید ربات (Bot Token)</span>
+            <div class="flex items-center gap-2">
+                <x-ui.badge :color="$telegram['configured'] ? 'success' : 'error'">{{ $telegram['configured'] ? 'تنظیم‌شده' : 'تنظیم‌نشده' }}</x-ui.badge>
+                @if ($telegram['masked'])
+                    <span class="font-medium text-gray-800 dark:text-white/90" dir="ltr">{{ $telegram['masked'] }}</span>
+                @endif
+            </div>
+        </div>
+
+        <form method="POST" action="{{ route('setting.api-webhook-management.telegram.update') }}" class="mt-4 flex flex-wrap items-end gap-3">
+            @csrf
+            <div class="min-w-[280px] flex-1">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">کلید جدید ربات</label>
+                <input type="password" name="bot_token" autocomplete="off" placeholder="123456789:AA..." dir="ltr"
+                    class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            </div>
+            <button type="submit" class="h-11 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600">ذخیره</button>
+        </form>
+
+        @if ($telegram['configured'])
+            <form method="POST" action="{{ route('setting.api-webhook-management.telegram.reset') }}" onsubmit="return confirm('کلید ربات تلگرام حذف شود؟ ارسال هشدارها متوقف می‌شود.')" class="mt-3">
+                @csrf
+                <button type="submit" class="text-xs text-error-500 hover:underline">حذف کلید</button>
+            </form>
+        @endif
+
+        <p class="mt-3 text-xs text-gray-400">کلید هرگز به‌صورت کامل نمایش داده نمی‌شود. برای دریافت هشدار در تلگرام، هر کاربر باید شناسه چت خود را در صفحه «کاربران» ثبت کند.</p>
+    </x-common.component-card>
+</div>
+</x-nav.tabs>
 @endsection

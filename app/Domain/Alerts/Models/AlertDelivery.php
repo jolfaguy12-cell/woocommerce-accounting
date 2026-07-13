@@ -14,6 +14,8 @@ class AlertDelivery extends Model
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'read_at' => 'datetime',
+        'resolved_at' => 'datetime',
         'created_at' => 'datetime',
     ];
 

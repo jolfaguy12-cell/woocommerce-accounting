@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AlertController;
+use App\Http\Controllers\Admin\AlertNotificationController;
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\BankDepositController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\ShowcaseController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\ToolsController;
+use App\Http\Controllers\Admin\UnreceivedGoodsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Webhooks\HubWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -85,12 +87,21 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
         Route::post('orders/{order}/labels', [OrderController::class, 'syncLabels'])->name('orders.labels');
 
+        // In-app deliveries of the role-based alert framework (AlertDispatcher) — same audience as the notes bell above.
+        Route::get('notifications/alerts', [AlertNotificationController::class, 'index'])->name('notifications.alerts');
+        Route::get('notifications/alerts/{delivery}/open', [AlertNotificationController::class, 'open'])->name('notifications.alerts.open');
+
         // Purchase invoice reads + recording a physical receipt are open to
         // warehouse (see PurchaseInvoiceService::recordReceipt()) — everything
         // else in Purchasing/Suppliers stays admin|accountant below.
         Route::get('new-buy-order', [PurchaseInvoiceController::class, 'index'])->name('purchases.index');
         Route::get('new-buy-order/{invoice}', [PurchaseInvoiceController::class, 'show'])->name('purchases.show');
         Route::post('new-buy-order/{invoice}/receipts', [PurchaseInvoiceController::class, 'storeReceipt'])->name('purchases.receipts.store');
+        Route::post('new-buy-order/{invoice}/lines/{line}/toggle-received', [PurchaseInvoiceController::class, 'toggleReceipt'])->name('purchases.lines.toggle');
+        Route::post('new-buy-order/{invoice}/receipt-lines/{receiptLine}', [PurchaseInvoiceController::class, 'updateReceiptLine'])->name('purchases.receipt-lines.update');
+
+        // Overdue receiving — same admin|accountant|warehouse audience as the rest of purchasing reads above.
+        Route::get('unreceived-goods', [UnreceivedGoodsController::class, 'index'])->name('unreceived-goods.index');
     });
 
     // Financial mutations are for admin/accountant only.
@@ -127,6 +138,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('suppliers/{supplier}/pay', [SupplierController::class, 'pay'])->name('suppliers.pay');
         Route::get('suppliers/{supplier}/purchase-history', [SupplierController::class, 'purchaseHistory'])->name('suppliers.purchase-history');
         Route::get('suppliers/{supplier}/transactions', [SupplierController::class, 'transactions'])->name('suppliers.transactions');
+        Route::get('suppliers/{supplier}/overdue', [SupplierController::class, 'overdue'])->name('suppliers.overdue');
         Route::post('suppliers/{supplier}/refund', [SupplierController::class, 'refund'])->name('suppliers.refund');
         Route::post('suppliers/{supplier}/credit', [SupplierController::class, 'storeCredit'])->name('suppliers.credit');
 
@@ -194,6 +206,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('setting/report-settings', [SettingController::class, 'reportSettings'])->name('setting.report-settings');
         Route::get('setting/role-managment', [SettingController::class, 'roleManagement'])->name('setting.role-management');
         Route::get('setting/api-webhook-managment', [SettingController::class, 'apiWebhookManagement'])->name('setting.api-webhook-management');
+        Route::post('setting/api-webhook-managment/telegram', [SettingController::class, 'updateTelegram'])->name('setting.api-webhook-management.telegram.update');
+        Route::post('setting/api-webhook-managment/telegram/reset', [SettingController::class, 'resetTelegram'])->name('setting.api-webhook-management.telegram.reset');
 
         Route::get('warehouse/packaging-cost', [PackagingCostController::class, 'index'])->name('warehouse.packaging-cost');
         Route::post('warehouse/packaging-cost/defaults', [PackagingCostController::class, 'updateDefaults'])->name('warehouse.packaging-cost.defaults');

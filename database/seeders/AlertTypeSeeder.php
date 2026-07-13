@@ -24,6 +24,13 @@ class AlertTypeSeeder extends Seeder
                 'message_template' => 'ℹ️ حساب بانکی مقصد جدید شناسایی شد: {iban} ({holder_name}) و به‌صورت خودکار ثبت شد. لطفاً بررسی کنید.',
                 'roles' => ['admin'],
             ],
+            [
+                'code' => 'purchase_receipt_overdue',
+                'name' => 'دریافت معوق کالای خرید',
+                'description' => 'فاکتور خرید پس از ۵ روز از تاریخ فاکتور (یا پس از تاریخ تحویل مورد انتظار) هنوز به‌طور کامل دریافت نشده است.',
+                'message_template' => '⏰ دریافت معوق: فاکتور خرید {invoice_no} از تامین‌کننده {supplier_name} — {outstanding_qty} قلم کالا پس از {days_overdue} روز هنوز دریافت نشده است.',
+                'roles' => ['admin', 'accountant', 'warehouse'],
+            ],
         ];
 
         foreach ($types as $data) {

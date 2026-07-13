@@ -1,13 +1,33 @@
-{{-- Notification Dropdown Component — sourced from unread order-note assignments (see NoteController). --}}
+{{--
+    Notification Dropdown Component — merges two independent sources: unread
+    order-note assignments (see NoteController) and unread in-app alert
+    deliveries (see AlertDispatcher/AlertNotificationController), sorted
+    together by recency. Each still opens its own read/resolved-state route.
+--}}
 @php
-    $unreadNotifications = auth()->check()
+    $unreadNotes = auth()->check()
         ? \App\Domain\Orders\Models\OrderNoteRecipient::with('note.order', 'note.author')
             ->where('user_id', auth()->id())
             ->whereNull('read_at')
             ->latest()
             ->limit(8)
             ->get()
+            ->map(fn ($recipient) => ['type' => 'note', 'created_at' => $recipient->created_at, 'recipient' => $recipient])
         : collect();
+
+    $unreadAlerts = auth()->check()
+        ? \App\Domain\Alerts\Models\AlertDelivery::with('event.alertType')
+            ->where('user_id', auth()->id())
+            ->where('channel', 'in_app')
+            ->whereNull('read_at')
+            ->whereNull('resolved_at')
+            ->latest('created_at')
+            ->limit(8)
+            ->get()
+            ->map(fn ($delivery) => ['type' => 'alert', 'created_at' => $delivery->created_at, 'delivery' => $delivery])
+        : collect();
+
+    $unreadNotifications = $unreadNotes->concat($unreadAlerts)->sortByDesc('created_at')->take(8)->values();
 @endphp
 <div class="relative" x-data="{
     dropdownOpen: false,
@@ -90,43 +110,74 @@
 
         <!-- Notification List -->
         <ul class="flex flex-col h-auto overflow-y-auto custom-scrollbar">
-            @forelse ($unreadNotifications as $recipient)
-                <li>
-                    <a
-                        class="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-                        href="{{ $recipient->note->order ? route('orders.show', $recipient->note->order) : route('notifications.notes') }}"
-                    >
-                        <span class="block">
-                            <span class="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
-                                <span class="font-medium text-gray-800 dark:text-white/90">
-                                    {{ $recipient->note->author?->name ?? 'کاربر حذف‌شده' }}
+            @forelse ($unreadNotifications as $item)
+                @if ($item['type'] === 'note')
+                    @php $recipient = $item['recipient']; @endphp
+                    <li>
+                        <a
+                            class="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+                            href="{{ $recipient->note->order ? route('orders.show', $recipient->note->order) : route('notifications.notes') }}"
+                        >
+                            <span class="block">
+                                <span class="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
+                                    <span class="font-medium text-gray-800 dark:text-white/90">
+                                        {{ $recipient->note->author?->name ?? 'کاربر حذف‌شده' }}
+                                    </span>
+                                    یادداشتی برای سفارش
+                                    <span class="font-medium text-gray-800 dark:text-white/90">
+                                        #{{ $recipient->note->order?->hub_order_id }}
+                                    </span>
+                                    به شما محول کرد
                                 </span>
-                                یادداشتی برای سفارش
-                                <span class="font-medium text-gray-800 dark:text-white/90">
-                                    #{{ $recipient->note->order?->hub_order_id }}
-                                </span>
-                                به شما محول کرد
-                            </span>
 
-                            <span class="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
-                                <span>{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($recipient->created_at) }}</span>
+                                <span class="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
+                                    <span>{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($recipient->created_at) }}</span>
+                                </span>
                             </span>
-                        </span>
-                    </a>
-                </li>
+                        </a>
+                    </li>
+                @else
+                    @php $delivery = $item['delivery']; @endphp
+                    <li>
+                        <a
+                            class="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+                            href="{{ route('notifications.alerts.open', $delivery) }}"
+                        >
+                            <span class="block">
+                                <span class="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
+                                    <span class="font-medium text-gray-800 dark:text-white/90">{{ $delivery->event->alertType->name ?? 'هشدار سیستم' }}</span>
+                                    — {{ $delivery->event->rendered_message }}
+                                </span>
+
+                                <span class="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
+                                    <span>{{ \App\Domain\Accounting\Support\JalaliPeriod::humanDiff($delivery->created_at) }}</span>
+                                </span>
+                            </span>
+                        </a>
+                    </li>
+                @endif
             @empty
                 <li class="p-3 text-center text-sm text-gray-400 dark:text-gray-500">اعلان جدیدی وجود ندارد.</li>
             @endforelse
         </ul>
 
-        <!-- View All Button -->
-        <a
-            href="{{ route('notifications.notes') }}"
-            class="mt-3 flex justify-center rounded-lg border border-gray-300 bg-white p-3 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-            @click="closeDropdown()"
-        >
-            مشاهده همه یادداشت‌ها
-        </a>
+        <!-- View All Buttons -->
+        <div class="mt-3 flex gap-2">
+            <a
+                href="{{ route('notifications.notes') }}"
+                class="flex flex-1 justify-center rounded-lg border border-gray-300 bg-white p-3 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+                @click="closeDropdown()"
+            >
+                یادداشت‌ها
+            </a>
+            <a
+                href="{{ route('notifications.alerts') }}"
+                class="flex flex-1 justify-center rounded-lg border border-gray-300 bg-white p-3 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+                @click="closeDropdown()"
+            >
+                هشدارها
+            </a>
+        </div>
     </div>
     <!-- Dropdown End -->
 </div>
