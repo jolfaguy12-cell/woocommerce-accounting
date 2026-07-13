@@ -1,0 +1,170 @@
+@extends('layouts.app')
+
+@php
+    $inputClass = 'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90';
+    $entry = $operation->journalEntry;
+
+    $trail = collect([
+        ['label' => 'ثبت‌کننده', 'user' => $operation->creator?->name, 'at' => $operation->created_at],
+        ['label' => 'تأییدکننده', 'user' => $operation->approver?->name, 'at' => $operation->approved_at],
+        ['label' => 'برگشت‌زننده', 'user' => $operation->reverser?->name, 'at' => $operation->reversed_at],
+        ['label' => 'لغوکننده', 'user' => $operation->canceller?->name, 'at' => $operation->cancelled_at],
+    ])->filter(fn ($step) => $step['user'] !== null);
+@endphp
+
+@section('content')
+<x-common.page-breadcrumb :pageTitle="$summary['type_label']" parentLabel="عملیات مالی" :parentUrl="route('financial-operations.index')" />
+
+<div class="mx-auto max-w-4xl space-y-4">
+    @if (session('success'))
+        <x-ui.alert variant="success" title="انجام شد" :message="session('success')" />
+    @endif
+    @if (session('warning'))
+        <x-ui.alert variant="warning" title="هشدار" :message="session('warning')" />
+    @endif
+    @if ($errors->any())
+        <x-ui.alert variant="error" title="انجام نشد" :message="$errors->first()" />
+    @endif
+
+    @if ($overdrafts !== [])
+        <x-ui.alert variant="warning" title="موجودی منفی"
+            message="این عملیات موجودی حساب مبدأ را منفی می‌کند." />
+    @endif
+
+    <x-common.component-card :title="$summary['type_label']">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">وضعیت</p>
+                <div class="mt-1"><x-ui.status :status="$summary['status']" :label="$summary['status_label']" /></div>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">مبلغ</p>
+                <x-tables.num :value="$summary['amount']" type="toman" :cell="false" class="mt-1 block text-sm font-medium" />
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">از</p>
+                <p class="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">{{ $summary['from'] }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">به</p>
+                <p class="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">{{ $summary['to'] }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">تاریخ</p>
+                <p class="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">{{ $summary['date_fa'] }}</p>
+            </div>
+            @if ($summary['fee'] > 0)
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">کارمزد بانکی</p>
+                    <x-tables.num :value="$summary['fee']" type="toman" tone="negative" :cell="false" class="mt-1 block text-sm font-medium" />
+                </div>
+            @endif
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">کد پیگیری</p>
+                <x-tables.ltr :value="$operation->reference" :cell="false" class="mt-1 block text-sm" />
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">یادداشت</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $operation->notes ?? '—' }}</p>
+            </div>
+        </div>
+
+        @if ($operation->isReversed())
+            <p class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/5 dark:text-gray-400">
+                دلیل برگشت: {{ $operation->reversal_reason }}
+            </p>
+        @endif
+        @if ($operation->isCancelled())
+            <p class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/5 dark:text-gray-400">
+                دلیل لغو: {{ $operation->cancel_reason }}
+            </p>
+        @endif
+    </x-common.component-card>
+
+    {{-- The journal entry, shown in full: every figure in this system must be
+         explainable, and the cheapest explanation is the entry itself. --}}
+    <x-common.component-card title="سند حسابداری">
+        @if ($entry)
+            <x-tables.data-table :headers="[
+                ['label' => 'حساب'],
+                ['label' => 'شرح'],
+                ['label' => 'بدهکار', 'align' => 'end'],
+                ['label' => 'بستانکار', 'align' => 'end'],
+            ]">
+                @foreach ($entry->lines as $line)
+                    <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                        <td class="whitespace-nowrap px-5 py-3 text-sm text-gray-800 sm:px-6 dark:text-white/90">
+                            {{ $line->account->code }} — {{ $line->account->name }}
+                        </td>
+                        <td class="px-5 py-3 text-sm text-gray-600 sm:px-6 dark:text-gray-400">{{ $line->memo ?? '—' }}</td>
+                        <x-tables.num class="px-5 py-3 sm:px-6" :value="$line->debit > 0 ? $line->debit : null" type="toman" tone="positive" />
+                        <x-tables.num class="px-5 py-3 sm:px-6" :value="$line->credit > 0 ? $line->credit : null" type="toman" tone="negative" />
+                    </tr>
+                @endforeach
+            </x-tables.data-table>
+
+            @if ($operation->reversalEntry)
+                <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                    سند معکوس: <span dir="ltr">{{ $operation->reversalEntry->uuid }}</span> —
+                    سند اصلی بالا دست‌نخورده باقی مانده و فقط با سند معکوس خنثی شده است.
+                </p>
+            @endif
+        @else
+            <x-states.state variant="empty" title="هنوز سندی صادر نشده"
+                message="تا زمانی که این عملیات تأیید و ثبت نشود، هیچ اثری در دفترکل ندارد." />
+        @endif
+    </x-common.component-card>
+
+    <x-common.component-card title="ردپای عملیات">
+        <ul class="space-y-2 text-sm">
+            @foreach ($trail as $step)
+                <li class="flex items-center justify-between gap-3 border-b border-gray-100 pb-2 last:border-0 dark:border-gray-800">
+                    <span class="text-gray-500 dark:text-gray-400">{{ $step['label'] }}</span>
+                    <span class="text-gray-800 dark:text-white/90">
+                        {{ $step['user'] }}
+                        <span class="text-xs text-gray-400">— {{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($step['at']) }}</span>
+                    </span>
+                </li>
+            @endforeach
+        </ul>
+    </x-common.component-card>
+
+    @if ($canApprove || $canReverse || $canCancel)
+        <x-common.component-card title="کنترل‌ها">
+            <div class="grid gap-4 sm:grid-cols-2">
+                @if ($canApprove)
+                    <form method="POST" action="{{ route("financial-operations.{$kind}s.approve", $operation) }}">
+                        @csrf
+                        <p class="mb-2 text-sm text-gray-600 dark:text-gray-400">با تأیید، سند این عملیات همین حالا در دفترکل ثبت می‌شود.</p>
+                        <button class="h-10 w-full rounded-lg bg-success-500 text-sm font-medium text-white hover:bg-success-600">تأیید و ثبت سند</button>
+                    </form>
+                @endif
+
+                @if ($canCancel)
+                    <form method="POST" action="{{ route("financial-operations.{$kind}s.cancel", $operation) }}" class="space-y-2">
+                        @csrf
+                        <input type="text" name="reason" required maxlength="255" placeholder="دلیل لغو" class="{{ $inputClass }}">
+                        <button class="h-10 w-full rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5">
+                            لغو عملیات (بدون اثر مالی)
+                        </button>
+                    </form>
+                @endif
+
+                @if ($canReverse)
+                    <form method="POST" action="{{ route("financial-operations.{$kind}s.reverse", $operation) }}" class="space-y-2 sm:col-span-2">
+                        @csrf
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            برگشت، سند اصلی را حذف یا اصلاح نمی‌کند؛ یک سند معکوس صادر می‌شود و هر دو در تاریخچه می‌مانند.
+                        </p>
+                        <input type="text" name="reason" required maxlength="255" placeholder="دلیل برگشت (الزامی)" class="{{ $inputClass }}">
+                        <button class="h-10 w-full rounded-lg bg-error-500 text-sm font-medium text-white hover:bg-error-600">برگشت عملیات</button>
+                    </form>
+                @endif
+            </div>
+        </x-common.component-card>
+    @elseif ($operation->isPendingApproval())
+        <x-ui.alert variant="info" title="در انتظار تأیید"
+            message="این عملیات باید توسط کاربر دیگری تأیید شود؛ ثبت‌کننده نمی‌تواند عملیات خودش را تأیید کند." />
+    @endif
+</div>
+@endsection

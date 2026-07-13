@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Accounting\Models\AccountTransaction;
+use App\Domain\Accounting\Models\AccountTransfer;
 use App\Domain\Accounting\Models\CustomerProfile;
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\PartnerProfile;
@@ -74,6 +76,8 @@ class AppServiceProvider extends ServiceProvider
             'bad_debt_write_off' => BadDebtWriteOff::class,
             'credit_order_settlement' => CreditOrderSettlement::class,
             'party' => Party::class,
+            'account_transfer' => AccountTransfer::class,
+            'account_transaction' => AccountTransaction::class,
             // Not journal sources — but the morph map is enforced, so any model
             // whose class is resolved to a morph alias (LogsActivity does exactly
             // that for its subject) must be registered here or it throws.

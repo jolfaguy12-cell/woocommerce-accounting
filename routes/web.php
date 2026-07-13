@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\BankDepositController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FastFormController;
+use App\Http\Controllers\Admin\FinancialOperationController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
@@ -173,6 +174,26 @@ Route::middleware(['auth'])->group(function () {
         Route::get('bank-accounts/deposits', [BankDepositController::class, 'index'])->name('deposits.index');
         Route::post('bank-accounts/deposits/import', [BankDepositController::class, 'import'])->name('deposits.import');
         Route::get('bank-accounts/{bankAccount}', [BankAccountController::class, 'show'])->name('bank-accounts.show');
+
+        // «عملیات مالی جدید» — the one entry point for money movements that had no
+        // home: transfers between our own accounts, and direct deposits/withdrawals
+        // against an explicit counter-account. Approval and reversal are controlled
+        // by the `ops.*` settings (App\Domain\Accounting\Support\OperationPolicy),
+        // not by the route, so tightening them is an admin action, not a deploy.
+        // `create` is declared before the {model} routes so the literal wins.
+        Route::get('financial-operations', [FinancialOperationController::class, 'index'])->name('financial-operations.index');
+        Route::get('financial-operations/create', [FinancialOperationController::class, 'create'])->name('financial-operations.create');
+        Route::post('financial-operations', [FinancialOperationController::class, 'store'])->name('financial-operations.store');
+
+        Route::get('financial-operations/transfers/{transfer}', [FinancialOperationController::class, 'showTransfer'])->name('financial-operations.transfers.show');
+        Route::post('financial-operations/transfers/{transfer}/approve', [FinancialOperationController::class, 'approveTransfer'])->name('financial-operations.transfers.approve');
+        Route::post('financial-operations/transfers/{transfer}/reverse', [FinancialOperationController::class, 'reverseTransfer'])->name('financial-operations.transfers.reverse');
+        Route::post('financial-operations/transfers/{transfer}/cancel', [FinancialOperationController::class, 'cancelTransfer'])->name('financial-operations.transfers.cancel');
+
+        Route::get('financial-operations/transactions/{transaction}', [FinancialOperationController::class, 'showTransaction'])->name('financial-operations.transactions.show');
+        Route::post('financial-operations/transactions/{transaction}/approve', [FinancialOperationController::class, 'approveTransaction'])->name('financial-operations.transactions.approve');
+        Route::post('financial-operations/transactions/{transaction}/reverse', [FinancialOperationController::class, 'reverseTransaction'])->name('financial-operations.transactions.reverse');
+        Route::post('financial-operations/transactions/{transaction}/cancel', [FinancialOperationController::class, 'cancelTransaction'])->name('financial-operations.transactions.cancel');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');

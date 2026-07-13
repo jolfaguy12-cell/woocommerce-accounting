@@ -54,20 +54,23 @@ class MenuHelper
                     ['name' => 'یادداشت‌ها', 'path' => '/notifications/notes', 'badge' => self::unreadNotesCount()],
                 ],
             ],
+            // The single entry point for money movements that had no home: transfers
+            // between our own accounts, and direct deposits/withdrawals. It replaces
+            // the three dangling links that used to sit here — /new-cost (listed
+            // twice, pointing at a route that never existed) and /new-income.
+            // Categorised expenses keep their own recorder; they live in فرم‌های سریع.
+            [
+                'icon' => 'exchange-arrows',
+                'name' => 'عملیات مالی جدید',
+                'subItems' => [
+                    ['name' => 'ثبت عملیات مالی', 'path' => '/financial-operations/create', 'pro' => false],
+                    ['name' => 'مشاهده عملیات مالی', 'path' => '/financial-operations', 'pro' => false],
+                ],
+            ],
             [
                 'icon' => 'expense-minus',
-                'name' => 'ثبت هزینه جدید',
-                'path' => '/new-cost',
-            ],
-            [
-                'icon' => 'tables',
                 'name' => 'ثبت هزینه',
-                'path' => '/new-cost',
-            ],
-            [
-                'icon' => 'income-plus',
-                'name' => 'ثبت پرداختی',
-                'path' => '/new-income',
+                'path' => '/fast-forms',
             ],
             [
                 'name' => 'امور حساب ها',

@@ -65,7 +65,16 @@
             @foreach ($transactions as $line)
                 <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                     <td x-show="visible.date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($line->entry->entry_date) }}</td>
-                    <td x-show="visible.description" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">{{ $line->entry->description }}</td>
+                    <td x-show="visible.description" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">
+                        {{-- A transfer posts ONE entry that lands in both accounts' ledgers, so
+                             this row exists on both sides. Linking it back to the operation is
+                             what lets a reader of either ledger see the whole movement. --}}
+                        @if ($operationUrl = \App\Support\Design\LedgerSourceLink::for($line->entry->source))
+                            <a href="{{ $operationUrl }}" class="font-medium text-brand-500 hover:underline">{{ $line->entry->description }}</a>
+                        @else
+                            {{ $line->entry->description }}
+                        @endif
+                    </td>
                     <td x-show="visible.party" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">
                         @if ($line->party?->hasRole('customer'))
                             <a href="{{ route('customers.show', $line->party) }}" class="font-medium text-brand-500 hover:underline">{{ $line->party->name }}</a>
@@ -76,6 +85,12 @@
                     <td x-show="visible.notes" class="px-5 py-3 sm:px-6">
                         @if ($line->entry->source instanceof \App\Domain\Receivables\Models\PartyPayment)
                             @include('pages.suppliers.partials.note-edit-control', ['payment' => $line->entry->source])
+                        @elseif ($line->memo)
+                            {{-- The line's own memo, not the entry's. On a transfer the two sides
+                                 carry OPPOSITE memos ("انتقال به …" / "انتقال از …"), so each
+                                 ledger reads in its own direction instead of showing both
+                                 accounts the same sentence. --}}
+                            <span class="text-gray-600 dark:text-gray-400">{{ $line->memo }}</span>
                         @else
                             <span class="text-gray-400">—</span>
                         @endif
