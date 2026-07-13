@@ -125,19 +125,37 @@ class OrderController extends Controller
         return back()->with('success', 'لیبل‌های سفارش به‌روزرسانی شد.');
     }
 
-    /** Manual real shipping cost (README §13) then re-evaluate profit. */
+    /**
+     * Manual shipping overrides (README §13), each independently optional so
+     * staff can correct just one side without touching the other:
+     * - real_cost: the actual/real shipping expense (courier cost, etc).
+     * - charged_cost: what was actually received from the customer, for when
+     *   the hub's synced shipping_charged is wrong — e.g. a free-shipping
+     *   discount deal struck with the customer that never reaches
+     *   WooCommerce's own shipping_total (see Order::shipping_charged_effective).
+     * A blank field is left untouched rather than cleared, so submitting one
+     * side never erases a previously-recorded override on the other.
+     */
     public function setShipping(Request $request, Order $order, ProfitEngine $engine): RedirectResponse
     {
-        $data = $request->validate(['real_cost' => 'required|integer|min:0']);
-
-        $order->shippingCost()->updateOrCreate([], [
-            'real_cost' => $data['real_cost'],
-            'set_by' => $request->user()->id,
+        $data = $request->validate([
+            'real_cost' => 'nullable|integer|min:0|required_without:charged_cost',
+            'charged_cost' => 'nullable|integer|min:0|required_without:real_cost',
         ]);
+
+        $updates = ['set_by' => $request->user()->id];
+        if ($request->filled('real_cost')) {
+            $updates['real_cost'] = $data['real_cost'];
+        }
+        if ($request->filled('charged_cost')) {
+            $updates['charged_cost'] = $data['charged_cost'];
+        }
+
+        $order->shippingCost()->updateOrCreate([], $updates);
 
         $engine->evaluate($order->refresh());
 
-        return back()->with('success', 'هزینه حمل واقعی ثبت و سود بازمحاسبه شد.');
+        return back()->with('success', 'هزینه حمل ثبت و سود بازمحاسبه شد.');
     }
 
     /** Manual per-order packaging cost override, taking precedence over the weight-tier/default resolution. */

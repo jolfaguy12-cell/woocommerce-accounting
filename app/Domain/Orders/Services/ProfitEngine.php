@@ -155,9 +155,10 @@ class ProfitEngine
     {
         $gross = (int) $order->items->sum('line_subtotal');
         $lineNet = (int) $order->items->sum('line_total');
+        $shippingCharged = $order->shipping_charged_effective;
 
         [$cost, $breakdown, $missing] = $this->productCost($order);
-        [$shippingReal, $shippingBasis] = $this->shipping($order);
+        [$shippingReal, $shippingBasis] = $this->shipping($order, $shippingCharged);
         [$fee, $feeSource, $warnings] = $this->channelFee($order);
         [$marketplaceDiscount, $discountSource] = $this->channelDiscount($order, $gross, $fee, $feeSource);
         [$packagingCost, $packageWeight, $packagingBasis] = $this->packaging($order);
@@ -174,7 +175,7 @@ class ProfitEngine
             'net_sale' => $net,
             'product_cost' => $missing === [] ? $cost : null,
             'cost_breakdown' => $breakdown,
-            'shipping_charged' => $order->shipping_charged,
+            'shipping_charged' => $shippingCharged,
             'shipping_real' => $shippingReal,
             'shipping_basis' => $shippingBasis,
             'channel_fee' => $fee,
@@ -188,7 +189,7 @@ class ProfitEngine
             'packaging_cost_basis' => $packagingBasis,
             'gross_profit' => $missing === [] ? $net - $cost : null,
             'operational_profit' => $missing === []
-                ? $net - $cost + $order->shipping_charged - $shippingReal - $fee
+                ? $net - $cost + $shippingCharged - $shippingReal - $fee
                 : null,
         ];
     }
@@ -225,13 +226,15 @@ class ProfitEngine
     }
 
     /** README §13: manual real cost → customer-paid (when charged) → default setting. */
-    private function shipping(Order $order): array
+    private function shipping(Order $order, int $shippingCharged): array
     {
         if ($manual = $order->shippingCost) {
-            return [$manual->real_cost, 'manual'];
+            if ($manual->real_cost !== null) {
+                return [$manual->real_cost, 'manual'];
+            }
         }
-        if ($order->shipping_charged > 0) {
-            return [$order->shipping_charged, 'customer_paid'];
+        if ($shippingCharged > 0) {
+            return [$shippingCharged, 'customer_paid'];
         }
         if (($default = (int) Setting::get('default_shipping_cost', 0)) > 0) {
             return [$default, 'default'];

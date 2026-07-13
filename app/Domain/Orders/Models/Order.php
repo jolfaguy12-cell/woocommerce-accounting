@@ -61,6 +61,17 @@ class Order extends Model
         return $this->hasOne(OrderShippingCost::class);
     }
 
+    /**
+     * shipping_charged as synced from the hub, unless staff recorded a manual
+     * correction (e.g. a free-shipping deal struck with the customer that
+     * WooCommerce's own shipping_total never reflects — see
+     * OrderShippingCost::charged_cost).
+     */
+    public function getShippingChargedEffectiveAttribute(): int
+    {
+        return $this->shippingCost?->charged_cost ?? $this->shipping_charged;
+    }
+
     public function packagingCost(): HasOne
     {
         return $this->hasOne(OrderPackagingCost::class);

@@ -95,6 +95,40 @@ it('sets a manual real shipping cost and re-evaluates profit', function () {
         ->and($order->profit->version)->toBe(2); // reverse + repost
 });
 
+it('corrects the charged shipping side independently of the real cost, for a free-shipping deal the hub never sees', function () {
+    $mirror = ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
+    $item = CostItem::create(['name' => 'اسپری']);
+    $item->costHistory()->create(['unit_cost' => 400_000, 'landed_unit_cost' => 400_000, 'source' => 'manual', 'effective_at' => '2026-07-01']);
+    ProductCostMapping::create(['product_mirror_id' => $mirror->id, 'cost_item_id' => $item->id, 'status' => 'mapped']);
+
+    app(OrderIngestPipeline::class)->ingest(6648, uiOrder(6648), 'manual');
+    $order = Order::firstWhere('hub_order_id', 6648);
+
+    expect($order->shipping_charged)->toBe(90_000)
+        ->and($order->shipping_charged_effective)->toBe(90_000);
+
+    // A coupon-driven free-shipping + self-pickup deal: WooCommerce's own
+    // shipping_total (90,000) never reflects it, so both sides need a manual
+    // correction — submitted as one form, but each field is independently
+    // optional so a future single-sided correction never erases the other.
+    $this->actingAs($this->admin)->post("/orders/{$order->id}/shipping", [
+        'charged_cost' => 0, 'real_cost' => 0,
+    ])->assertRedirect();
+
+    $order->refresh();
+    expect($order->shipping_charged_effective)->toBe(0)
+        ->and($order->shipping_charged)->toBe(90_000) // raw hub value stays intact for audit
+        ->and($order->profit->shipping_charged)->toBe(0)
+        ->and($order->profit->shipping_real)->toBe(0)
+        ->and($order->profit->shipping_basis)->toBe('manual');
+
+    // Later, correcting only the real cost must not erase the charged override.
+    $this->actingAs($this->admin)->post("/orders/{$order->id}/shipping", ['real_cost' => 15_000])->assertRedirect();
+
+    expect($order->refresh()->shipping_charged_effective)->toBe(0)
+        ->and($order->profit->shipping_real)->toBe(15_000);
+});
+
 it('sets a manual packaging cost override and re-evaluates profit', function () {
     $mirror = ProductMirror::create(['hub_product_id' => 5732, 'type' => 'simple', 'name' => 'اسپری', 'payload' => []]);
     $item = CostItem::create(['name' => 'اسپری']);

@@ -150,13 +150,15 @@
                 <p class="truncate font-medium text-gray-800 dark:text-white/90">{{ $order->shipping_method_title ?? 'ثبت نشده' }}</p>
             </div>
         </div>
-        @if ($order->shipping_charged == 0)
+        @if ($order->shipping_charged_effective == 0)
             @php
                 $freeShippingThreshold = $order->channel?->config['free_shipping_threshold'] ?? null;
                 $itemsTotal = (int) $order->items->sum('line_subtotal');
-                $freeShippingReason = $freeShippingThreshold && $itemsTotal > $freeShippingThreshold
-                    ? 'خرید بالای '.number_format($freeShippingThreshold).' تومان'
-                    : null;
+                $freeShippingReason = $order->shippingCost?->charged_cost === 0
+                    ? 'اصلاح دستی'
+                    : ($freeShippingThreshold && $itemsTotal > $freeShippingThreshold
+                        ? 'خرید بالای '.number_format($freeShippingThreshold).' تومان'
+                        : null);
             @endphp
             <div class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-white/[0.03]">
                 <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15">{!! $icon('box-package') !!}</div>
@@ -319,7 +321,12 @@
                 </div>
                 <div class="flex justify-between">
                     <span>حمل دریافتی از مشتری</span>
-                    <span dir="ltr">{{ number_format($order->shipping_charged) }}</span>
+                    <span dir="ltr">
+                        {{ number_format($order->shipping_charged_effective) }}
+                        @if ($order->shippingCost?->charged_cost !== null && $order->shippingCost->charged_cost !== $order->shipping_charged)
+                            <span class="text-xs text-gray-400 dark:text-gray-500" title="مقدار همگام‌سازی‌شده از ووکامرس، پیش از اصلاح دستی">(ووکامرس: {{ number_format($order->shipping_charged) }})</span>
+                        @endif
+                    </span>
                 </div>
                 <div class="flex justify-between font-medium text-gray-800 dark:text-white/90">
                     <span>جمع کل</span>
@@ -329,6 +336,15 @@
 
             <form method="POST" action="{{ route('orders.shipping', $order) }}" class="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
                 @csrf
+                <span class="text-sm text-gray-700 dark:text-gray-300">هزینه حمل دریافتی (اصلاح):</span>
+                <input
+                    type="number"
+                    name="charged_cost"
+                    dir="ltr"
+                    value="{{ $order->shippingCost?->charged_cost }}"
+                    placeholder="{{ number_format($order->shipping_charged) }}"
+                    class="h-9 w-28 min-w-0 flex-1 rounded-md border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90 sm:flex-none sm:w-36"
+                >
                 <span class="text-sm text-gray-700 dark:text-gray-300">هزینه حمل واقعی:</span>
                 <input
                     type="number"

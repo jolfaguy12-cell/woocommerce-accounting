@@ -130,6 +130,8 @@ Wholesale data must remain internal and must not be sent to WooCommerce.
 
 The internal product page should show product name, WooCommerce ID/variation ID, SKU, GTIN/UPC/EAN/ISBN, simple/variable type, current site stock from hub, current sale price, retail price, wholesale price, latest purchase cost, retail profit/margin, wholesale profit/margin, Cost Mapping status, price history, stock sync history, last sale, and last purchase.
 
+Product weight (grams) is synced from the hub when WooCommerce has it set; used by packaging-cost tiering (§13). Products without a weight fall back to a configurable default rather than blocking anything.
+
 Keep access control simple, but prevent sensitive data leakage outside the accounting system.
 
 ## 11. Dynamic Sales Channels
@@ -171,6 +173,8 @@ For metadata-commission channels, commission should be read from order metadata 
 
 For API-enriched channels, API data may enrich debt, settlement, installment, or status data, but the hub remains the primary order source unless explicitly changed later.
 
+**Status:** `manual_period`, `wallet_topup`, and `order_commission` cost models are implemented. `api_enriched` exists as a cost-model option but has no enrichment code behind it yet — build it when a real channel needs it.
+
 ## 13. Shipping
 
 Current implementation:
@@ -181,6 +185,8 @@ Current implementation:
 - Future enhancement may import postal PDFs, extract tracking/cost data, SMS tracking codes, complete orders, and update accounting shipping costs automatically.
 
 Reports must separate shipping charged to customer, real/default shipping cost, shipping difference, and shipping impact on profit.
+
+**Packaging cost (implemented, informational only — not yet posted to the journal or folded into operational profit):** resolved once per profit calculation, same manual-override → automatic-formula pattern as shipping. Automatic resolution is weight-tiered: order package weight = sum(item weight × qty, falling back to a configurable default per item when the hub has no weight) + a configurable packaging-container weight; the highest weight tier the package clears sets the cost, or a flat configurable default when no tier is cleared. Tiers and defaults are admin-editable (Warehouse → Packaging Cost). The resolved value is frozen onto the order at calculation time — editing tiers/defaults later never silently changes past orders, only orders recalculated after the change. A manager can also override the packaging cost for one specific order, and reset it back to automatic.
 
 ## 14. Credit Customers and Receivables
 
@@ -222,6 +228,8 @@ It must be responsive, live or near-live, modern, fast, and useful for daily man
 Use professional UI/chart libraries when helpful. Charts do not need to be fully RTL if that hurts quality. Prioritize correct data, readability, modern visuals, interaction, and Jalali/Persian display where appropriate.
 
 Dashboard should show KPI cards, sales/profit trends, dynamic channel comparison, channel cost/profitability, shipping analysis, expenses, cash/bank overview, receivables/payables, product performance, low-margin/loss-making products, missing Cost Mapping, sync health, alerts, review tasks, recent price/stock changes, and unknown/new source alerts.
+
+**Status:** the KPI/trend/health query logic described above is fully built (`DashboardController`), but the `/dashboard` route currently renders a static template instead of calling it — reconnecting the two is outstanding work, not a design gap.
 
 ## 18. Product Price and Stock Sync
 
@@ -283,11 +291,15 @@ Use safe sync patterns:
 
 Dashboard/CLI must show sync health, last successful sync, failed webhook count, pending jobs, hub availability, and new/unmapped source count.
 
-## 22. Review Queues and Fast Forms
+## 22. Review Queues, Fast Forms, and Order Notes
 
 Create a needs-review area for completed orders without cost, products without Cost Mapping, products without wholesale price, unknown/new order sources, missing real/default shipping data, unpaid credit balances, supplier delivery issues, sync failures, and low-margin/loss-making products.
 
 Provide fast forms for expenses, real shipping cost, channel top-up/cost, purchase cost, wholesale price, customer payment, supplier payment, and source-to-channel mapping.
+
+**Status:** the review queue itself covers the full list above. Fast Forms currently only covers expenses, channel top-up, customer payment, and bank-account creation; real shipping cost, packaging cost, purchase cost, and wholesale price are entered as forms on the order/product page instead of Fast Forms, and supplier payment/source-to-channel mapping are handled from the review center, not a fast form.
+
+**Order Notes (implemented, lightweight collaboration layer):** staff can leave a free-text note on any order and optionally assign it to one or more colleagues. Assigned users get a live unread-count badge (اعلان‌ها → یادداشت‌ها in the sidebar) and an entry in the header notification dropdown; opening the notes inbox marks them read. A note's author (or an admin) can delete it. This is the only source feeding the notification system today — it's built to add more notification types later without changing the delivery mechanism.
 
 ## 23. Attachments
 
@@ -342,7 +354,9 @@ Current scope:
 - Loans
 - Cheques
 - Partner reports
-- Live responsive dashboard
+- Weight-tiered packaging cost tracking (informational; not journal-posted yet)
+- Order notes with recipient notifications (foundation for a broader notification system)
+- Live responsive dashboard (backend built; route reconnection pending — see §17)
 - Logs/audit
 - CLI
 - API-ready architecture

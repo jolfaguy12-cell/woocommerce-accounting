@@ -10,5 +10,6 @@ class OrderShippingCost extends Model
 
     protected $casts = [
         'real_cost' => 'integer',
+        'charged_cost' => 'integer',
     ];
 }
