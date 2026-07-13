@@ -1,6 +1,9 @@
 <?php
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Services\PartyLedgerService;
+use App\Domain\Accounting\Support\AccountCode;
+use App\Domain\Accounting\Support\PaymentPurpose;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Expenses\Services\BankAccountManager;
@@ -35,7 +38,7 @@ it('reports a positive payable balance after a received invoice, reduced by a pa
     expect($payables->partyPayableBalance($this->supplier))->toBe(3_000_000);
 });
 
-it('goes negative (we are owed) when paid more than currently owed', function () {
+it('splits an overpayment into a settled payable and a supplier advance, instead of driving the payable negative', function () {
     $service = app(PurchaseInvoiceService::class);
     $invoice = $service->create([
         'supplier_party_id' => $this->supplier->id,
@@ -44,9 +47,25 @@ it('goes negative (we are owed) when paid more than currently owed', function ()
     ]);
     $service->receive($invoice, [$invoice->lines->first()->id => 1]);
 
-    app(PaymentRecorder::class)->pay($this->supplier, 150_000, $this->bank->id);
+    $payment = app(PaymentRecorder::class)->pay($this->supplier, 150_000, $this->bank->id);
 
-    expect(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(-50_000);
+    // The payable is settled exactly, and the 50,000 paid ahead of it is an ASSET
+    // on 1450 — money the supplier owes us goods for. It used to sit on 2000 as a
+    // NEGATIVE liability, where it netted silently against the next invoice and no
+    // report could distinguish "we owe them nothing" from "they owe us goods".
+    expect(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(0)
+        ->and(app(PartyLedgerService::class)->balanceOn($this->supplier, AccountCode::SupplierAdvance))->toBe(50_000)
+        ->and($payment->advance_amount)->toBe(50_000)
+        ->and($payment->purpose)->toBe(PaymentPurpose::SupplierInvoiceSettlement);
+});
+
+it('records a payment to a supplier we owe nothing as a pure advance', function () {
+    $payment = app(PaymentRecorder::class)->pay($this->supplier, 200_000, $this->bank->id);
+
+    expect(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(0)
+        ->and(app(PartyLedgerService::class)->balanceOn($this->supplier, AccountCode::SupplierAdvance))->toBe(200_000)
+        ->and($payment->advance_amount)->toBe(200_000)
+        ->and($payment->purpose)->toBe(PaymentPurpose::SupplierAdvance);
 });
 
 it('builds a running-balance ledger for a supplier, newest first', function () {

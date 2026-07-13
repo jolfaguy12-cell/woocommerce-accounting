@@ -6,10 +6,12 @@ use App\Domain\Accounting\Models\AccountTransaction;
 use App\Domain\Accounting\Models\AccountTransfer;
 use App\Domain\Accounting\Models\CustomerProfile;
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Accounting\Models\PartnerOperation;
 use App\Domain\Accounting\Models\PartnerProfile;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Models\PartyBankAccount;
 use App\Domain\Accounting\Models\PartyExternalId;
+use App\Domain\Accounting\Models\PartyOffset;
 use App\Domain\Accounting\Models\PartyRole;
 use App\Domain\Accounting\Models\SupplierProfile;
 use App\Domain\Channels\Models\Channel;
@@ -78,6 +80,8 @@ class AppServiceProvider extends ServiceProvider
             'party' => Party::class,
             'account_transfer' => AccountTransfer::class,
             'account_transaction' => AccountTransaction::class,
+            'party_offset' => PartyOffset::class,
+            'partner_operation' => PartnerOperation::class,
             // Not journal sources — but the morph map is enforced, so any model
             // whose class is resolved to a morph alias (LogsActivity does exactly
             // that for its subject) must be registered here or it throws.

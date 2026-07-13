@@ -4,7 +4,9 @@ namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\AccountTransaction;
+use App\Domain\Accounting\Support\CounterAccountPolicy;
 use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
 use App\Domain\Expenses\Models\BankAccount;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +25,14 @@ use InvalidArgumentException;
  */
 class AccountTransactionService extends FinancialOperationService
 {
+    public function __construct(
+        JournalPoster $poster,
+        OperationPolicy $policy,
+        private readonly CounterAccountPolicy $counterAccounts,
+    ) {
+        parent::__construct($poster, $policy);
+    }
+
     /**
      * $data: bank_account_id, direction (in|out), counter_account_id, purpose,
      *        amount, transaction_date, description,
@@ -79,22 +89,17 @@ class AccountTransactionService extends FinancialOperationService
             throw new InvalidArgumentException("حساب «{$bankAccount->name}» غیرفعال است.");
         }
 
-        if (! $counter->is_active) {
-            throw new InvalidArgumentException("حساب مقابل «{$counter->name}» غیرفعال است.");
-        }
-
         // Both lines on one account nets to nothing: it would post a balanced,
         // completely meaningless entry, and the balance would not move at all.
         if ($counter->id === $bankAccount->account_id) {
             throw new InvalidArgumentException('حساب مقابل نمی‌تواند خودِ همان حساب باشد.');
         }
 
-        // Money moving between two of OUR accounts is a transfer. Recording it here
-        // would work — and would then be invisible to every transfer report, and
-        // could not carry a bank fee. Send it to the operation that models it.
-        if (BankAccount::where('account_id', $counter->id)->exists()) {
-            throw new InvalidArgumentException('حساب مقابل یکی از حساب‌های داخلی است؛ برای جابه‌جایی بین حساب‌ها از «انتقال بین حساب‌ها» استفاده کنید.');
-        }
+        // THE gate. A direct operation may reach nothing but income, expense and
+        // classified adjustments — never a control account, whose balance belongs
+        // to a typed workflow (payments, invoices, loans, payroll, partner ops).
+        // Enforced here rather than in the form, so no caller can bypass it.
+        $this->counterAccounts->assertEligible($counter);
     }
 
     protected function lines(Model $operation): array

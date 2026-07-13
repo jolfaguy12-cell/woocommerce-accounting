@@ -100,6 +100,14 @@ class MenuHelper
                 ],
             ],
             [
+                'name' => 'عملیات شرکا',
+                'icon' => 'scale-balance',
+                'subItems' => [
+                    ['name' => 'ثبت عملیات شریک', 'path' => '/partner-operations/create', 'pro' => false],
+                    ['name' => 'مشاهده عملیات شرکا', 'path' => '/partner-operations', 'pro' => false],
+                ],
+            ],
+            [
                 'name' => 'ابزار ها',
                 'icon' => 'exchange-arrows',
                 'subItems' => [

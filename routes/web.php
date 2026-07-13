@@ -12,7 +12,9 @@ use App\Http\Controllers\Admin\FinancialOperationController;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PackagingCostController;
+use App\Http\Controllers\Admin\PartnerOperationController;
 use App\Http\Controllers\Admin\PartyController;
+use App\Http\Controllers\Admin\PartyOffsetController;
 use App\Http\Controllers\Admin\PartyPaymentController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\PurchaseInvoiceController;
@@ -194,6 +196,27 @@ Route::middleware(['auth'])->group(function () {
         Route::post('financial-operations/transactions/{transaction}/approve', [FinancialOperationController::class, 'approveTransaction'])->name('financial-operations.transactions.approve');
         Route::post('financial-operations/transactions/{transaction}/reverse', [FinancialOperationController::class, 'reverseTransaction'])->name('financial-operations.transactions.reverse');
         Route::post('financial-operations/transactions/{transaction}/cancel', [FinancialOperationController::class, 'cancelTransaction'])->name('financial-operations.transactions.cancel');
+
+        // «حساب‌های دوطرفه» — netting two balances the SAME party holds. These are
+        // the URLs the sidebar has pointed at since long before the routes existed.
+        // `create` before `{offset}` or the wildcard swallows the literal.
+        Route::get('mutual-accounts', [PartyOffsetController::class, 'index'])->name('mutual-accounts.index');
+        Route::get('mutual-accounts/create', [PartyOffsetController::class, 'create'])->name('mutual-accounts.create');
+        Route::post('mutual-accounts', [PartyOffsetController::class, 'store'])->name('mutual-accounts.store');
+        Route::get('mutual-accounts/{offset}', [PartyOffsetController::class, 'show'])->name('mutual-accounts.show');
+        Route::post('mutual-accounts/{offset}/approve', [PartyOffsetController::class, 'approve'])->name('mutual-accounts.approve');
+        Route::post('mutual-accounts/{offset}/reverse', [PartyOffsetController::class, 'reverse'])->name('mutual-accounts.reverse');
+        Route::post('mutual-accounts/{offset}/cancel', [PartyOffsetController::class, 'cancel'])->name('mutual-accounts.cancel');
+
+        // «عملیات شرکا» — capital, drawings, profit shares and partner loans, each
+        // on its own accounts (never generic income/expense).
+        Route::get('partner-operations', [PartnerOperationController::class, 'index'])->name('partner-operations.index');
+        Route::get('partner-operations/create', [PartnerOperationController::class, 'create'])->name('partner-operations.create');
+        Route::post('partner-operations', [PartnerOperationController::class, 'store'])->name('partner-operations.store');
+        Route::get('partner-operations/{partnerOperation}', [PartnerOperationController::class, 'show'])->name('partner-operations.show');
+        Route::post('partner-operations/{partnerOperation}/approve', [PartnerOperationController::class, 'approve'])->name('partner-operations.approve');
+        Route::post('partner-operations/{partnerOperation}/reverse', [PartnerOperationController::class, 'reverse'])->name('partner-operations.reverse');
+        Route::post('partner-operations/{partnerOperation}/cancel', [PartnerOperationController::class, 'cancel'])->name('partner-operations.cancel');
 
         Route::get('fast-forms', [FastFormController::class, 'index'])->name('fast-forms');
         Route::post('fast-forms/expense', [FastFormController::class, 'storeExpense'])->name('fast-forms.expense');

@@ -4,6 +4,8 @@ namespace App\Domain\Receivables\Models;
 
 use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Models\PartyBankAccount;
+use App\Domain\Accounting\Support\PaymentPurpose;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -21,12 +23,28 @@ class PartyPayment extends Model
 
     protected $casts = [
         'amount' => 'integer',
+        // How much of an outgoing supplier payment ran ahead of the invoices (1450).
+        'advance_amount' => 'integer',
         'paid_at' => 'date',
+        'accounting_date' => 'date',
+        'purpose' => PaymentPurpose::class,
     ];
+
+    /** NULL for rows written before purposes existed — nothing guesses one for them. */
+    public function purposeLabel(): string
+    {
+        return $this->purpose?->label() ?? '—';
+    }
 
     public function party(): BelongsTo
     {
         return $this->belongsTo(Party::class);
+    }
+
+    /** The counterparty's own bank account — which card/IBAN we actually paid. */
+    public function partyBankAccount(): BelongsTo
+    {
+        return $this->belongsTo(PartyBankAccount::class, 'party_bank_account_id');
     }
 
     public function bankAccount(): BelongsTo

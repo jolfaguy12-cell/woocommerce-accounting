@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Accounting\Exceptions\NegativeBalanceException;
 use App\Domain\Accounting\Exceptions\OperationStateException;
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
-use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\AccountTransaction;
 use App\Domain\Accounting\Models\AccountTransfer;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Services\AccountTransactionService;
 use App\Domain\Accounting\Services\AccountTransferService;
 use App\Domain\Accounting\Services\FinancialOperationService;
+use App\Domain\Accounting\Support\CounterAccountPolicy;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Accounting\Support\OperationStatus;
@@ -45,6 +45,7 @@ class FinancialOperationController extends Controller
         private readonly AccountTransferService $transfers,
         private readonly AccountTransactionService $transactions,
         private readonly OperationPolicy $policy,
+        private readonly CounterAccountPolicy $counterAccountPolicy,
     ) {}
 
     /**
@@ -278,18 +279,13 @@ class FinancialOperationController extends Controller
     }
 
     /**
-     * Everything a bank account's ledger account is NOT — you cannot pick another
-     * internal account as the counter side, because that movement is a transfer
-     * and has its own operation (and its own fee handling).
+     * The form offers exactly what the service will accept — same policy object,
+     * so the dropdown can never drift into offering an account that then gets
+     * refused (or, far worse, quietly accepted).
      */
     private function counterAccounts()
     {
-        $internal = BankAccount::pluck('account_id');
-
-        return Account::where('is_active', true)
-            ->whereNotIn('id', $internal)
-            ->orderBy('code')
-            ->get(['id', 'code', 'name', 'type']);
+        return $this->counterAccountPolicy->eligible();
     }
 
     private function rowForTransfer(AccountTransfer $t): array

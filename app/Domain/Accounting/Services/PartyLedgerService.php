@@ -32,6 +32,19 @@ class PartyLedgerService
      * account normally runs", and a negative one means the balance has flipped
      * (e.g. a supplier we have overpaid).
      */
+    /**
+     * CONTRA accounts: their `type` says one direction and their meaning is the
+     * other. Partner drawings are filed under equity — but equity runs credit-first
+     * and a drawing is a debit, so a partner who has taken 1,000,000 out would read
+     * as MINUS 1,000,000 "withdrawals". The figure is right and the sign is
+     * nonsense: nobody has negative drawings.
+     *
+     * @var list<string>
+     */
+    private const DEBIT_NATURAL_CONTRA = [
+        '3100', // برداشت شریک — contra-equity
+    ];
+
     public function balanceOn(Party $party, AccountCode $code): int
     {
         $account = $code->account();
@@ -44,9 +57,10 @@ class PartyLedgerService
         $debit = (int) $sums->debit;
         $credit = (int) $sums->credit;
 
-        return in_array($account->type, ['asset', 'expense'], true)
-            ? $debit - $credit
-            : $credit - $debit;
+        $debitNatural = in_array($account->type, ['asset', 'expense'], true)
+            || in_array($account->code, self::DEBIT_NATURAL_CONTRA, true);
+
+        return $debitNatural ? $debit - $credit : $credit - $debit;
     }
 
     /** >0: the customer owes us. */
@@ -113,6 +127,24 @@ class PartyLedgerService
         return $this->balanceOn($party, AccountCode::PartnerCurrentAccount);
     }
 
+    /** >0: the partner's capital stake in the business. */
+    public function partnerCapital(Party $party): int
+    {
+        return $this->balanceOn($party, AccountCode::Capital);
+    }
+
+    /** >0: how much the partner has drawn against their share (contra-equity). */
+    public function partnerWithdrawals(Party $party): int
+    {
+        return $this->balanceOn($party, AccountCode::PartnerWithdrawal);
+    }
+
+    /** >0: profit declared for the partner but not yet paid out. */
+    public function partnerProfitPayable(Party $party): int
+    {
+        return $this->balanceOn($party, AccountCode::PartnerProfitPayable);
+    }
+
     /**
      * Every balance this party currently has, keyed by context, with the zero
      * ones dropped — this is what the profile's balance cards render.
@@ -131,6 +163,14 @@ class PartyLedgerService
             'loan_receivable' => ['وام پرداختی', $this->loanReceivable($party), 'due_to_us'],
             'loan_payable' => ['وام دریافتی', $this->loanPayable($party), 'due_to_them'],
             'partner_current_account' => ['حساب جاری شریک', $this->partnerCurrentAccount($party), 'due_to_them'],
+            'partner_profit_payable' => ['سود سهم شرکا پرداختنی', $this->partnerProfitPayable($party), 'due_to_them'],
+            // Capital and drawings are NOT debts in either direction — they are the
+            // partner's stake and what they have taken against it. They are listed so
+            // the profile can show them, but excluded from consolidatedPosition()
+            // below: netting an owner's capital against a customer's invoice would be
+            // meaningless.
+            'partner_capital' => ['سرمایه شریک', $this->partnerCapital($party), 'equity'],
+            'partner_withdrawals' => ['برداشت شریک', $this->partnerWithdrawals($party), 'equity'],
         ];
 
         $balances = [];
@@ -166,6 +206,13 @@ class PartyLedgerService
         $net = 0;
 
         foreach ($this->balances($party) as $balance) {
+            // Equity is not a debt in either direction: a partner's capital is not
+            // money they owe us, and netting it against their unpaid invoice would
+            // produce a number that means nothing at all.
+            if ($balance['direction'] === 'equity') {
+                continue;
+            }
+
             $net += $balance['direction'] === 'due_to_us' ? $balance['amount'] : -$balance['amount'];
         }
 

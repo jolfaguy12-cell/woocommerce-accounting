@@ -1,6 +1,8 @@
 <?php
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Services\PartyLedgerService;
+use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Expenses\Services\BankAccountManager;
@@ -28,7 +30,7 @@ it('records a manual retained-balance credit, debiting AP and crediting other in
         ->and(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(-300_000);
 });
 
-it('records a refund from the supplier, debiting the bank account and crediting AP back toward zero', function () {
+it('clears the supplier advance FIRST when a refund arrives, before touching the payable', function () {
     $service = app(PurchaseInvoiceService::class);
     $item = CostItem::create(['name' => 'اسپری']);
     $invoice = $service->create([
@@ -37,14 +39,35 @@ it('records a refund from the supplier, debiting the bank account and crediting 
         'lines' => [['cost_item_id' => $item->id, 'qty' => 1, 'unit_price' => 100_000]],
     ]);
     $service->receive($invoice, [$invoice->lines->first()->id => 1]);
-    app(PaymentRecorder::class)->pay($this->supplier, 300_000, $this->bank->id); // overpay -> -200,000 credit balance
+
+    // Pay 300k against a 100k invoice: 100k settles the payable, 200k is an advance.
+    app(PaymentRecorder::class)->pay($this->supplier, 300_000, $this->bank->id);
 
     $payment = app(PaymentRecorder::class)->receiveRefund($this->supplier, 150_000, $this->bank->id, null, 'bank_transfer', 'REF-1');
 
+    // The refund is them giving the prepayment back, so it comes off the advance.
+    // Crediting the payable instead would leave 200k still sitting on 1450 as an
+    // asset we no longer have, AND manufacture a payable balance out of nothing.
     expect($payment->direction)->toBe('in')
         ->and($payment->method)->toBe('bank_transfer')
         ->and($payment->reference)->toBe('REF-1')
-        ->and(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(-50_000);
+        ->and($payment->advance_amount)->toBe(150_000)
+        ->and(app(PartyLedgerService::class)->balanceOn($this->supplier, AccountCode::SupplierAdvance))->toBe(50_000)
+        ->and(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(0);
+});
+
+it('lets a refund larger than the advance fall through to the payable', function () {
+    // No invoice: the whole 100k payment is an advance.
+    app(PaymentRecorder::class)->pay($this->supplier, 100_000, $this->bank->id);
+
+    app(PaymentRecorder::class)->receiveRefund($this->supplier, 150_000, $this->bank->id);
+
+    // 100k clears the advance. The extra 50k is cash they handed us beyond any
+    // prepayment we had made — we were not entitled to it, so we now OWE them
+    // 50k, and the payable rises. (Unchanged behaviour for the excess; only the
+    // part covered by an advance is what moved to 1450.)
+    expect(app(PartyLedgerService::class)->balanceOn($this->supplier, AccountCode::SupplierAdvance))->toBe(0)
+        ->and(app(PayablesService::class)->partyPayableBalance($this->supplier))->toBe(50_000);
 });
 
 it('records a payment with method/reference and a refund/credit over HTTP, forbidding warehouse on all three', function () {
