@@ -3,11 +3,17 @@
 namespace App\Domain\Receivables\Services;
 
 use App\Domain\Accounting\Models\Account;
+use App\Domain\Accounting\Models\JournalLine;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Costing\Models\PurchaseInvoice;
+use App\Domain\Costing\Models\PurchaseReturn;
 use App\Domain\Receivables\Models\PartyPayment;
+use App\Domain\Receivables\Models\SupplierCreditAdjustment;
 use App\Support\Design\TableQuery;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 /**
  * Supplier-side mirror of ReceivablesService: both live in this domain because
@@ -69,11 +75,64 @@ class PayablesService
 
         $transactions->getCollection()->transform(function ($line) use ($runningBalance) {
             $line->balance_after = $runningBalance[$line->id] ?? null;
+            $line->described = $this->describeLine($line);
 
             return $line;
         });
 
         return $transactions;
+    }
+
+    /**
+     * Last $limit AP lines for a supplier, described and ready to render —
+     * used by the supplier overview page's "آخرین تراکنش‌های مالی" preview so
+     * it shows the same rich, clickable detail as the full transactions tab
+     * (bank account, method, reference, notes, creator) instead of a bare
+     * description+amount line.
+     */
+    public function recentLines(Party $party, int $limit = 8): Collection
+    {
+        $lines = $this->apAccount()->lines()->where('party_id', $party->id)
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
+            ->with(['entry', 'entry.source' => function (MorphTo $morphTo) {
+                $morphTo->morphWith([PartyPayment::class => ['bankAccount', 'creator', 'editor']]);
+            }])
+            ->select('journal_lines.*')
+            ->orderByDesc('journal_entries.entry_date')->orderByDesc('journal_lines.id')
+            ->limit($limit)
+            ->get();
+
+        return $lines->map(fn ($line) => tap($line, fn ($l) => $l->described = $this->describeLine($l)));
+    }
+
+    /**
+     * The single place that turns a raw AP journal line into a typed, labeled,
+     * linkable row — shared by the full transactions tab and the overview
+     * preview so "what kind of transaction is this, and where does it link"
+     * is never duplicated (or allowed to drift) across two Blade files.
+     */
+    public function describeLine(JournalLine $line): array
+    {
+        $source = $line->entry->source;
+        $isPayment = $source instanceof PartyPayment;
+        $isReturn = $source instanceof PurchaseReturn;
+        $isInvoice = $source instanceof PurchaseInvoice;
+        $isCredit = $source instanceof SupplierCreditAdjustment;
+
+        $type = match (true) {
+            $isInvoice => ['label' => 'فاکتور خرید', 'color' => 'light', 'url' => route('purchases.show', $source)],
+            $isReturn => ['label' => 'برگشت از خرید', 'color' => 'warning', 'url' => route('purchases.show', $source->purchase_invoice_id)],
+            $isCredit => ['label' => 'اعتبار دستی', 'color' => 'info', 'url' => null],
+            $isPayment => ['label' => $source->direction === 'out' ? 'پرداخت' : 'بازپرداخت', 'color' => $source->direction === 'out' ? 'success' : 'primary', 'url' => null],
+            default => ['label' => '—', 'color' => 'light', 'url' => null],
+        };
+
+        return [
+            'date' => JalaliPeriod::fmtDateTime($line->entry->entry_date),
+            'description' => $line->entry->description,
+            'type' => $type,
+            'payment' => $isPayment ? $source : null,
+        ];
     }
 
     private function apAccount(): Account

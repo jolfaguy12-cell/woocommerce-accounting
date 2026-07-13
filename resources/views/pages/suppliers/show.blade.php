@@ -90,56 +90,112 @@
         :rows="[['label' => 'مانده قابل پرداخت به تامین‌کننده', 'value' => $payableBalance, 'type' => 'toman', 'signed' => true]]"
     />
 
-    <div class="grid gap-4 lg:grid-cols-2">
-        <x-widgets.timeline
-            title="آخرین تراکنش‌های مالی"
-            :items="$recentTransactions"
-            :moreUrl="route('suppliers.transactions', $supplier)"
-        />
-
-        <x-widgets.ranked-list
-            title="پرخریدترین اقلام از این تامین‌کننده"
-            :items="$topItems"
-            type="toman"
-            :moreUrl="route('suppliers.purchase-history', $supplier)"
-        />
-    </div>
-
-    <x-common.component-card title="آخرین فاکتورهای خرید">
+    @php $methodLabels = ['bank_transfer' => 'انتقال بانکی', 'cash' => 'نقدی', 'card' => 'کارت به کارت', 'other' => 'سایر']; @endphp
+    <x-common.component-card title="آخرین تراکنش‌های مالی">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
                         <th class="py-2 text-right font-normal">تاریخ</th>
-                        <th class="text-right font-normal">شماره فاکتور</th>
-                        <th class="text-right font-normal">وضعیت</th>
+                        <th class="text-right font-normal">نوع</th>
+                        <th class="text-right font-normal">شرح</th>
+                        <th class="text-right font-normal">حساب بانکی/نقدی</th>
+                        <th class="text-right font-normal">روش</th>
+                        <th class="text-right font-normal">مرجع</th>
+                        <th class="text-right font-normal">یادداشت</th>
+                        <th class="text-right font-normal">مبلغ</th>
+                        <th class="text-right font-normal">ثبت‌کننده</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($recentInvoices as $invoice)
+                    @forelse ($recentTransactions as $line)
+                        @php $row = $line->described; $payment = $row['payment']; @endphp
                         <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                            <x-tables.ltr class="py-2" :value="\Morilog\Jalali\Jalalian::fromCarbon($invoice->invoice_date)->format('Y/m/d')" />
-                            <td class="text-gray-800 dark:text-white/90">
-                                <a href="{{ route('purchases.show', $invoice) }}" class="text-brand-500 hover:underline">{{ $invoice->invoice_no ?? '#'.$invoice->id }}</a>
-                            </td>
+                            <td class="whitespace-nowrap py-2 text-xs text-gray-500 dark:text-gray-400">{{ $row['date'] }}</td>
                             <td>
-                                <x-ui.badge :color="$invoice->status === 'received' ? 'success' : ($invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
-                                    {{ $statusLabels[$invoice->status] ?? $invoice->status }}
-                                </x-ui.badge>
+                                @if ($row['type']['url'])
+                                    <a href="{{ $row['type']['url'] }}" class="hover:underline"><x-ui.badge :color="$row['type']['color']" size="sm">{{ $row['type']['label'] }}</x-ui.badge></a>
+                                @else
+                                    <x-ui.badge :color="$row['type']['color']" size="sm">{{ $row['type']['label'] }}</x-ui.badge>
+                                @endif
                             </td>
+                            <td class="text-gray-800 dark:text-white/90">{{ $row['description'] }}</td>
+                            <td>
+                                @if ($payment && $payment->bankAccount)
+                                    <a href="{{ route('bank-accounts.show', $payment->bankAccount) }}" class="text-brand-500 hover:underline">{{ $payment->bankAccount->name }}</a>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <td class="text-gray-600 dark:text-gray-300">{{ $payment ? ($methodLabels[$payment->method] ?? '—') : '—' }}</td>
+                            <x-tables.ltr :value="$payment->reference ?? null" tone="muted" />
+                            <td>
+                                @if ($payment)
+                                    @include('pages.suppliers.partials.note-edit-control', ['payment' => $payment])
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <x-tables.num :value="$line->credit > 0 ? $line->credit : $line->debit" :signed="$line->debit > 0" type="toman" tone="muted" />
+                            <td class="text-xs text-gray-500 dark:text-gray-400">{{ $payment->creator->name ?? '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="3" class="py-6 text-center text-gray-400">هنوز فاکتور خریدی برای این تامین‌کننده ثبت نشده است.</td>
+                            <td colspan="9" class="py-6 text-center text-gray-400">هنوز تراکنشی برای این تامین‌کننده ثبت نشده است.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <p class="mt-3 text-left">
-            <a href="{{ route('purchases.index', ['supplier_party_id' => $supplier->id]) }}" class="text-sm text-brand-500 hover:underline">مشاهده همه فاکتورها ←</a>
+            <a href="{{ route('suppliers.transactions', $supplier) }}" class="text-sm text-brand-500 hover:underline">مشاهده همه تراکنش‌ها ←</a>
         </p>
     </x-common.component-card>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+        <x-widgets.ranked-list
+            title="پرخریدترین اقلام از این تامین‌کننده"
+            :items="$topItems"
+            type="toman"
+            :moreUrl="route('suppliers.purchase-history', $supplier)"
+        />
+
+        <x-common.component-card title="آخرین فاکتورهای خرید">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            <th class="py-2 text-right font-normal">تاریخ</th>
+                            <th class="text-right font-normal">شماره فاکتور</th>
+                            <th class="text-right font-normal">وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($recentInvoices as $invoice)
+                            <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
+                                <x-tables.ltr class="py-2" :value="\Morilog\Jalali\Jalalian::fromCarbon($invoice->invoice_date)->format('Y/m/d')" />
+                                <td class="text-gray-800 dark:text-white/90">
+                                    <a href="{{ route('purchases.show', $invoice) }}" class="text-brand-500 hover:underline">{{ $invoice->invoice_no ?? '#'.$invoice->id }}</a>
+                                </td>
+                                <td>
+                                    <x-ui.badge :color="$invoice->status === 'received' ? 'success' : ($invoice->status === 'cancelled' ? 'error' : 'light')" size="sm">
+                                        {{ $statusLabels[$invoice->status] ?? $invoice->status }}
+                                    </x-ui.badge>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="3" class="py-6 text-center text-gray-400">هنوز فاکتور خریدی برای این تامین‌کننده ثبت نشده است.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-3 text-left">
+                <a href="{{ route('purchases.index', ['supplier_party_id' => $supplier->id]) }}" class="text-sm text-brand-500 hover:underline">مشاهده همه فاکتورها ←</a>
+            </p>
+        </x-common.component-card>
+    </div>
 </div>
 
 @include('pages.suppliers.partials.edit-modal')

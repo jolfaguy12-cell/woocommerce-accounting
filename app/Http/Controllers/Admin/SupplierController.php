@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
-use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Costing\Models\PurchaseInvoiceLine;
@@ -181,15 +180,6 @@ class SupplierController extends Controller
             ->get();
         $topItemsTotal = max(1, (int) $topItems->sum('value'));
 
-        $apAccount = Account::firstWhere('code', self::AP_ACCOUNT);
-        $recentTransactions = $apAccount->lines()->where('party_id', $supplier->id)
-            ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
-            ->with('entry')
-            ->select('journal_lines.*')
-            ->orderByDesc('journal_entries.entry_date')->orderByDesc('journal_lines.id')
-            ->limit(8)
-            ->get();
-
         return view('pages.suppliers.show', [
             'title' => 'تامین‌کننده — '.$supplier->name,
             'supplier' => $supplier,
@@ -205,12 +195,7 @@ class SupplierController extends Controller
                 'value' => (int) $row->value,
                 'share' => round($row->value / $topItemsTotal * 100, 1),
             ])->all(),
-            'recentTransactions' => $recentTransactions->map(fn ($line) => [
-                'title' => $line->entry->description,
-                'meta' => $line->credit > 0 ? ('+'.number_format($line->credit).' تومان') : ('−'.number_format($line->debit).' تومان'),
-                'time' => JalaliPeriod::fmtDateTime($line->entry->entry_date),
-                'tone' => $line->credit > 0 ? 'warning' : 'success',
-            ])->all(),
+            'recentTransactions' => $payables->recentLines($supplier, 8),
             'recentInvoices' => $supplier->purchaseInvoices()->orderByDesc('invoice_date')->limit(5)->get(),
             'bankAccounts' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
