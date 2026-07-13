@@ -3,6 +3,8 @@
 namespace App\Domain\Orders\Services;
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
+use App\Domain\Accounting\Support\PhoneNormalizer;
 use App\Domain\Orders\Support\BillingAddressFormatter;
 use App\Domain\Sync\Models\ReviewItem;
 
@@ -40,12 +42,14 @@ class CustomerResolver
 
         if ($hubCustomerId > 0) {
             $party = Party::firstOrNew(['hub_customer_id' => $hubCustomerId]);
-            $party->type = 'customer';
+            $party->type ??= PartyRoleType::Customer->value;
             $party->name = $name ?: ($party->name ?: "مشتری #{$hubCustomerId}");
             $party->phone = $phone ?: $party->phone;
             $party->email = $email ?: $party->email;
             $party->address = $address ?: $party->address;
             $party->save();
+
+            $this->ensureCustomerRole($party);
 
             return $party->id;
         }
@@ -57,29 +61,32 @@ class CustomerResolver
         $isNewParty = false;
 
         if ($phone) {
-            $party = Party::where('type', 'customer')->where('phone', $phone)->first();
+            $party = Party::withRole(PartyRoleType::Customer)->where('phone', $phone)->first();
 
             if (! $party && $existingPartyId) {
                 $linked = Party::find($existingPartyId);
-                if ($linked && $linked->type === 'customer' && $linked->phone === null) {
+                if ($linked && $linked->hasRole(PartyRoleType::Customer) && $linked->phone === null) {
                     $party = $linked; // same order, same person — it just gave us a phone number this time
                 }
             }
 
             if (! $party) {
-                $party = new Party(['type' => 'customer']);
+                $party = new Party(['type' => PartyRoleType::Customer->value]);
                 $isNewParty = true;
             }
         } else {
-            $party = Party::firstOrNew(['type' => 'customer', 'phone' => null, 'name' => $name]);
+            $party = Party::withRole(PartyRoleType::Customer)->whereNull('phone')->where('name', $name)->first()
+                ?? new Party(['type' => PartyRoleType::Customer->value, 'phone' => null, 'name' => $name]);
         }
 
-        $party->type = 'customer';
+        $party->type ??= PartyRoleType::Customer->value;
         $party->name = $name ?: ($party->name ?: 'مهمان');
         $party->phone = $phone ?: $party->phone;
         $party->email = $email ?: $party->email;
         $party->address = $address ?: $party->address;
         $party->save();
+
+        $this->ensureCustomerRole($party);
 
         // Two orders under the exact same name but two different phone
         // numbers might be the same person checking out from a different
@@ -95,9 +102,22 @@ class CustomerResolver
         return $party->id;
     }
 
+    /**
+     * A party that already exists as something else (a supplier we also sell to,
+     * say) now buys from us: give it the customer role rather than minting a
+     * second party for the same real person. A no-op when the role is already
+     * active, so the common path costs one indexed lookup.
+     */
+    private function ensureCustomerRole(Party $party): void
+    {
+        if (! $party->hasRole(PartyRoleType::Customer)) {
+            $party->activateRole(PartyRoleType::Customer);
+        }
+    }
+
     private function flagPossibleDuplicate(Party $newParty, string $name, string $phone): void
     {
-        $existing = Party::where('type', 'customer')
+        $existing = Party::withRole(PartyRoleType::Customer)
             ->where('name', $name)
             ->where('id', '!=', $newParty->id)
             ->whereNotNull('phone')
@@ -137,45 +157,9 @@ class CustomerResolver
         return $name !== '' ? $name : null;
     }
 
-    /**
-     * The hub's billing phone shows up in several equivalent forms for the
-     * same real number (+989121234567 / 00989121234567 / 9121234567 /
-     * 09121234567) — normalized to a single canonical form so format drift
-     * alone never creates a duplicate customer.
-     */
+    /** @see PhoneNormalizer — shared with party identity/duplicate detection, which must agree on what "the same number" means. */
     private function normalizePhone(?string $phone): ?string
     {
-        if (! $phone) {
-            return null;
-        }
-
-        // Billing phones sometimes arrive in Persian/Arabic-Indic digits —
-        // \D wouldn't touch those, so left alone they'd strip to nothing below.
-        $ascii = strtr($phone, [
-            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
-            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
-            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
-            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
-        ]);
-
-        $digits = preg_replace('/\D/', '', $ascii) ?? '';
-
-        if (str_starts_with($digits, '0098')) {
-            $digits = substr($digits, 4);
-        } elseif (str_starts_with($digits, '98') && strlen($digits) === 12) {
-            $digits = substr($digits, 2);
-        }
-
-        if (strlen($digits) === 10 && $digits[0] === '9') {
-            $digits = '0'.$digits;
-        }
-
-        // Not a single recognizable mobile number (e.g. two numbers pasted
-        // into one field) — don't guess, fall back to the original value.
-        if (strlen($digits) !== 11) {
-            return trim($phone) !== '' ? trim($phone) : null;
-        }
-
-        return $digits;
+        return PhoneNormalizer::normalize($phone);
     }
 }

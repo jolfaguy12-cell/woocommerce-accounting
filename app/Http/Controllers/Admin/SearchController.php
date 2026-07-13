@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Products\Models\ProductMirror;
 use App\Http\Controllers\Controller;
@@ -104,7 +105,7 @@ class SearchController extends Controller
     private function searchCustomers(string $query): Collection
     {
         return Party::query()
-            ->where('type', 'customer')
+            ->withRole(PartyRoleType::Customer)
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('phone', 'like', "%{$query}%")

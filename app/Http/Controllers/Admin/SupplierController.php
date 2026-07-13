@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Costing\Models\PurchaseInvoiceLine;
 use App\Domain\Costing\Services\OverdueReceivingService;
 use App\Domain\Expenses\Models\BankAccount;
@@ -47,7 +48,7 @@ class SupplierController extends Controller
             ->groupBy('journal_lines.party_id');
 
         $suppliers = Party::query()
-            ->where('type', 'supplier')
+            ->withRole(PartyRoleType::Supplier)
             ->leftJoinSub($payableSub, 'payables', 'payables.party_id', '=', 'parties.id')
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('parties.name', 'like', "%{$search}%")
@@ -71,14 +72,14 @@ class SupplierController extends Controller
     {
         $data = $this->validateProfile($request);
 
-        Party::create($data + ['type' => 'supplier']);
+        Party::create($data + ['type' => PartyRoleType::Supplier->value]);
 
         return back()->with('success', 'تامین‌کننده جدید ثبت شد.');
     }
 
     public function update(Request $request, Party $supplier): RedirectResponse
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $supplier->update($this->validateProfile($request));
 
@@ -88,7 +89,7 @@ class SupplierController extends Controller
     /** One-click bank payment to a supplier — debits AP, credits the paying bank account (PaymentRecorder::pay()). */
     public function pay(Request $request, Party $supplier, PaymentRecorder $recorder): RedirectResponse
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $data = $this->validatePaymentMeta($request);
 
@@ -104,7 +105,7 @@ class SupplierController extends Controller
     /** A supplier refunding money back to us (e.g. settling a credit balance in cash) — PaymentRecorder::receiveRefund(). */
     public function refund(Request $request, Party $supplier, PaymentRecorder $recorder): RedirectResponse
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $data = $this->validatePaymentMeta($request);
 
@@ -120,7 +121,7 @@ class SupplierController extends Controller
     /** Manual "retained balance" credit — not a return, not a cash refund (SupplierCreditService::recordManualCredit()). */
     public function storeCredit(Request $request, Party $supplier, SupplierCreditService $credits): RedirectResponse
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $data = $request->validate([
             'amount' => 'required|integer|min:1',
@@ -145,7 +146,7 @@ class SupplierController extends Controller
      */
     public function show(Party $supplier, PayablesService $payables): View
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $currentPeriod = JalaliPeriod::fromDate(now());
         $previousPeriod = JalaliPeriod::previous($currentPeriod);
@@ -204,7 +205,7 @@ class SupplierController extends Controller
 
     public function purchaseHistory(Request $request, Party $supplier): View
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $query = new TableQuery(
             request: $request,
@@ -243,7 +244,7 @@ class SupplierController extends Controller
 
     public function transactions(Request $request, Party $supplier, PayablesService $payables): View
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $query = new TableQuery(
             request: $request,
@@ -270,7 +271,7 @@ class SupplierController extends Controller
     /** Overdue receiving for this supplier only, grouped by invoice (see OverdueReceivingService's docblock for the definition). */
     public function overdue(Request $request, Party $supplier, OverdueReceivingService $overdue): View
     {
-        abort_unless($supplier->type === 'supplier', 404);
+        abort_unless($supplier->hasRole(PartyRoleType::Supplier), 404);
 
         $query = new TableQuery(
             request: $request,

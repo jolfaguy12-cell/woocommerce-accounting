@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Orders\Support\BillingAddressFormatter;
 use Illuminate\Console\Command;
 
@@ -18,7 +19,7 @@ class BackfillCustomerProfileCommand extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $parties = Party::where('type', 'customer')
+        $parties = Party::withRole(PartyRoleType::Customer)
             ->where(fn ($q) => $q->whereNull('email')->orWhereNull('address'))
             ->with(['orders' => fn ($q) => $q->latest('order_date')->with('rawOrder')])
             ->get();

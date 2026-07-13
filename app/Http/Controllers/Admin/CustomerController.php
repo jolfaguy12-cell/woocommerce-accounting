@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Orders\Models\Order;
@@ -105,7 +106,7 @@ class CustomerController extends Controller
     private function buildCustomersQuery(TableQuery $query, ?string $channelId, ?bool $wholesaleOnly)
     {
         return Party::query()
-            ->where('type', 'customer')
+            ->withRole(PartyRoleType::Customer)
             ->whereHas('orders') // hide order-less duplicates left behind by acc:customers:merge-duplicates (never deleted, just emptied)
             ->when($query->search(), fn ($q, string $search) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$search}%")
@@ -135,7 +136,7 @@ class CustomerController extends Controller
 
     public function show(Party $party, ReceivablesService $receivables): View
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $orders = $party->orders()
             ->with('channel', 'profit')
@@ -207,7 +208,7 @@ class CustomerController extends Controller
     /** Toggle the "wholesale customer" label — informational/searchable only, never touches pricing or journals. */
     public function setWholesale(Request $request, Party $party): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate(['is_wholesale' => ['required', 'boolean']]);
 
@@ -223,7 +224,7 @@ class CustomerController extends Controller
     /** Quick manual phone entry for guest customers CustomerResolver could only identify by name. */
     public function setPhone(Request $request, Party $party): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate(['phone' => ['required', 'string', 'max:32']]);
 
@@ -235,7 +236,7 @@ class CustomerController extends Controller
     /** Save/edit a customer's Telegram ID (chat id used by TelegramNotifier) — same validation rule as the user-facing profile field. */
     public function setTelegramId(Request $request, Party $party): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate(['telegram_id' => ['nullable', 'string', 'max:255']]);
 
@@ -251,7 +252,7 @@ class CustomerController extends Controller
      */
     public function recordSettlement(Request $request, Party $party, PaymentRecorder $recorder): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate([
             'amount' => ['required', 'integer', 'min:1'],
@@ -266,7 +267,7 @@ class CustomerController extends Controller
     /** Manual balance increase — a real credit sale (goods/service given, payment expected later). */
     public function storeCreditSale(Request $request, Party $party, CreditOrderService $service): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate([
             'amount' => ['required', 'integer', 'min:1'],
@@ -281,7 +282,7 @@ class CustomerController extends Controller
     /** Manual balance decrease — forgiving/writing off part of what the customer owes, never silently. */
     public function storeWriteOff(Request $request, Party $party, CreditOrderService $service, ReceivablesService $receivables): RedirectResponse
     {
-        abort_if($party->type !== 'customer', 404);
+        abort_unless($party->hasRole(PartyRoleType::Customer), 404);
 
         $data = $request->validate([
             'amount' => ['required', 'integer', 'min:1'],

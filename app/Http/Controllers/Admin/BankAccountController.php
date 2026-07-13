@@ -94,7 +94,7 @@ class BankAccountController extends Controller
 
         $transactions = $bankAccount->account->lines()
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
-            ->with(['entry', 'party', 'entry.source' => function (MorphTo $morphTo) {
+            ->with(['entry', 'party.roles', 'entry.source' => function (MorphTo $morphTo) {
                 $morphTo->morphWith([PartyPayment::class => ['creator', 'editor']]);
             }])
             ->when($search !== '', function ($q) use ($search) {

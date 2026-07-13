@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Costing\Models\PurchaseInvoiceLine;
@@ -14,6 +15,7 @@ use App\Domain\Costing\Services\PurchaseReturnService;
 use App\Domain\Expenses\Models\Attachment;
 use App\Domain\Products\Models\ProductMirror;
 use App\Http\Controllers\Controller;
+use App\Rules\PartyHasRole;
 use App\Support\Design\TableQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +23,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 class PurchaseInvoiceController extends Controller
@@ -80,7 +81,7 @@ class PurchaseInvoiceController extends Controller
     {
         return view('pages.purchases.create', [
             'title' => 'خرید جدید',
-            'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
+            'suppliers' => Party::withRole(PartyRoleType::Supplier)->orderBy('name')->get(['id', 'name', 'shop_name']),
             // Prefilled from the supplier page's "خرید جدید از این تامین‌کننده" button.
             'preselectedSupplierId' => $request->integer('supplier_party_id') ?: null,
         ]);
@@ -102,7 +103,7 @@ class PurchaseInvoiceController extends Controller
         $data = $this->validateInvoice($request);
 
         $supplierId = $data['supplier_party_id']
-            ?? Party::create(['type' => 'supplier', 'name' => $data['new_supplier_name']])->id;
+            ?? Party::create(['type' => PartyRoleType::Supplier->value, 'name' => $data['new_supplier_name']])->id;
 
         $lines = $this->resolveLines($data['lines'], $resolver);
 
@@ -158,7 +159,7 @@ class PurchaseInvoiceController extends Controller
         return view('pages.purchases.edit', [
             'title' => 'ویرایش فاکتور خرید #'.$invoice->id,
             'invoice' => $invoice,
-            'suppliers' => Party::where('type', 'supplier')->orderBy('name')->get(['id', 'name', 'shop_name']),
+            'suppliers' => Party::withRole(PartyRoleType::Supplier)->orderBy('name')->get(['id', 'name', 'shop_name']),
         ]);
     }
 
@@ -360,7 +361,7 @@ class PurchaseInvoiceController extends Controller
     private function validateInvoice(Request $request): array
     {
         return $request->validate([
-            'supplier_party_id' => ['nullable', Rule::exists('parties', 'id')->where('type', 'supplier')],
+            'supplier_party_id' => ['nullable', 'integer', new PartyHasRole(PartyRoleType::Supplier)],
             'new_supplier_name' => 'nullable|string|max:150|required_without:supplier_party_id',
             'invoice_no' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',

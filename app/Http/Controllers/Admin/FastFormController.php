@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\CostCenter;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Services\ChannelCostRecorder;
 use App\Domain\Expenses\Models\BankAccount;
@@ -29,7 +30,7 @@ class FastFormController extends Controller
             'banks' => BankAccount::where('is_active', true)->get(['id', 'name', 'is_cash']),
             'channels' => Channel::where('is_active', true)
                 ->whereIn('cost_model', ['wallet_topup', 'manual_period'])->get(['id', 'name']),
-            'customers' => Party::where('type', 'customer')->orderBy('name')->limit(200)->get(['id', 'name']),
+            'customers' => Party::withRole(PartyRoleType::Customer)->orderBy('name')->limit(200)->get(['id', 'name']),
             'open_credits' => CreditOrder::with('party:id,name')->where('status', 'open')->get()
                 ->map(fn ($c) => ['id' => $c->id, 'party_id' => $c->party_id, 'party' => $c->party->name,
                     'remaining' => $c->remaining(), 'description' => $c->description]),

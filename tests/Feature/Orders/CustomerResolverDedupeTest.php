@@ -65,3 +65,48 @@ it('collapses stray whitespace in a guest name so the same customer is not split
 
     expect(Party::where('type', 'customer')->count())->toBe(1);
 });
+
+it('never grants a role automatically on a phone match alone', function () {
+    // A supplier whose phone matches an incoming order. Attaching the customer
+    // role here would be an automatic merge on phone alone, which the spec
+    // forbids — a shared phone is a hint for review, not proof of identity.
+    // Granting a second role stays a deliberate, human action in the UI.
+    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران', 'phone' => '09121112233']);
+
+    app(OrderIngestPipeline::class)->ingest(7101, guestOrder(7101, [
+        'billing' => ['first_name' => 'پخش', 'last_name' => 'تهران', 'phone' => '09121112233', 'email' => null],
+    ]), 'manual');
+
+    $supplier->refresh();
+
+    expect($supplier->hasRole('customer'))->toBeFalse()
+        ->and($supplier->hasRole('supplier'))->toBeTrue()
+        ->and($supplier->orders()->count())->toBe(0)
+        ->and(Party::withRole('customer')->where('phone', '09121112233')->count())->toBe(1);
+});
+
+it('reuses the same party across roles when the hub itself says it is the same customer', function () {
+    // hub_customer_id is a real identifier, not a guess — so a party the hub
+    // already knows gains the customer role rather than being duplicated.
+    $party = Party::create(['type' => 'other', 'name' => 'شرکت الف', 'hub_customer_id' => 55]);
+
+    app(OrderIngestPipeline::class)->ingest(7301, guestOrder(7301, ['customer_id' => 55]), 'manual');
+
+    $party->refresh();
+
+    expect(Party::where('hub_customer_id', 55)->count())->toBe(1)
+        ->and($party->hasRole('customer'))->toBeTrue()
+        ->and($party->hasRole('other'))->toBeTrue()
+        ->and($party->orders()->count())->toBe(1);
+});
+
+it('does not resolve a phone-less guest to a party that has no customer role', function () {
+    Party::create(['type' => 'supplier', 'name' => 'ملیکا خلیلی']); // same name, but a supplier
+
+    app(OrderIngestPipeline::class)->ingest(7201, guestOrder(7201), 'manual');
+
+    $customers = Party::withRole('customer')->where('name', 'ملیکا خلیلی')->get();
+
+    expect($customers)->toHaveCount(1)
+        ->and($customers->first()->hasRole('supplier'))->toBeFalse();
+});

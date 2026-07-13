@@ -112,6 +112,13 @@ class Party extends Model
 
         $partyRole = $this->roles()->firstOrNew(['role' => $role->value]);
 
+        // Already active: return untouched. Order sync calls this on every
+        // resolve, and rewriting activated_at each time would churn the row and
+        // spam the activity log with a "change" that changed nothing.
+        if ($partyRole->exists && $partyRole->is_active) {
+            return $partyRole;
+        }
+
         $partyRole->fill([
             'is_active' => true,
             'activated_at' => now(),

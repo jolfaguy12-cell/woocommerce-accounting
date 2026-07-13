@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Services\ProfitEngine;
 use Illuminate\Console\Command;
@@ -19,7 +20,7 @@ class MergeDuplicateCustomerPartiesCommand extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $names = Party::where('type', 'customer')
+        $names = Party::withRole(PartyRoleType::Customer)
             ->whereNull('phone')
             ->select('name')
             ->groupBy('name')
@@ -29,7 +30,7 @@ class MergeDuplicateCustomerPartiesCommand extends Command
         $stats = ['groups' => 0, 'parties_merged' => 0, 'orders_moved' => 0, 'journal_entries_reposted' => 0];
 
         foreach ($names as $name) {
-            $parties = Party::where('type', 'customer')->whereNull('phone')->where('name', $name)
+            $parties = Party::withRole(PartyRoleType::Customer)->whereNull('phone')->where('name', $name)
                 ->orderBy('id')->get();
 
             $canonical = $parties->first();

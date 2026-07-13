@@ -67,7 +67,7 @@
                     <td x-show="visible.date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($line->entry->entry_date) }}</td>
                     <td x-show="visible.description" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">{{ $line->entry->description }}</td>
                     <td x-show="visible.party" class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-300">
-                        @if ($line->party?->type === 'customer')
+                        @if ($line->party?->hasRole('customer'))
                             <a href="{{ route('customers.show', $line->party) }}" class="font-medium text-brand-500 hover:underline">{{ $line->party->name }}</a>
                         @else
                             {{ $line->party->name ?? '—' }}
