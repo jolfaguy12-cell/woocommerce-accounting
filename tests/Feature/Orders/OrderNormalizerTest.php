@@ -79,7 +79,7 @@ it('updates the same customer in place when a phone number is added later via an
     ]), 'manual');
     $originalPartyId = $order->customer_party_id;
 
-    expect(Party::where('type', 'customer')->count())->toBe(1)
+    expect(Party::withRole('customer')->count())->toBe(1)
         ->and(Party::find($originalPartyId)->phone)->toBeNull();
 
     // Order edited in WooCommerce: a phone number is added, nothing else changes.
@@ -90,7 +90,7 @@ it('updates the same customer in place when a phone number is added later via an
 
     $order = $pipeline->ingest(2003, $edited, 'manual');
 
-    expect(Party::where('type', 'customer')->count())->toBe(1)
+    expect(Party::withRole('customer')->count())->toBe(1)
         ->and($order->customer_party_id)->toBe($originalPartyId)
         ->and(Party::find($originalPartyId)->phone)->toBe('09121234567');
 });
@@ -106,7 +106,7 @@ it('resolves different phone formats of the same number to one customer', functi
         'billing' => ['first_name' => 'سارا', 'last_name' => 'محمدی', 'phone' => '+989121234567'],
     ]), 'manual');
 
-    expect(Party::where('type', 'customer')->count())->toBe(1)
+    expect(Party::withRole('customer')->count())->toBe(1)
         ->and($order2->customer_party_id)->toBe($order1->customer_party_id);
 });
 
@@ -121,7 +121,7 @@ it('flags a possible duplicate when the same name shows up under a different pho
         'billing' => ['first_name' => 'فاطمه', 'last_name' => 'رضوانی', 'phone' => '09027544956'],
     ]), 'manual');
 
-    expect(Party::where('type', 'customer')->count())->toBe(2)
+    expect(Party::withRole('customer')->count())->toBe(2)
         ->and($order2->customer_party_id)->not->toBe($order1->customer_party_id);
 
     $review = ReviewItem::where('type', 'possible_duplicate_customer')
