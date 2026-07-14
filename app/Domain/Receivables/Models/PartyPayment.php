@@ -27,6 +27,7 @@ class PartyPayment extends Model
         'advance_amount' => 'integer',
         'paid_at' => 'date',
         'accounting_date' => 'date',
+        'reversed_at' => 'datetime',
         'purpose' => PaymentPurpose::class,
     ];
 
@@ -34,6 +35,27 @@ class PartyPayment extends Model
     public function purposeLabel(): string
     {
         return $this->purpose?->label() ?? '—';
+    }
+
+    /**
+     * A reversed payment is not a deleted payment: the row and its entry stay
+     * exactly as posted, and an opposing entry cancels the money. Every balance
+     * that counted it un-counts it automatically, because they are all reads of
+     * the ledger.
+     */
+    public function isReversed(): bool
+    {
+        return $this->reversal_entry_id !== null;
+    }
+
+    public function reversalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class, 'reversal_entry_id');
+    }
+
+    public function reverser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
     }
 
     public function party(): BelongsTo

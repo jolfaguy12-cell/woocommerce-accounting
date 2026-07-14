@@ -22,6 +22,13 @@ enum PaymentPurpose: string
     case CustomerRefund = 'customer_refund';
     case EmployeeAdvance = 'employee_advance';
     case PayrollPayment = 'payroll_payment';
+    // Paying back money somebody spent on the company out of their own pocket.
+    // Not salary, not a drawing, not a supplier invoice: a debt WE incurred the
+    // moment they paid, sitting on 2350 (employee) or 2600 (partner).
+    case EmployeeExpenseReimbursement = 'employee_expense_reimbursement';
+    case PartnerExpenseReimbursement = 'partner_expense_reimbursement';
+    // Paying an expense that was recorded as owed rather than paid (2000).
+    case UnpaidExpenseSettlement = 'unpaid_expense_settlement';
     case PartnerContribution = 'partner_contribution';
     case PartnerWithdrawal = 'partner_withdrawal';
     case PartnerLoan = 'partner_loan';
@@ -40,6 +47,9 @@ enum PaymentPurpose: string
             self::CustomerRefund => 'استرداد به مشتری',
             self::EmployeeAdvance => 'مساعده کارمند',
             self::PayrollPayment => 'پرداخت حقوق',
+            self::EmployeeExpenseReimbursement => 'بازپرداخت هزینه کارمند',
+            self::PartnerExpenseReimbursement => 'بازپرداخت هزینه شریک',
+            self::UnpaidExpenseSettlement => 'تسویه هزینه پرداخت‌نشده',
             self::PartnerContribution => 'آورده شریک',
             self::PartnerWithdrawal => 'برداشت شریک',
             self::PartnerLoan => 'وام شریک',

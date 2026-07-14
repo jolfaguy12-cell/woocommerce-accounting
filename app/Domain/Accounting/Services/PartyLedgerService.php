@@ -71,14 +71,28 @@ class PartyLedgerService
      * One side of one account, unnetted — «حقوق تحقق‌یافته» is the salary that has
      * been *earned* (every credit to 2300), not the salary still owed, and the two
      * are only the same number until the first payment is made.
+     *
+     * Reversed entries, and the reversals themselves, are EXCLUDED. A netted balance
+     * does not need this — a reversal pair cancels itself out — but a one-sided sum
+     * does, and getting it wrong is not a rounding error: a salary payment that was
+     * reversed because it went to the wrong account would go on reading as «حقوق
+     * پرداخت‌شده» forever, and an accrual that was reversed as a typo would go on
+     * reading as «حقوق تحقق‌یافته», each against a «مانده حقوق» that says the exact
+     * opposite. Excluding both halves of every reversed pair keeps the identity that
+     * makes the three figures a coherent story:
+     *
+     *     «حقوق تحقق‌یافته» − «حقوق پرداخت‌شده» = «مانده حقوق»
      */
     public function totalOn(Party $party, AccountCode $code, string $side): int
     {
         $column = $side === 'debit' ? 'debit' : 'credit';
 
-        return (int) JournalLine::where('account_id', $code->account()->id)
-            ->whereIn('party_id', $party->identityIds())
-            ->sum($column);
+        return (int) JournalLine::where('journal_lines.account_id', $code->account()->id)
+            ->whereIn('journal_lines.party_id', $party->identityIds())
+            ->whereHas('entry', fn ($q) => $q
+                ->where('status', 'posted')            // not an entry that has been reversed
+                ->whereNull('reversal_of_entry_id'))   // nor a reversal of one
+            ->sum("journal_lines.{$column}");
     }
 
     /** >0: the customer owes us. */

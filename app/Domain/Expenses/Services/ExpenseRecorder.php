@@ -48,13 +48,24 @@ class ExpenseRecorder
 
             $source = ExpenseFundingSource::from($data['funding_source'] ?? ExpenseFundingSource::Bank->value);
 
+            // Resolve both party references to the live identity BEFORE validating the
+            // role or posting anything. An expense entered against a party that has
+            // since been merged away belongs to the survivor — and the survivor is the
+            // one whose file the reader will actually open looking for it.
+            $data['party_id'] = filled($data['party_id'] ?? null)
+                ? Party::live($data['party_id'])->id
+                : null;
+            $data['funded_by_party_id'] = filled($data['funded_by_party_id'] ?? null)
+                ? Party::live($data['funded_by_party_id'])->id
+                : null;
+
             $this->assertFundable($source, $data);
 
             $expense = Expense::create([
                 'uuid' => (string) Str::uuid(),
                 'expense_category_id' => $data['expense_category_id'],
                 'cost_center_id' => $costCenterId,
-                'party_id' => $data['party_id'] ?? null,
+                'party_id' => $data['party_id'],
                 'bank_account_id' => $source->needsBankAccount() ? $data['bank_account_id'] : null,
                 'funding_source' => $source->value,
                 'funded_by_party_id' => $source->needsParty() ? $data['funded_by_party_id'] : null,

@@ -10,6 +10,7 @@ use App\Domain\Expenses\Services\ExpenseRecorder;
 use App\Domain\Expenses\Support\ExpenseFundingSource;
 use App\Domain\Receivables\Models\Employee;
 use App\Domain\Receivables\Services\EmployeeAccountService;
+use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Domain\Receivables\Services\PayrollService;
 use App\Models\User;
 use Database\Seeders\ChartOfAccountsSeeder;
@@ -56,17 +57,22 @@ it('keeps a two-employee payroll balanced with one payable line each', function 
     $other = Party::createWithRole('employee', ['name' => 'رضا']);
     $otherEmployee = Employee::firstWhere('party_id', $other->id);
 
+    // The advance has to EXIST before it can be recovered. Recovering one the employee
+    // never took would credit 1400 below zero — reading as the company owing them an
+    // advance, a debt that does not exist — so PayrollService now refuses it.
+    app(PaymentRecorder::class)->payEmployeeAdvance($this->party, 2_000_000, $this->bank->id);
+
     app(PayrollService::class)->post('1405-04', [
         ['employee_id' => $this->employee->id, 'gross' => 12_000_000, 'advances_deducted' => 2_000_000],
         ['employee_id' => $otherEmployee->id, 'gross' => 8_000_000, 'advances_deducted' => 0],
     ]);
 
     expect((int) JournalLine::sum('debit'))->toBe((int) JournalLine::sum('credit'))
-        ->and((int) JournalLine::sum('debit'))->toBe(20_000_000)
         ->and($this->accounts->summary($this->party)['salary_balance'])->toBe(10_000_000)
         ->and($this->accounts->summary($other)['salary_balance'])->toBe(8_000_000)
-        // The advance is recovered from THIS employee, not from the payroll at large.
-        ->and($this->accounts->summary($this->party)['advances'])->toBe(-2_000_000);
+        // The advance is recovered from THIS employee, not from the payroll at large —
+        // and it is now fully recovered, so their advance balance is back to zero.
+        ->and($this->accounts->summary($this->party)['advances'])->toBe(0);
 });
 
 /** «هزینه پرداخت‌شده توسط کارمند» is its own context and must never leak into the salary. */

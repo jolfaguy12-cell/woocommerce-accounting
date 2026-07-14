@@ -3,11 +3,13 @@
 namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Exceptions\ImmutableJournalException;
+use App\Domain\Accounting\Exceptions\MergedPartyException;
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Exceptions\UnbalancedEntryException;
 use App\Domain\Accounting\Models\Account;
 use App\Domain\Accounting\Models\AccountingPeriod;
 use App\Domain\Accounting\Models\JournalEntry;
+use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\JalaliPeriod;
 use Illuminate\Database\QueryException;
@@ -29,6 +31,12 @@ class JournalPoster
     {
         $normalized = $this->normalizeLines($lines);
         $this->assertBalanced($normalized);
+
+        // A reversal re-posts the ORIGINAL lines, party ids and all, so it is the one
+        // entry that legitimately names an absorbed party: the mistake was made
+        // against that id and must be undone against that id. Every other entry is
+        // new money, and new money never goes to a merged identity.
+        $this->assertNoMergedParty($normalized, isReversal: isset($data['reversal_of_entry_id']));
 
         if ($existing = JournalEntry::firstWhere('idempotency_key', $data['idempotency_key'])) {
             return $existing;
@@ -133,6 +141,41 @@ class JournalPoster
                 'memo' => $line['memo'] ?? null,
             ];
         }, $lines);
+    }
+
+    /**
+     * The last line of defence for a merged identity.
+     *
+     * Every posting service resolves Party::canonical() before it validates or
+     * posts, so in practice a merged id never reaches here. This is the backstop
+     * for the one that forgets — a new feature, a console command, a webhook — and
+     * it sits in JournalPoster because that is the single path to the ledger and
+     * therefore the only place the rule cannot be routed around.
+     *
+     * It fails loudly rather than silently rewriting the id to the survivor: an
+     * entry posted to somebody other than the party the caller named is a worse
+     * outcome than an entry that did not post at all.
+     */
+    private function assertNoMergedParty(array $normalized, bool $isReversal): void
+    {
+        if ($isReversal) {
+            return;
+        }
+
+        $partyIds = array_values(array_unique(array_filter(array_column($normalized, 'party_id'))));
+
+        if ($partyIds === []) {
+            return;
+        }
+
+        $merged = Party::whereIn('id', $partyIds)->whereNotNull('merged_into_id')->first();
+
+        if ($merged) {
+            throw new MergedPartyException(
+                "طرف حساب «{$merged->name}» (#{$merged->id}) ادغام شده است و نمی‌توان سند جدیدی به نام آن ثبت کرد؛ "
+                ."از پرونده اصلی (#{$merged->merged_into_id}) استفاده کنید."
+            );
+        }
     }
 
     private function assertBalanced(array $normalized): void

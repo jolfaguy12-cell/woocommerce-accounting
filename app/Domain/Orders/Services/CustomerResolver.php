@@ -41,11 +41,19 @@ class CustomerResolver
         $hubCustomerId = (int) ($payload['customer_id'] ?? 0);
 
         if ($hubCustomerId > 0) {
-            // notMerged(): a party that has been merged into another is not a party
-            // any more. Resolving an order onto it would keep feeding history to a
-            // dead identity that no screen lists — the duplicate would quietly come
-            // back to life, one order at a time.
-            $party = Party::notMerged()->firstOrNew(['hub_customer_id' => $hubCustomerId]);
+            // Look the hub id up across EVERY party — merged ones included — and then
+            // follow the merge chain to the identity that is live.
+            //
+            // Scoping the lookup to notMerged() instead would be the resurrection bug:
+            // a merged party that still carries this hub id would simply not be found,
+            // and firstOrNew() would mint a THIRD party for the same real person on the
+            // very next order. (A merge normally MOVES the hub id to the survivor —
+            // PartyMergeService::moveHubCustomerId — so this branch matters when the
+            // survivor already had a hub id of its own: two WooCommerce accounts, one
+            // person, which does happen.)
+            $party = Party::where('hub_customer_id', $hubCustomerId)->first()?->canonical()
+                ?? new Party(['hub_customer_id' => $hubCustomerId]);
+
             $party->name = $name ?: ($party->name ?: "مشتری #{$hubCustomerId}");
             $party->phone = $phone ?: $party->phone;
             $party->email = $email ?: $party->email;

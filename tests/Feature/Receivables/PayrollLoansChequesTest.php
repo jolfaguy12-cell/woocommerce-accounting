@@ -6,6 +6,7 @@ use App\Domain\Expenses\Services\BankAccountManager;
 use App\Domain\Receivables\Models\Employee;
 use App\Domain\Receivables\Services\ChequeService;
 use App\Domain\Receivables\Services\LoanService;
+use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Domain\Receivables\Services\PayrollService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Support\Carbon;
@@ -28,6 +29,12 @@ it('posts a payroll run with advance deductions', function () {
     // so this fills it in rather than inserting a second row.
     $employee = Employee::updateOrCreate(['party_id' => $party->id], ['base_salary' => 30_000_000]);
 
+    // The advance has to EXIST before payroll can recover it. Deducting one the
+    // employee never received would credit 1400 below zero — a NEGATIVE advance,
+    // which reads as the company owing them an advance and is not a thing that can
+    // be true. PayrollService refuses it; this pays it first, as real life does.
+    app(PaymentRecorder::class)->payEmployeeAdvance($party, 5_000_000, $this->bank->id);
+
     $run = app(PayrollService::class)->post('1405-04', [
         ['employee_id' => $employee->id, 'gross' => 30_000_000, 'advances_deducted' => 5_000_000],
     ]);
@@ -36,7 +43,7 @@ it('posts a payroll run with advance deductions', function () {
 
     expect($entry->lines->sum('debit'))->toBe($entry->lines->sum('credit'))
         ->and(accountBalance('6100'))->toBe(30_000_000)   // salary expense
-        ->and(accountBalance('1400'))->toBe(-5_000_000)   // advance recovered
+        ->and(accountBalance('1400'))->toBe(0)            // advance paid out, then fully recovered
         ->and(accountBalance('2300'))->toBe(-25_000_000); // net payable
 });
 

@@ -31,6 +31,7 @@ use App\Domain\Receivables\Models\BadDebtWriteOff;
 use App\Domain\Receivables\Models\Cheque;
 use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Models\CreditOrderSettlement;
+use App\Domain\Receivables\Models\Employee;
 use App\Domain\Receivables\Models\Loan;
 use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Models\PayrollRun;
@@ -93,6 +94,9 @@ class AppServiceProvider extends ServiceProvider
             'customer_profile' => CustomerProfile::class,
             'supplier_profile' => SupplierProfile::class,
             'partner_profile' => PartnerProfile::class,
+            // Same reason: Employee logs activity (a change to somebody's pay must
+            // leave a trail), and LogsActivity resolves its subject through the map.
+            'employee' => Employee::class,
             'purchase_return' => PurchaseReturn::class,
             'supplier_credit_adjustment' => SupplierCreditAdjustment::class,
         ]);

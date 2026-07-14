@@ -212,6 +212,24 @@ class Party extends Model
         return $this->merged_into_id !== null;
     }
 
+    /**
+     * Resolve ANY party reference — an id from a form, a model handed to a service —
+     * to the identity that is actually live.
+     *
+     * Every posting service calls this before it validates anything, which is what
+     * makes "a merged party cannot receive a new transaction" true without a single
+     * refusal: an order, a payment or an expense aimed at an absorbed id simply
+     * lands on the survivor, where the reader will actually find it. JournalPoster
+     * still refuses a merged party_id outright — that is the backstop for whatever
+     * forgets to call this.
+     */
+    public static function live(int|string|self $party): self
+    {
+        $party = $party instanceof self ? $party : static::findOrFail($party);
+
+        return $party->canonical();
+    }
+
     /** Follow the chain to the identity that is actually live. */
     public function canonical(): self
     {

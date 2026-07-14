@@ -8,6 +8,7 @@ use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Receivables\Models\Employee;
 use App\Support\Design\TableQuery;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 /**
  * «حساب کارمند» — everything the company and one employee owe each other.
@@ -121,6 +122,43 @@ class EmployeeAccountService
     public function history(Party $party, TableQuery $query): LengthAwarePaginator
     {
         return $this->ledger->statement($party, $query);
+    }
+
+    /**
+     * «کارکنان» — every employee with the three figures the list actually needs to
+     * show: what they are owed, what they owe, and what they laid out for us.
+     *
+     * A merged party is not listed: it is not a separate person any more, and its
+     * history is already aggregated into the survivor's row.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function roster(?string $search = null)
+    {
+        return Employee::query()
+            ->with('party.roles')
+            ->whereHas('party', fn ($q) => $q->notMerged()
+                ->when(filled($search), fn ($w) => $w->where(fn ($n) => $n
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('normalized_phone', 'like', "%{$search}%"))))
+            ->get()
+            ->filter(fn (Employee $e) => $e->party !== null)
+            ->map(fn (Employee $e) => [
+                'employee' => $e,
+                'party' => $e->party,
+                'salary' => (int) $e->base_salary,
+                'salary_balance' => $this->ledger->payrollPayable($e->party),
+                'advances' => $this->ledger->employeeAdvance($e->party),
+                'employee_paid_expenses' => $this->ledger->employeePaidExpenses($e->party),
+            ])
+            ->sortBy([
+                // Active staff first, then by name — a list whose top half is people
+                // who left is a list nobody reads.
+                fn ($a, $b) => ($b['employee']->is_active <=> $a['employee']->is_active),
+                fn ($a, $b) => ($a['party']->name <=> $b['party']->name),
+            ])
+            ->values();
     }
 
     /** The accounts «حساب کارمند» is made of, for the "where does this come from" note. */

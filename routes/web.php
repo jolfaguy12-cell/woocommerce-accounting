@@ -8,6 +8,8 @@ use App\Http\Controllers\Admin\BankDepositController;
 use App\Http\Controllers\Admin\ChequeController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\FastFormController;
 use App\Http\Controllers\Admin\FinancialOperationController;
 use App\Http\Controllers\Admin\LoanController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\Admin\PartnerOperationController;
 use App\Http\Controllers\Admin\PartyController;
 use App\Http\Controllers\Admin\PartyOffsetController;
 use App\Http\Controllers\Admin\PartyPaymentController;
+use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\PurchaseInvoiceController;
 use App\Http\Controllers\Admin\ReportController;
@@ -142,6 +145,34 @@ Route::middleware(['auth'])->group(function () {
         Route::post('parties/{party}/roles/deactivate', [PartyController::class, 'deactivateRole'])->name('parties.roles.deactivate');
         Route::post('parties/{party}/bank-accounts', [PartyController::class, 'storeBankAccount'])->name('parties.bank-accounts.store');
         Route::delete('parties/{party}/bank-accounts/{bankAccount}', [PartyController::class, 'destroyBankAccount'])->name('parties.bank-accounts.destroy');
+
+        // «حساب کارمند» — payroll and employee balances are sensitive financial data
+        // (CLAUDE.md), so they live in the admin|accountant group and nowhere wider.
+        // The employee page is keyed by PARTY, not by employee id: an employee is a
+        // party with the employee role, and their salary, their advance, the expenses
+        // they covered and anything they bought from us are all balances on that one
+        // identity.
+        Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
+        Route::get('employees/{party}', [EmployeeController::class, 'show'])->name('employees.show');
+        Route::put('employees/{party}', [EmployeeController::class, 'updateProfile'])->name('employees.update');
+        Route::post('employees/{party}/salary-payment', [EmployeeController::class, 'paySalary'])->name('employees.salary-payment');
+        Route::post('employees/{party}/advance', [EmployeeController::class, 'payAdvance'])->name('employees.advance');
+
+        // «ثبت حقوق دوره» — accrual. Payment is a separate event on the employee page.
+        // `create` before `{run}` or the wildcard swallows the literal.
+        Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');
+        Route::get('payroll/create', [PayrollController::class, 'create'])->name('payroll.create');
+        Route::post('payroll', [PayrollController::class, 'store'])->name('payroll.store');
+        Route::get('payroll/{run}', [PayrollController::class, 'show'])->name('payroll.show');
+        Route::post('payroll/{run}/reverse', [PayrollController::class, 'reverse'])->name('payroll.reverse');
+
+        // «هزینه‌ها» — the list, plus the two operations that close an expense the
+        // company had not actually paid. `reimbursements` before `{expense}`.
+        Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+        Route::get('expenses/reimbursements/create', [ExpenseController::class, 'createReimbursement'])->name('expenses.reimbursements.create');
+        Route::post('expenses/reimbursements', [ExpenseController::class, 'storeReimbursement'])->name('expenses.reimbursements.store');
+        Route::get('expenses/{expense}', [ExpenseController::class, 'show'])->name('expenses.show');
+        Route::post('expenses/{expense}/settle', [ExpenseController::class, 'settle'])->name('expenses.settle');
 
         // Customer management surfaces per-customer profit/purchase volume — sensitive, admin/accountant only.
         Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');

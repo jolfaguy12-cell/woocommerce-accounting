@@ -31,6 +31,43 @@ class JalaliPeriod
         return Jalalian::fromCarbon($date->copy()->setTimezone(self::TIMEZONE))->format('Y-m');
     }
 
+    /** The period we are in right now, e.g. "1405-04". */
+    public static function current(): string
+    {
+        return self::fromDate(Carbon::now(self::TIMEZONE));
+    }
+
+    /**
+     * The last $count periods, newest first — what a period picker offers.
+     *
+     * @return array<string, string> period key => human label, e.g. ['1405-04' => 'تیر ۱۴۰۵']
+     */
+    public static function recent(int $count = 12): array
+    {
+        $periods = [];
+        $period = self::current();
+
+        for ($i = 0; $i < $count; $i++) {
+            $periods[$period] = self::label($period);
+            $period = self::previous($period);
+        }
+
+        return $periods;
+    }
+
+    /** "1405-04" → "تیر ۱۴۰۵". */
+    public static function label(string $period): string
+    {
+        [$year, $month] = array_map('intval', explode('-', $period));
+
+        $names = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+            'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+
+        $name = $names[$month - 1] ?? (string) $month;
+
+        return "{$name} {$year}";
+    }
+
     /** Gregorian [start, end] dates for a period key like "1405-03". */
     public static function boundsFor(string $period): array
     {

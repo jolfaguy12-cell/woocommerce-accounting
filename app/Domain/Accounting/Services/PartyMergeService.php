@@ -64,10 +64,18 @@ class PartyMergeService
         'users' => 'party_id',
     ];
 
-    /** Identity fields the survivor inherits — but only where it has none of its own. */
+    /**
+     * Identity fields the survivor inherits — but only where it has none of its own.
+     *
+     * `hub_customer_id` is NOT here, and must not be: the column is UNIQUE, so
+     * copying it onto the survivor while the absorbed party still holds it throws a
+     * constraint violation and the whole merge fails. It is MOVED instead, by
+     * moveHubCustomerId() below. (It is still captured in the alias snapshot, so the
+     * absorbed party's original external identity remains auditable.)
+     */
     private const IDENTITY_FIELDS = [
         'phone', 'email', 'address', 'telegram_id', 'national_id',
-        'company_national_id', 'tax_id', 'registration_id', 'hub_customer_id',
+        'company_national_id', 'tax_id', 'registration_id',
     ];
 
     /**
@@ -89,6 +97,7 @@ class PartyMergeService
             ]);
 
             $this->moveOperationalRecords($survivor, $absorbed);
+            $this->moveHubCustomerId($survivor, $absorbed);
             $this->inheritIdentityFields($survivor, $absorbed);
             // Before unionRoles(), which would otherwise create a blank profile
             // for a role whose real profile is sitting on the absorbed party.
@@ -181,6 +190,38 @@ class PartyMergeService
             ->unsetRelation('employee');
     }
 
+    /**
+     * The WooCommerce customer id follows the identity — MOVED, not copied.
+     *
+     * It is the party's external identity, and `parties.hub_customer_id` is UNIQUE.
+     * Copying it onto the survivor while the absorbed party still holds it violates
+     * that index and takes the entire merge down with it — which is precisely what
+     * happened to every merge of a hub-synced customer.
+     *
+     * Moving it is also what makes the sync safe. CustomerResolver looks this id up
+     * to decide which party an order belongs to; if it stayed on the absorbed party,
+     * the resolver's `notMerged()` lookup would find nothing and mint a THIRD party
+     * for the same person — the duplicate would come back, under a new id, on the
+     * very next order.
+     *
+     * If the survivor already has its own hub id, the absorbed one stays where it is
+     * (two real WooCommerce accounts, one real person — that happens). The resolver
+     * follows the merge chain in that case, so the order still lands on the survivor.
+     */
+    private function moveHubCustomerId(Party $survivor, Party $absorbed): void
+    {
+        if (blank($absorbed->hub_customer_id) || filled($survivor->hub_customer_id)) {
+            return;
+        }
+
+        $hubId = $absorbed->hub_customer_id;
+
+        // Clear it from the absorbed party FIRST — the unique index does not care that
+        // the row it collides with is about to stop being a live identity.
+        $absorbed->forceFill(['hub_customer_id' => null])->save();
+        $survivor->forceFill(['hub_customer_id' => $hubId])->save();
+    }
+
     /** The survivor never loses data it already has; it only fills its own gaps. */
     private function inheritIdentityFields(Party $survivor, Party $absorbed): void
     {
@@ -220,6 +261,10 @@ class PartyMergeService
             'name' => $absorbed->name,
             'party_kind' => $absorbed->party_kind,
             'roles' => $absorbed->activeRoles()->pluck('role')->all(),
+            // Explicit: it is not in IDENTITY_FIELDS (it is moved, not copied — see
+            // moveHubCustomerId), and the snapshot is the only remaining record that
+            // this party ever held it.
+            'hub_customer_id' => $absorbed->hub_customer_id,
             ...$absorbed->only(self::IDENTITY_FIELDS),
         ];
     }

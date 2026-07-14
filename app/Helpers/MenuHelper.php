@@ -72,8 +72,24 @@ class MenuHelper
             ],
             [
                 'icon' => 'expense-minus',
-                'name' => 'ثبت هزینه',
-                'path' => '/fast-forms',
+                'name' => 'هزینه‌ها',
+                'subItems' => [
+                    ['name' => 'ثبت هزینه', 'path' => '/fast-forms', 'pro' => false],
+                    ['name' => 'مشاهده هزینه‌ها', 'path' => '/expenses', 'pro' => false],
+                    // The two operations that CLOSE an expense the company had not
+                    // actually paid — the half that had no screen at all.
+                    ['name' => 'تسویه هزینه پرداخت‌نشده', 'path' => '/expenses?settlement=unpaid', 'pro' => false],
+                    ['name' => 'بازپرداخت هزینه کارمند/شریک', 'path' => '/expenses/reimbursements/create', 'pro' => false],
+                ],
+            ],
+            [
+                'name' => 'حقوق و کارکنان',
+                'icon' => 'scale-balance',
+                'subItems' => [
+                    ['name' => 'کارکنان', 'path' => '/employees', 'pro' => false],
+                    ['name' => 'ثبت حقوق دوره', 'path' => '/payroll/create', 'pro' => false],
+                    ['name' => 'لیست‌های حقوق', 'path' => '/payroll', 'pro' => false],
+                ],
             ],
             [
                 'name' => 'امور حساب ها',
