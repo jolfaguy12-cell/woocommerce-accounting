@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * One accrual of one Jalali period's salaries. Once posted it is immutable: the
@@ -40,6 +41,17 @@ class PayrollRun extends Model
     public function journalEntry(): BelongsTo
     {
         return $this->belongsTo(JournalEntry::class);
+    }
+
+    /**
+     * «سوابق پرداخت حقوق» tied to THIS run — both the «پرداخت هم‌زمان» posted
+     * atomically with the accrual, and any later standalone payment the operator
+     * chose to link back to it. Not the whole story of what an employee was
+     * paid (paidSalary() sums 2300 across every run), just this run's own trail.
+     */
+    public function payments(): MorphMany
+    {
+        return $this->morphMany(PartyPayment::class, 'applied');
     }
 
     public function reversalEntry(): BelongsTo

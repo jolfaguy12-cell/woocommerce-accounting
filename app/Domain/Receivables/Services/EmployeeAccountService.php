@@ -5,7 +5,9 @@ namespace App\Domain\Receivables\Services;
 use App\Domain\Accounting\Models\Party;
 use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Accounting\Support\AccountCode;
+use App\Domain\Accounting\Support\PaymentPurpose;
 use App\Domain\Receivables\Models\Employee;
+use App\Domain\Receivables\Models\PartyPayment;
 use App\Support\Design\TableQuery;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -159,6 +161,29 @@ class EmployeeAccountService
                 fn ($a, $b) => ($a['party']->name <=> $b['party']->name),
             ])
             ->values();
+    }
+
+    /**
+     * «سوابق پرداخت حقوق» — every payment ever posted against 2300 for this
+     * identity, whether it was a standalone «پرداخت حقوق» or one half of a
+     * «پرداخت هم‌زمان» accrual. Newest first, with the run it was paid alongside
+     * (if any) and its reversal status, so the page can offer "برگشت" on exactly
+     * the rows that are still postable-against.
+     *
+     * A read of party_payments, not a second ledger: paidSalary() on the KPI
+     * cards above sums the SAME rows straight out of journal_lines, so the two
+     * can never drift apart from each other.
+     *
+     * @return Collection<int, PartyPayment>
+     */
+    public function salaryPayments(Party $party): Collection
+    {
+        return PartyPayment::query()
+            ->whereIn('party_id', $party->identityIds())
+            ->where('purpose', PaymentPurpose::PayrollPayment->value)
+            ->with(['bankAccount', 'creator', 'reverser', 'applied'])
+            ->latest('id')
+            ->get();
     }
 
     /** The accounts «حساب کارمند» is made of, for the "where does this come from" note. */

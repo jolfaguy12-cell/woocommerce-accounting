@@ -68,20 +68,41 @@
                 @else
                     <form method="POST" action="{{ route('employees.salary-payment', $party) }}" class="grid gap-4 sm:grid-cols-2">
                         @csrf
-                        <x-form.money-input name="amount" label="مبلغ" required />
+                        <x-form.money-input name="amount" label="مبلغ پرداخت" required />
                         <div>
-                            <label class="{{ $labelClass }}">از حساب</label>
+                            <label class="{{ $labelClass }}">حساب پرداخت‌کننده</label>
                             <select name="bank_account_id" required class="{{ $selectClass }}">
+                                <option value="">انتخاب کنید…</option>
                                 @foreach ($banks as $bank)
                                     <option value="{{ $bank->id }}">{{ $bank->name }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <x-form.jalali-date name="accounting_date" label="تاریخ سند" :value="$today" required />
+                        <x-form.jalali-date name="accounting_date" label="تاریخ پرداخت" :value="$today" required />
                         <div>
-                            <label class="{{ $labelClass }}">مرجع / شماره پیگیری</label>
-                            <input type="text" name="reference" class="{{ $inputClass }}">
+                            <label class="{{ $labelClass }}">روش پرداخت</label>
+                            <select name="method" required class="{{ $selectClass }}">
+                                <option value="">انتخاب کنید…</option>
+                                @foreach ($methods as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
                         </div>
+                        <div>
+                            <label class="{{ $labelClass }}">شماره پیگیری</label>
+                            <input type="text" name="reference" dir="ltr" class="{{ $inputClass }}">
+                        </div>
+                        @if ($payrollRuns->isNotEmpty())
+                            <div>
+                                <label class="{{ $labelClass }}">لیست حقوق مرتبط (اختیاری)</label>
+                                <select name="payroll_run_id" class="{{ $selectClass }}">
+                                    <option value="">— بدون ارتباط با لیست مشخص —</option>
+                                    @foreach ($payrollRuns as $run)
+                                        <option value="{{ $run->id }}">{{ \App\Domain\Accounting\Support\JalaliPeriod::label($run->jalali_period) }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
                         <div class="sm:col-span-2">
                             <label class="{{ $labelClass }}">یادداشت</label>
                             <input type="text" name="note" class="{{ $inputClass }}">
@@ -126,6 +147,66 @@
             </x-common.component-card>
         </div>
     </div>
+
+    {{-- «سوابق پرداخت حقوق» — every payment ever posted against این identity's
+         «مانده حقوق», standalone or riding alongside an accrual («پرداخت هم‌زمان»).
+         A read of party_payments, not a second ledger — paidSalary() above sums
+         the SAME rows straight out of journal_lines. Posted payments are
+         immutable; «برگشت» is the only correction (PaymentRecorder::reverse). --}}
+    <x-common.component-card title="سوابق پرداخت حقوق"
+        desc="هر پرداخت، سند حسابداری جداگانهٔ خودش را دارد. اصلاح فقط با برگشت زدن انجام می‌شود.">
+        @if ($salaryPayments->isEmpty())
+            <x-states.state variant="empty"
+                title="هنوز پرداختی ثبت نشده است"
+                message="پرداخت حقوق را از بالای همین صفحه، یا هم‌زمان با ثبت حقوق دوره، ثبت کنید." />
+        @else
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="border-b border-gray-100 dark:border-gray-800">
+                        <tr class="text-right text-theme-xs text-gray-500 dark:text-gray-400">
+                            <th class="px-4 py-3 font-medium">تاریخ پرداخت</th>
+                            <th class="px-4 py-3 font-medium">مبلغ پرداخت</th>
+                            <th class="px-4 py-3 font-medium">حساب پرداخت‌کننده</th>
+                            <th class="px-4 py-3 font-medium">روش پرداخت</th>
+                            <th class="px-4 py-3 font-medium">شماره پیگیری</th>
+                            <th class="px-4 py-3 font-medium">لیست حقوق</th>
+                            <th class="px-4 py-3 font-medium">ثبت‌کننده</th>
+                            <th class="px-4 py-3 font-medium">وضعیت</th>
+                            <th class="px-4 py-3 font-medium"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach ($salaryPayments as $payment)
+                            <tr class="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                                <x-tables.ltr :value="\App\Domain\Accounting\Support\JalaliPeriod::fmtDate($payment->accounting_date ?? $payment->paid_at)" />
+                                <x-tables.num :value="(int) $payment->amount" type="toman" />
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">{{ $payment->bankAccount?->name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">{{ $methods[$payment->method] ?? ($payment->method ?? '—') }}</td>
+                                <x-tables.ltr :value="$payment->reference" />
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">
+                                    @if ($payment->applied instanceof \App\Domain\Receivables\Models\PayrollRun)
+                                        <a href="{{ route('payroll.show', $payment->applied) }}" class="text-brand-500 hover:underline">
+                                            {{ \App\Domain\Accounting\Support\JalaliPeriod::label($payment->applied->jalali_period) }}
+                                        </a>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">{{ $payment->creator?->name ?? '—' }}</td>
+                                <td class="px-4 py-3">
+                                    <x-ui.status :status="$payment->isReversed() ? 'cancelled' : 'completed'"
+                                        :label="$payment->isReversed() ? 'برگشت‌خورده' : 'ثبت‌شده'" />
+                                </td>
+                                <td class="px-4 py-3">
+                                    @include('pages.employees.partials.payment-reverse-control', ['payment' => $payment])
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </x-common.component-card>
 
     {{-- «بازپرداخت هزینه کارمند» — paying back what they spent on the company. It
          debits 2350, the very account the expense credited; it is not salary, and it

@@ -205,6 +205,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('new-buy-order/{invoice}/returns', [PurchaseInvoiceController::class, 'storeReturn'])->name('purchases.returns.store');
 
         Route::put('party-payments/{payment}/note', [PartyPaymentController::class, 'updateNote'])->name('party-payments.notes.update');
+        // Corrections are reversals — never an edit, never a delete (see PaymentRecorder::reverse).
+        // One route for every payment type: a salary payment, a supplier settlement, an
+        // advance, a reimbursement are all rows in party_payments with the same rule.
+        Route::post('party-payments/{payment}/reverse', [PartyPaymentController::class, 'reverse'])->name('party-payments.reverse');
 
         Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('new-bank-account', [BankAccountController::class, 'index'])->name('bank-accounts.create');

@@ -6,13 +6,17 @@ use App\Domain\Accounting\Exceptions\OperationStateException;
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Accounting\Support\JalaliPeriod;
+use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Models\Employee;
+use App\Domain\Receivables\Models\PartyPayment;
 use App\Domain\Receivables\Models\PayrollRun;
 use App\Domain\Receivables\Services\PayrollService;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -24,10 +28,12 @@ use InvalidArgumentException;
  * to an HR system, and every one of them added here would be a number this
  * application cannot verify and would have to take on trust.
  *
- * Payment is a separate screen («پرداخت حقوق», on the employee's page), because it
- * is a separate event: the accrual says the salary was earned, the payment says the
- * money was handed over, and a month where the first happened and the second did not
- * is the normal case, not an error.
+ * Payment does not have to wait for its own screen: an optional «پرداخت هم‌زمان»
+ * per employee posts a SEPARATE payment entry in the same request, atomic with
+ * the accrual (PayrollService::post()). It is still the same event either way —
+ * the accrual says the salary was earned, a later, standalone «پرداخت حقوق» on
+ * the employee's own page says the money was handed over, and a month where the
+ * first happened and the second did not is the normal case, not an error.
  */
 class PayrollController extends Controller
 {
@@ -69,6 +75,10 @@ class PayrollController extends Controller
             'period' => $period,
             'employees' => $employees,
             'periods' => JalaliPeriod::recent(12),
+            // For the optional «پرداخت هم‌زمان» section on each row.
+            'banks' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'methods' => PartyPayment::METHODS,
+            'today' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
         ]);
     }
 
@@ -81,14 +91,45 @@ class PayrollController extends Controller
             'items.*.employee_id' => 'required|integer|exists:employees,id',
             'items.*.gross' => 'required|integer|min:1',
             'items.*.advances_deducted' => 'nullable|integer|min:0',
+            // «پرداخت هم‌زمان» — optional per employee. The moment it is switched on,
+            // every one of these becomes required for THAT row (required_if matches
+            // the same wildcard index), matching Laravel's sibling-wildcard support.
+            'items.*.pay_now' => 'nullable|boolean',
+            'items.*.payment_amount' => 'nullable|required_if:items.*.pay_now,1|integer|min:1',
+            'items.*.payment_bank_account_id' => 'nullable|required_if:items.*.pay_now,1|integer|exists:bank_accounts,id',
+            'items.*.payment_date' => 'nullable|required_if:items.*.pay_now,1|date',
+            'items.*.payment_method' => ['nullable', 'required_if:items.*.pay_now,1', Rule::in(array_keys(PartyPayment::METHODS))],
+            'items.*.payment_reference' => 'nullable|required_if:items.*.pay_now,1|string|max:100',
+            'items.*.payment_note' => 'nullable|required_if:items.*.pay_now,1|string|max:1000',
         ], [
             'items.required' => 'حداقل یک کارمند را برای ثبت حقوق انتخاب کنید.',
+            'items.*.payment_amount.required_if' => 'برای «پرداخت هم‌زمان»، «مبلغ پرداخت» الزامی است.',
+            'items.*.payment_bank_account_id.required_if' => 'برای «پرداخت هم‌زمان»، «حساب پرداخت‌کننده» الزامی است.',
+            'items.*.payment_date.required_if' => 'برای «پرداخت هم‌زمان»، «تاریخ پرداخت» الزامی است.',
+            'items.*.payment_method.required_if' => 'برای «پرداخت هم‌زمان»، «روش پرداخت» الزامی است.',
+            'items.*.payment_reference.required_if' => 'برای «پرداخت هم‌زمان»، «شماره پیگیری» الزامی است.',
+            'items.*.payment_note.required_if' => 'برای «پرداخت هم‌زمان»، «توضیحات» الزامی است.',
         ]);
+
+        $items = array_map(function (array $item) {
+            if (! empty($item['pay_now'])) {
+                $item['immediate_payment'] = [
+                    'amount' => $item['payment_amount'] ?? null,
+                    'bank_account_id' => $item['payment_bank_account_id'] ?? null,
+                    'accounting_date' => $item['payment_date'] ?? null,
+                    'method' => $item['payment_method'] ?? null,
+                    'reference' => $item['payment_reference'] ?? null,
+                    'note' => $item['payment_note'] ?? null,
+                ];
+            }
+
+            return $item;
+        }, array_values($data['items']));
 
         try {
             $run = $this->payroll->post(
                 $data['jalali_period'],
-                array_values($data['items']),
+                $items,
                 $request->user()->id,
                 $data['notes'] ?? null,
             );
@@ -96,13 +137,21 @@ class PayrollController extends Controller
             throw ValidationException::withMessages(['items' => $e->getMessage()]);
         }
 
-        return redirect()->route('payroll.show', $run)
-            ->with('success', 'حقوق دوره ثبت شد. مبلغ هر کارمند در «مانده حقوق» خودش نشست؛ هنوز وجهی پرداخت نشده است.');
+        $paidNow = collect($items)->filter(fn (array $i) => ! empty($i['immediate_payment']))->count();
+
+        return redirect()->route('payroll.show', $run)->with('success', $paidNow > 0
+            ? "حقوق دوره ثبت شد. {$paidNow} «پرداخت هم‌زمان» نیز ثبت و از «مانده حقوق» مربوطه کسر شد."
+            : 'حقوق دوره ثبت شد. مبلغ هر کارمند در «مانده حقوق» خودش نشست؛ هنوز وجهی پرداخت نشده است.');
     }
 
     public function show(PayrollRun $run): View
     {
-        $run->load(['items.employee.party', 'journalEntry.lines.account', 'creator', 'reverser']);
+        $run->load([
+            'items.employee.party', 'journalEntry.lines.account', 'creator', 'reverser',
+            // «سوابق پرداخت حقوق» posted alongside this run — the «پرداخت هم‌زمان» rows,
+            // plus any later standalone payment the operator chose to link back to it.
+            'payments' => fn ($q) => $q->with(['party', 'bankAccount', 'creator', 'reverser'])->latest('id'),
+        ]);
 
         return view('pages.payroll.show', [
             'title' => "حقوق دوره {$run->jalali_period}",

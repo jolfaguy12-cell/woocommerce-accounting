@@ -8,10 +8,17 @@
 ])
 
 @php
+    use Illuminate\Support\Carbon;
     use Morilog\Jalali\Jalalian;
 
     $raw = old($name, $value);
-    $display = $raw ? Jalalian::fromFormat('Y-m-d', substr((string) $raw, 0, 10))->format('Y/m/d') : '';
+    // Jalalian::fromFormat() parses its input AS a Jalali-formatted string (the
+    // Jalalian equivalent of Carbon::createFromFormat), not a Gregorian one — so
+    // handing it a Gregorian "2026-07-14" silently produced the wrong Jalali date
+    // instead of converting it. fromCarbon() on a real Gregorian Carbon instance
+    // is the actual Gregorian→Jalali conversion (same pattern JalaliPeriod::fmtDate()
+    // already uses correctly).
+    $display = $raw ? Jalalian::fromCarbon(Carbon::parse(substr((string) $raw, 0, 10)))->format('Y/m/d') : '';
     // uniqid() can start with a digit, which is not a valid CSS id selector —
     // the picker's own querySelector lookup would fail on it.
     $uid = 'jd-'.uniqid();

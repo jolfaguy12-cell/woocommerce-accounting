@@ -125,6 +125,55 @@
         </x-common.component-card>
     @endif
 
+    {{-- «سوابق پرداخت حقوق» tied to THIS run — the «پرداخت هم‌زمان» rows posted
+         alongside the accrual above, plus any later standalone payment the
+         operator chose to link back here. Each is its OWN entry (never merged
+         with the accrual's), so it is reversed independently of the run. --}}
+    @if ($run->payments->isNotEmpty())
+        <x-common.component-card title="سوابق پرداخت حقوق"
+            desc="هر پرداخت، سند حسابداری جداگانهٔ خودش را دارد و مستقل از این لیست برگشت می‌خورد.">
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="border-b border-gray-100 dark:border-gray-800">
+                        <tr class="text-right text-theme-xs text-gray-500 dark:text-gray-400">
+                            <th class="px-4 py-3 font-medium">کارمند</th>
+                            <th class="px-4 py-3 font-medium">تاریخ پرداخت</th>
+                            <th class="px-4 py-3 font-medium">مبلغ پرداخت</th>
+                            <th class="px-4 py-3 font-medium">حساب پرداخت‌کننده</th>
+                            <th class="px-4 py-3 font-medium">روش پرداخت</th>
+                            <th class="px-4 py-3 font-medium">شماره پیگیری</th>
+                            <th class="px-4 py-3 font-medium">وضعیت</th>
+                            <th class="px-4 py-3 font-medium"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach ($run->payments as $payment)
+                            <tr>
+                                <td class="px-4 py-3 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                                    <a href="{{ route('employees.show', $payment->party) }}" class="hover:underline">
+                                        {{ $payment->party->name }}
+                                    </a>
+                                </td>
+                                <x-tables.ltr :value="JalaliPeriod::fmtDate($payment->accounting_date ?? $payment->paid_at)" />
+                                <x-tables.num :value="(int) $payment->amount" type="toman" />
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">{{ $payment->bankAccount?->name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">{{ \App\Domain\Receivables\Models\PartyPayment::METHODS[$payment->method] ?? ($payment->method ?? '—') }}</td>
+                                <x-tables.ltr :value="$payment->reference" />
+                                <td class="px-4 py-3">
+                                    <x-ui.status :status="$payment->isReversed() ? 'cancelled' : 'completed'"
+                                        :label="$payment->isReversed() ? 'برگشت‌خورده' : 'ثبت‌شده'" />
+                                </td>
+                                <td class="px-4 py-3">
+                                    @include('pages.employees.partials.payment-reverse-control', ['payment' => $payment])
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </x-common.component-card>
+    @endif
+
     {{-- A posted run is immutable. The only correction is a reversal: the original
          entry stays exactly as posted and an opposing entry cancels it. --}}
     @if ($run->isPosted())

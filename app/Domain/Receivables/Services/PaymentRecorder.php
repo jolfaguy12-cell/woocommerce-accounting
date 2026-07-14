@@ -16,6 +16,7 @@ use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Models\CreditOrderSettlement;
 use App\Domain\Receivables\Models\PartyPayment;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -41,7 +42,7 @@ class PaymentRecorder
      *
      * $data: party, direction, amount, bank_account_id, description
      *        [purpose, advance_amount, applied, method, reference, note,
-     *         accounting_date, party_bank_account_id, created_by]
+     *         accounting_date, party_bank_account_id, created_by, correlation_id]
      *
      * @param  callable(PartyPayment): array  $lines
      */
@@ -88,6 +89,13 @@ class PaymentRecorder
                 'idempotency_key' => "payment:{$payment->uuid}",
                 'source' => $payment,
                 'created_by' => $data['created_by'] ?? null,
+                // Links this payment's entry to the accrual (or whatever else) it
+                // belongs with, WITHOUT merging them into one entry — a salary
+                // payment posted alongside its accrual («پرداخت هم‌زمان») shares the
+                // run's uuid here, so the two entries can be traced back to the same
+                // event while remaining what they actually are: two separate,
+                // independently-reversible postings.
+                'correlation_id' => $data['correlation_id'] ?? null,
             ], $lines($payment));
 
             $payment->update(['journal_entry_id' => $entry->id]);
@@ -216,10 +224,26 @@ class PaymentRecorder
      * separate "we owe them nothing" from "they owe us goods". Now the two are
      * different accounts, and both are true at once.
      *
-     * The signature is unchanged: every existing caller keeps working.
+     * The signature is unchanged for its original parameters: every existing
+     * caller keeps working. $accountingDate/$note/$correlationId are new,
+     * optional, trailing — used by the purchase-invoice form's initial
+     * payments (see PurchaseInvoiceController::store()), which date the
+     * payment to the invoice's own date and tag it with the invoice's uuid as
+     * $correlationId so the invoice page can find "payments made at
+     * creation" without a new column, mirroring PayrollService::post()'s
+     * «پرداخت هم‌زمان» convention for accrual+payment pairs.
      */
-    public function pay(Party $party, int $amount, int $bankAccountId, ?int $by = null, ?string $method = null, ?string $reference = null): PartyPayment
-    {
+    public function pay(
+        Party $party,
+        int $amount,
+        int $bankAccountId,
+        ?int $by = null,
+        ?string $method = null,
+        ?string $reference = null,
+        ?string $accountingDate = null,
+        ?string $note = null,
+        ?string $correlationId = null,
+    ): PartyPayment {
         $party = Party::live($party);
         $outstanding = max(0, $this->ledger->supplierPayable($party));
         $settled = min($amount, $outstanding);
@@ -235,7 +259,10 @@ class PaymentRecorder
             'advance_amount' => $advance,
             'method' => $method,
             'reference' => $reference,
+            'note' => $note,
             'bank_account_id' => $bankAccountId,
+            'accounting_date' => $accountingDate,
+            'correlation_id' => $correlationId,
             'created_by' => $by,
             'description' => "پرداخت به {$party->name}",
         ], function () use ($party, $bankAccountId, $amount, $settled, $advance) {
@@ -329,7 +356,19 @@ class PaymentRecorder
      | and the operator has to say which.
      */
 
-    /** «پرداخت حقوق» — Dr payroll payable (this employee), Cr the bank the money left. */
+    /**
+     * «پرداخت حقوق» — Dr payroll payable (this employee), Cr the bank the money
+     * left. Capped at «مانده حقوق», so paying more than was earned is refused
+     * rather than driving 2300 negative.
+     *
+     * $applied links this payment back to the PayrollRun it settles — always set
+     * when this is called as part of «پرداخت هم‌زمان» (PayrollService::post()
+     * posts it in the SAME transaction as the accrual, sharing $correlationId),
+     * and left null for a later, standalone payment that is not necessarily
+     * against any one specific run. Either way the payable this debits is the
+     * PARTY's total 2300 balance — a run is bookkeeping context, not a separate
+     * account, and «مانده حقوق» has never been split by run.
+     */
     public function paySalary(
         Party $party,
         int $amount,
@@ -338,6 +377,9 @@ class PaymentRecorder
         ?string $reference = null,
         ?string $note = null,
         ?int $by = null,
+        ?string $method = null,
+        ?Model $applied = null,
+        ?string $correlationId = null,
     ): PartyPayment {
         $party = Party::live($party);
 
@@ -350,8 +392,11 @@ class PaymentRecorder
             'amount' => $amount,
             'bank_account_id' => $bankAccountId,
             'accounting_date' => $accountingDate,
+            'method' => $method,
             'reference' => $reference,
             'note' => $note,
+            'applied' => $applied,
+            'correlation_id' => $correlationId,
             'created_by' => $by,
             'description' => "پرداخت حقوق — {$party->name}",
         ], fn () => [

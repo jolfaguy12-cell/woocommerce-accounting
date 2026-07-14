@@ -6,10 +6,14 @@
 ])
 
 @php
+    use Illuminate\Support\Carbon;
     use Morilog\Jalali\Jalalian;
 
-    $fromDisplay = $fromValue ? Jalalian::fromFormat('Y-m-d', $fromValue)->format('Y/m/d') : '';
-    $toDisplay = $toValue ? Jalalian::fromFormat('Y-m-d', $toValue)->format('Y/m/d') : '';
+    // See jalali-date.blade.php: fromFormat() parses its input as a JALALI
+    // string, not a Gregorian one — fromCarbon() on a real Carbon instance is
+    // the actual conversion.
+    $fromDisplay = $fromValue ? Jalalian::fromCarbon(Carbon::parse($fromValue))->format('Y/m/d') : '';
+    $toDisplay = $toValue ? Jalalian::fromCarbon(Carbon::parse($toValue))->format('Y/m/d') : '';
     // uniqid() can start with a digit, which is not a valid CSS id selector
     // (breaks the picker's internal querySelector lookup) — prefix a letter.
     $uid = 'jdp-'.uniqid();

@@ -7,6 +7,8 @@ use App\Domain\Accounting\Support\JalaliPeriod;
 use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Receivables\Models\Loan;
+use App\Domain\Receivables\Models\PartyPayment;
+use App\Domain\Receivables\Models\PayrollRun;
 use App\Domain\Receivables\Services\EmployeeAccountService;
 use App\Domain\Receivables\Services\LoanService;
 use App\Domain\Receivables\Services\PaymentRecorder;
@@ -18,6 +20,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -84,7 +87,14 @@ class EmployeeController extends Controller
             'statement' => $this->accounts->history($party, $query),
             'statementQuery' => $query,
             'loans' => $this->employeeLoans($party),
+            // «سوابق پرداخت حقوق» — every payment against this identity's 2300,
+            // standalone or posted alongside an accrual («پرداخت هم‌زمان»).
+            'salaryPayments' => $this->accounts->salaryPayments($party),
+            // For the standalone «پرداخت حقوق» form's optional "which run is this
+            // for" note — informational only, never the source of the cap.
+            'payrollRuns' => $this->employeePayrollRuns($party),
             'banks' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'methods' => PartyPayment::METHODS,
             'today' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
             'hiredAt' => $employee?->hired_at?->toDateString(),
         ]);
@@ -116,10 +126,18 @@ class EmployeeController extends Controller
         return back()->with('success', 'اطلاعات کارمند به‌روزرسانی شد. این تغییر هیچ سندی در دفتر ثبت نمی‌کند.');
     }
 
-    /** «پرداخت حقوق» — capped at «مانده حقوق»; the cap lives in PaymentRecorder. */
+    /**
+     * «پرداخت حقوق» — a standalone payment against this employee's TOTAL «مانده
+     * حقوق», capped there (the cap lives in PaymentRecorder). Not tied to any
+     * one run: an employee's payable is one running balance across every
+     * accrual, so a standalone payment settles that balance, not a run's slice
+     * of it. `payroll_run_id` is an OPTIONAL note of which run the operator has
+     * in mind, purely for that run's own «سوابق پرداخت حقوق» — refused if it
+     * names a run that was never this employee's (PayrollService::paySalary).
+     */
     public function paySalary(Request $request, Party $party): RedirectResponse
     {
-        $data = $this->validatePayment($request);
+        $data = $this->validateSalaryPayment($request);
 
         try {
             $this->payroll->paySalary(
@@ -130,6 +148,8 @@ class EmployeeController extends Controller
                 reference: $data['reference'] ?? null,
                 note: $data['note'] ?? null,
                 by: $request->user()->id,
+                method: $data['method'] ?? null,
+                forRun: filled($data['payroll_run_id'] ?? null) ? PayrollRun::find($data['payroll_run_id']) : null,
             );
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);
@@ -178,6 +198,28 @@ class EmployeeController extends Controller
         ]);
     }
 
+    /**
+     * «پرداخت حقوق» adds «روش پرداخت» (required — every salary payment must say
+     * how it moved) and an optional link to the run it settles, on top of the
+     * shared amount/account/date/reference/note fields every party payment asks for.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateSalaryPayment(Request $request): array
+    {
+        return $request->validate([
+            'amount' => 'required|integer|min:1',
+            'bank_account_id' => 'required|exists:bank_accounts,id',
+            'accounting_date' => 'required|date',
+            'method' => ['required', Rule::in(array_keys(PartyPayment::METHODS))],
+            'reference' => 'nullable|string|max:100',
+            'note' => 'nullable|string|max:255',
+            'payroll_run_id' => 'nullable|integer|exists:payroll_runs,id',
+        ], [
+            'method.required' => '«روش پرداخت» الزامی است.',
+        ]);
+    }
+
     /** @return Collection<int, array<string, mixed>> */
     private function employeeLoans(Party $party)
     {
@@ -196,5 +238,23 @@ class EmployeeController extends Controller
                     ? JalaliPeriod::fmtDate($loan->nextInstallment()->due_date)
                     : null,
             ]);
+    }
+
+    /**
+     * Posted runs this identity was ever accrued on — what the standalone
+     * «پرداخت حقوق» form's optional "لیست حقوق مرتبط" note picks from. Purely a
+     * label for the audit trail (PayrollService::paySalary refuses one that
+     * names a run that was never this employee's); the payment amount is still
+     * capped against the party's TOTAL «مانده حقوق», not any one run's slice.
+     *
+     * @return Collection<int, PayrollRun>
+     */
+    private function employeePayrollRuns(Party $party): Collection
+    {
+        return PayrollRun::query()
+            ->where('status', PayrollRun::POSTED)
+            ->whereHas('items.employee.party', fn ($q) => $q->whereIn('id', $party->identityIds()))
+            ->orderByDesc('id')
+            ->get(['id', 'jalali_period']);
     }
 }

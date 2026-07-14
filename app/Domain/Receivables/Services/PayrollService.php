@@ -24,7 +24,8 @@ use InvalidArgumentException;
  * reverse what was wrong. No attendance, no tax, no insurance, no benefits — those
  * are an HR system, and this is an accounting one.
  *
- * The two halves are separate on purpose, because they are separate events:
+ * The two halves are separate operations on purpose, because they are separate
+ * events, and 2300 is what makes that true instead of just declared:
  *
  *   ACCRUAL («ثبت حقوق دوره») — the salary is EARNED. Dr salary expense (6100),
  *   Cr payroll payable (2300) per employee. No cash moves; the company now owes
@@ -34,7 +35,16 @@ use InvalidArgumentException;
  *   PAYMENT («پرداخت حقوق») — the money is HANDED OVER. Dr that employee's payroll
  *   payable, Cr the bank. The expense is not touched: it was recognised when the
  *   salary was earned, and recognising it again here would double every salary in
- *   the books while balancing perfectly.
+ *   the books while balancing perfectly. Salary expense is NEVER debited straight
+ *   to a bank account — 2300 is the one bridge between "earned" and "paid", and
+ *   skipping it is exactly how a month's salary stops being traceable to who it
+ *   was for.
+ *
+ * «پرداخت هم‌زمان» does not blur this. It is the SAME payment operation, posted
+ * as its OWN journal entry, inside the SAME database transaction as the accrual —
+ * so the two are atomic (either both land or neither does) without becoming one
+ * entry. They stay linked only by a shared correlation id and by the payment
+ * pointing back at the run it was paid alongside.
  *
  * The payment itself is recorded by PaymentRecorder, the same service that records
  * every other party payment. There is no payroll payment table and no payroll
@@ -49,7 +59,8 @@ class PayrollService
     ) {}
 
     /**
-     * «ثبت حقوق دوره» — accrue one period's salaries.
+     * «ثبت حقوق دوره» — accrue one period's salaries, optionally paying some or
+     * all of it immediately («پرداخت هم‌زمان»).
      *
      * The payable and advance lines are per EMPLOYEE and carry their party_id. They
      * used to be single aggregate lines with no party at all, which balanced
@@ -58,7 +69,23 @@ class PayrollService
      * journal line said whose salary it was. An unattributable balance is not a
      * balance — you cannot pay it, dispute it, or reconcile it.
      *
-     * @param  array<int, array{employee_id: int, gross: int, advances_deducted?: int}>  $items
+     * The accrual ALWAYS happens — it does not become optional or conditional on
+     * anything about payment. «پرداخت هم‌زمان» is additive: for an item that
+     * requests it, a SEPARATE payment entry posts (Dr this employee's 2300, Cr the
+     * chosen bank), inside this same DB transaction, so it is atomic with the
+     * accrual — if the payment fails validation (e.g. its own amount exceeds what
+     * was just accrued), the whole call throws and NOTHING from this run is
+     * posted, accrual included. Both entries carry the run's uuid as their
+     * correlation id, so they can be traced back to the same event without ever
+     * becoming one entry with two meanings.
+     *
+     * @param  array<int, array{
+     *     employee_id: int, gross: int, advances_deducted?: int,
+     *     immediate_payment?: array{
+     *         amount: int, bank_account_id: int, accounting_date: string,
+     *         method: string, reference: string, note: string,
+     *     }|null,
+     * }>  $items
      */
     public function post(string $jalaliPeriod, array $items, ?int $by = null, ?string $notes = null): PayrollRun
     {
@@ -121,6 +148,7 @@ class PayrollService
                 'description' => "حقوق دوره {$jalaliPeriod}",
                 'idempotency_key' => "payroll:{$run->uuid}",
                 'source' => $run,
+                'correlation_id' => $run->uuid,
                 'created_by' => $by,
             ], $lines);
 
@@ -130,16 +158,52 @@ class PayrollService
                 'posted_at' => now(),
             ]);
 
-            return $run->load('journalEntry.lines', 'items');
+            // «پرداخت هم‌زمان» — a SEPARATE entry per employee who opted in, posted
+            // now that the accrual (and therefore this employee's payable) is on the
+            // books. Still inside the same transaction: PaymentRecorder::paySalary()
+            // re-checks the cap against the party's true 2300 balance, and if THAT
+            // throws, the accrual just posted above rolls back with it — the run
+            // never ends up half-posted.
+            foreach ($prepared as $item) {
+                if ($item['immediate_payment'] === null) {
+                    continue;
+                }
+
+                $ip = $item['immediate_payment'];
+
+                $this->payments->paySalary(
+                    party: Party::find($item['party_id']),
+                    amount: $ip['amount'],
+                    bankAccountId: $ip['bank_account_id'],
+                    accountingDate: $ip['accounting_date'],
+                    reference: $ip['reference'],
+                    note: $ip['note'],
+                    by: $by,
+                    method: $ip['method'],
+                    applied: $run,
+                    correlationId: $run->uuid,
+                );
+            }
+
+            return $run->load('journalEntry.lines', 'items', 'payments');
         });
     }
 
     /**
-     * «پرداخت حقوق» — hand the money over. Capped at what this employee is actually
-     * owed (PaymentRecorder::paySalary), because paying more salary than was earned
+     * «پرداخت حقوق» — hand the money over, as its OWN transaction on the
+     * employee's own page. Capped at what this employee is actually owed
+     * (PaymentRecorder::paySalary), because paying more salary than was earned
      * does not clear a debt, it inverts one: 2300 goes negative and reads as the
      * employee owing the company salary, which is not a thing that can be true. An
      * overpayment is a real event — but it is an advance, and it has its own button.
+     *
+     * Unlike «پرداخت هم‌زمان» (post()), this is not tied to any one run: the
+     * employee's payable is a single running balance across every accrual, and a
+     * standalone payment settles that balance, not one run's slice of it. $forRun
+     * is an OPTIONAL note of which run the operator has in mind — purely for the
+     * audit trail on that run's own page — and is refused if it names a run that
+     * was never this employee's, so a payment can never be filed against a
+     * stranger's payroll history by a stray id.
      */
     public function paySalary(
         Party $party,
@@ -149,6 +213,8 @@ class PayrollService
         ?string $reference = null,
         ?string $note = null,
         ?int $by = null,
+        ?string $method = null,
+        ?PayrollRun $forRun = null,
     ): PartyPayment {
         $party = Party::live($party);
 
@@ -156,7 +222,16 @@ class PayrollService
             throw new InvalidArgumentException("«{$party->name}» نقش کارمند ندارد.");
         }
 
-        return $this->payments->paySalary($party, $amount, $bankAccountId, $accountingDate, $reference, $note, $by);
+        if ($forRun && ! $forRun->items()->whereHas(
+            'employee.party', fn ($q) => $q->whereIn('id', $party->identityIds())
+        )->exists()) {
+            throw new InvalidArgumentException('این لیست حقوق مربوط به این کارمند نیست.');
+        }
+
+        return $this->payments->paySalary(
+            $party, $amount, $bankAccountId, $accountingDate, $reference, $note, $by,
+            method: $method, applied: $forRun,
+        );
     }
 
     /**
@@ -229,9 +304,20 @@ class PayrollService
     /**
      * Validate the whole run before a single row is written: an accrual that fails
      * halfway leaves a payroll run with some employees in it and some not, and no
-     * way to tell which.
+     * way to tell which. Every «پرداخت هم‌زمان» sub-field is validated here too,
+     * for the same reason — the transaction in post() still re-checks the amount
+     * against the live ledger once the accrual is on the books, but a run that
+     * fails on employee #4's payment must never have already written employees
+     * #1–3 to the database, which is only true if the check happens before any
+     * of them do.
      *
-     * @return array<int, array{employee_id: int, party_id: int, gross: int, advances_deducted: int, net: int}>
+     * @return array<int, array{
+     *     employee_id: int, party_id: int, gross: int, advances_deducted: int, net: int,
+     *     immediate_payment: array{
+     *         amount: int, bank_account_id: int, accounting_date: string,
+     *         method: string, reference: string, note: string,
+     *     }|null,
+     * }>
      */
     private function prepare(string $jalaliPeriod, array $items): array
     {
@@ -289,16 +375,79 @@ class PayrollService
                 );
             }
 
+            $net = $gross - $advance;
+
             $prepared[] = [
                 'employee_id' => $employeeId,
                 'party_id' => $party->id,
                 'gross' => $gross,
                 'advances_deducted' => $advance,
-                'net' => $gross - $advance,
+                'net' => $net,
+                'immediate_payment' => $this->prepareImmediatePayment($item['immediate_payment'] ?? null, $party->name, $net),
             ];
         }
 
         return $prepared;
+    }
+
+    /**
+     * «پرداخت هم‌زمان» — every field the section asks for is required the moment
+     * it is enabled at all, with no partial submission accepted: a payment row
+     * with an amount but no bank account is not a smaller payment, it is a
+     * payment that cannot be posted, and it must fail here rather than reach
+     * PaymentRecorder half-formed.
+     *
+     * Capped at this employee's NET for THIS run, not their total payable — «پرداخت
+     * هم‌زمان» pays down what was just earned, full or partial; settling an OLDER
+     * outstanding balance at the same time is the standalone «پرداخت حقوق» form's
+     * job, which is capped against the party's true total instead.
+     *
+     * @return array{amount: int, bank_account_id: int, accounting_date: string, method: string, reference: string, note: string}|null
+     */
+    private function prepareImmediatePayment(?array $payment, string $partyName, int $net): ?array
+    {
+        if ($payment === null || $payment === []) {
+            return null;
+        }
+
+        $amount = (int) ($payment['amount'] ?? 0);
+        $bankAccountId = (int) ($payment['bank_account_id'] ?? 0);
+        $accountingDate = trim((string) ($payment['accounting_date'] ?? ''));
+        $method = trim((string) ($payment['method'] ?? ''));
+        $reference = trim((string) ($payment['reference'] ?? ''));
+        $note = trim((string) ($payment['note'] ?? ''));
+
+        if ($amount < 1 || $bankAccountId < 1 || $accountingDate === '' || $method === '' || $reference === '' || $note === '') {
+            throw new InvalidArgumentException(
+                "برای «پرداخت هم‌زمان» «{$partyName}»، مبلغ پرداخت، حساب پرداخت‌کننده، تاریخ پرداخت، "
+                .'روش پرداخت، شماره پیگیری و توضیحات همگی الزامی‌اند.'
+            );
+        }
+
+        if (! array_key_exists($method, PartyPayment::METHODS)) {
+            throw new InvalidArgumentException("روش پرداخت نامعتبر برای «{$partyName}».");
+        }
+
+        if ($net <= 0) {
+            throw new InvalidArgumentException(
+                "چیزی از حقوق «{$partyName}» در این دوره تحقق نیافته تا هم‌زمان پرداخت شود."
+            );
+        }
+
+        if ($amount > $net) {
+            throw new InvalidArgumentException(
+                "مبلغ «پرداخت هم‌زمان» «{$partyName}» بیشتر از خالص همین دوره است: حداکثر ".number_format($net).' تومان.'
+            );
+        }
+
+        return [
+            'amount' => $amount,
+            'bank_account_id' => $bankAccountId,
+            'accounting_date' => $accountingDate,
+            'method' => $method,
+            'reference' => $reference,
+            'note' => $note,
+        ];
     }
 
     /**

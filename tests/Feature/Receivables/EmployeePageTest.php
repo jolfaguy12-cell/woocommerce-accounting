@@ -71,6 +71,7 @@ it('pays salary through the form and moves «مانده حقوق»', function ()
             'amount' => 5_000_000,
             'bank_account_id' => $this->bank->id,
             'accounting_date' => '2026-07-10',
+            'method' => 'bank_transfer',
             'reference' => 'TR-100',
         ])
         ->assertRedirect();
@@ -91,6 +92,7 @@ it('rejects an overpayment at the form without posting anything', function () {
             'amount' => 20_000_000,
             'bank_account_id' => $this->bank->id,
             'accounting_date' => '2026-07-10',
+            'method' => 'bank_transfer',
         ])
         ->assertSessionHasErrors('amount');
 

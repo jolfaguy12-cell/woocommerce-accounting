@@ -19,6 +19,19 @@ class PartyPayment extends Model
 {
     use LogsActivity;
 
+    /**
+     * «روش پرداخت» — the same small taxonomy every party-payment form already
+     * uses (suppliers, salary, advances). One list, reused everywhere, so a
+     * report grouping by method never has to reconcile two different spellings
+     * of "cash".
+     */
+    public const METHODS = [
+        'bank_transfer' => 'انتقال بانکی',
+        'cash' => 'نقدی',
+        'card' => 'کارت به کارت',
+        'other' => 'سایر',
+    ];
+
     protected $guarded = [];
 
     protected $casts = [
