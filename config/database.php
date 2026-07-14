@@ -20,6 +20,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Production Database Marker
+    |--------------------------------------------------------------------------
+    |
+    | Independent of APP_ENV on purpose (see App\Support\ProductionDatabaseGuard):
+    | APP_ENV describes which copy of the code is running, not which database it
+    | talks to, and it is the database that a destructive command destroys. Set
+    | to true in exactly one .env — the production deployment's — and read via
+    | config() (not env()) so the guard still works once config is cached.
+    |
+    */
+
+    'is_production' => env('DB_IS_PRODUCTION', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |

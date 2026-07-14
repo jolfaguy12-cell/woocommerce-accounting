@@ -41,6 +41,8 @@ use App\Domain\Sync\Models\RawOrder;
 use App\Domain\Sync\Models\ReviewItem;
 use App\Domain\Sync\Models\WebhookEvent;
 use App\Models\User;
+use App\Support\ProductionDatabaseGuard;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -52,8 +54,10 @@ class AppServiceProvider extends ServiceProvider
         //
     }
 
-    public function boot(): void
+    public function boot(Dispatcher $events): void
     {
+        (new ProductionDatabaseGuard)->register($events);
+
         Relation::enforceMorphMap([
             'user' => User::class,
             'expense' => Expense::class,
