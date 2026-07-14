@@ -3,6 +3,7 @@
 namespace App\Domain\Receivables\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollItem extends Model
 {
@@ -13,4 +14,9 @@ class PayrollItem extends Model
         'advances_deducted' => 'integer',
         'net' => 'integer',
     ];
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
 }

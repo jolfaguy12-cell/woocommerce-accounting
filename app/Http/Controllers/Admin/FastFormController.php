@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Models\CostCenter;
 use App\Domain\Accounting\Models\Party;
-use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Channels\Models\Channel;
 use App\Domain\Channels\Services\ChannelCostRecorder;
 use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Expenses\Models\ExpenseCategory;
 use App\Domain\Expenses\Services\BankAccountManager;
 use App\Domain\Expenses\Services\ExpenseRecorder;
+use App\Domain\Expenses\Support\ExpenseFundingSource;
 use App\Domain\Receivables\Models\CreditOrder;
 use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Http\Controllers\Controller;
@@ -18,6 +18,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class FastFormController extends Controller
 {
@@ -30,7 +32,8 @@ class FastFormController extends Controller
             'banks' => BankAccount::where('is_active', true)->get(['id', 'name', 'is_cash']),
             'channels' => Channel::where('is_active', true)
                 ->whereIn('cost_model', ['wallet_topup', 'manual_period'])->get(['id', 'name']),
-            'customers' => Party::withRole(PartyRoleType::Customer)->orderBy('name')->limit(200)->get(['id', 'name']),
+            'fundingSources' => ExpenseFundingSource::options(),
+            'today' => Carbon::now('Asia/Tehran')->toDateString(),
             'open_credits' => CreditOrder::with('party:id,name')->where('status', 'open')->get()
                 ->map(fn ($c) => ['id' => $c->id, 'party_id' => $c->party_id, 'party' => $c->party->name,
                     'remaining' => $c->remaining(), 'description' => $c->description]),
@@ -39,22 +42,47 @@ class FastFormController extends Controller
 
     public function storeExpense(Request $request, ExpenseRecorder $recorder): RedirectResponse
     {
+        // An expense with no stated funding source is a company-paid expense —
+        // which is what every expense was before the source existed. So an older
+        // caller that never heard of `funding_source` keeps working, and keeps
+        // meaning exactly what it always meant.
+        $request->mergeIfMissing(['funding_source' => ExpenseFundingSource::Bank->value]);
+
         $data = $request->validate([
             'expense_category_id' => 'required|exists:expense_categories,id',
-            'bank_account_id' => 'required|exists:bank_accounts,id',
+            // «منبع پرداخت» — who actually paid. Only a bank-funded expense has a
+            // bank account; the others create a debt instead of moving cash.
+            'funding_source' => ['required', Rule::in(array_column(ExpenseFundingSource::cases(), 'value'))],
+            'bank_account_id' => 'nullable|required_if:funding_source,bank|exists:bank_accounts,id',
+            'funded_by_party_id' => 'nullable|required_unless:funding_source,bank|exists:parties,id',
             'cost_center_id' => 'nullable|exists:cost_centers,id',
             'amount' => 'required|integer|min:1',
+            'expense_date' => 'nullable|date',
             'description' => 'required|string|max:255',
             'affects_partner_profit' => 'boolean',
             'is_capital' => 'boolean',
+        ], [
+            'bank_account_id.required_if' => 'برای هزینه پرداخت‌شده از حساب شرکت، انتخاب حساب بانکی یا صندوق الزامی است.',
+            'funded_by_party_id.required_unless' => 'مشخص کنید بدهی این هزینه به کدام طرف حساب ثبت می‌شود.',
         ]);
 
-        $recorder->record($data + [
-            'expense_date' => Carbon::now('Asia/Tehran'),
-            'created_by' => $request->user()->id,
-        ]);
+        try {
+            $recorder->record($data + [
+                'expense_date' => $data['expense_date'] ?? Carbon::now('Asia/Tehran'),
+                'created_by' => $request->user()->id,
+            ]);
+        } catch (InvalidArgumentException $e) {
+            // The recorder's own guards (a party without the role it is being billed
+            // to, a missing counterparty) are validation failures, not crashes.
+            return back()->withErrors(['funded_by_party_id' => $e->getMessage()])->withInput();
+        }
 
-        return back()->with('success', 'هزینه ثبت و سند آن صادر شد.');
+        return back()->with('success', match (ExpenseFundingSource::from($data['funding_source'])) {
+            ExpenseFundingSource::Bank => 'هزینه ثبت و سند آن صادر شد.',
+            ExpenseFundingSource::Unpaid => 'هزینه ثبت شد و به‌عنوان بدهی پرداخت‌نشده در حساب طرف حساب نشست.',
+            ExpenseFundingSource::Employee => 'هزینه ثبت شد و به‌عنوان بدهی شرکت به کارمند ثبت شد؛ موجودی بانک تغییر نکرد.',
+            ExpenseFundingSource::Partner => 'هزینه ثبت شد و به حساب جاری شریک منظور شد؛ موجودی بانک تغییر نکرد.',
+        });
     }
 
     public function storeTopup(Request $request, ChannelCostRecorder $recorder): RedirectResponse

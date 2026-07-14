@@ -257,6 +257,31 @@
         </form>
         @break
 
+    @case('form-06')
+        <div class="max-w-xs">
+            <x-form.money-input name="showcase_money" label="مبلغ" :value="1250000" />
+            <p class="mt-2 text-theme-xs text-gray-400">
+                روی صفحه ۱٬۲۵۰٬۰۰۰ دیده می‌شود؛ چیزی که ارسال می‌شود «1250000» است.
+            </p>
+        </div>
+        @break
+
+    @case('form-07')
+        <div class="max-w-xs">
+            <x-form.jalali-date name="showcase_date" label="تاریخ سررسید" :value="now()->toDateString()" />
+            <p class="mt-2 text-theme-xs text-gray-400">
+                کاربر شمسی می‌بیند؛ فیلد مخفی مقدار میلادی Y-m-d را می‌فرستد.
+            </p>
+        </div>
+        @break
+
+    @case('form-08')
+        <div class="max-w-md">
+            <x-form.party-select name="showcase_party" label="طرف حساب"
+                help="جستجو و صفحه‌بندی سمت سرور روی همه طرف حساب‌ها." />
+        </div>
+        @break
+
     {{-- ============ Buttons & actions ============ --}}
     @case('button-01')
         <div class="flex flex-wrap items-center gap-3">

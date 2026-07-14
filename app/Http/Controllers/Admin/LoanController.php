@@ -70,7 +70,10 @@ class LoanController extends Controller
     {
         return view('pages.loans.create', [
             'title' => 'ثبت وام جدید',
-            'parties' => Party::orderBy('name')->limit(500)->get(['id', 'name']),
+            // The picker searches the server (parties.search); the form only needs to
+            // know the name of an already-chosen party so a validation bounce does not
+            // render an empty field with a hidden id in it.
+            'selectedPartyName' => Party::whereKey(old('party_id'))->value('name'),
             'bankAccounts' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'directions' => LoanDirection::options(),
             'methods' => collect(InterestMethod::cases())->map(fn (InterestMethod $m) => [
@@ -248,14 +251,14 @@ class LoanController extends Controller
             'paid_total' => $paid['total'],
             'remaining_principal' => $this->loans->remainingPrincipal($loan), // مانده اصل وام
             'next_due' => $next?->due_date,                                    // سررسید بعدی
-            'next_due_fa' => $next?->due_date ? JalaliPeriod::fmtDateTime($next->due_date) : null,
+            'next_due_fa' => $next?->due_date ? JalaliPeriod::fmtDate($next->due_date) : null,
             'next_amount' => $next?->total(),
             // The derived answer wins over the stored one: the column is only as fresh as
             // the last time the command ran, and the due date is true right now.
             'status' => $isOverdue ? LoanStatus::Overdue->badgeStatus() : $loan->status->badgeStatus(),
             'status_label' => $isOverdue ? LoanStatus::Overdue->label() : $loan->status->label(),
-            'received_at_fa' => JalaliPeriod::fmtDateTime($loan->received_at),
-            'maturity_fa' => $loan->maturity_date ? JalaliPeriod::fmtDateTime($loan->maturity_date) : null,
+            'received_at_fa' => JalaliPeriod::fmtDate($loan->received_at),
+            'maturity_fa' => $loan->maturity_date ? JalaliPeriod::fmtDate($loan->maturity_date) : null,
             'bank' => $loan->bankAccount?->name,
             'url' => route('loans.show', $loan),
         ];

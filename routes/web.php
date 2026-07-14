@@ -130,9 +130,13 @@ Route::middleware(['auth'])->group(function () {
         // supplier pages below stay as role-filtered views over these same
         // parties — this adds the identity, roles, cross-role balances and the
         // complete statement, which no single-role page could show.
-        // `duplicates` is declared BEFORE `{party}` or the wildcard swallows it.
+        // `duplicates` and `search` are declared BEFORE `{party}` or the wildcard
+        // swallows them.
         Route::get('parties', [PartyController::class, 'index'])->name('parties.index');
         Route::get('parties/duplicates', [PartyController::class, 'duplicates'])->name('parties.duplicates');
+        // The one party picker's backend (<x-form.party-select>) — server-side
+        // search over every party, so no form has to cap its dropdown again.
+        Route::get('parties/search', [PartyController::class, 'search'])->name('parties.search');
         Route::get('parties/{party}', [PartyController::class, 'show'])->name('parties.show');
         Route::post('parties/{party}/roles/activate', [PartyController::class, 'activateRole'])->name('parties.roles.activate');
         Route::post('parties/{party}/roles/deactivate', [PartyController::class, 'deactivateRole'])->name('parties.roles.deactivate');
@@ -269,6 +273,11 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:admin')->group(function () {
+        // «ادغام طرف حساب‌ها» — irreversible-looking and identity-level, so admin
+        // only. It rewrites no journal line (see PartyMergeService), but it does
+        // decide that two histories belong to one person.
+        Route::post('parties/{party}/merge', [PartyController::class, 'merge'])->name('parties.merge');
+
         Route::get('users', [UserController::class, 'index'])->name('users.index');
         Route::post('users', [UserController::class, 'store'])->name('users.store');
         Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');

@@ -46,7 +46,7 @@
             <div>
                 <p class="text-xs text-gray-500 dark:text-gray-400">تاریخ سررسید</p>
                 <p class="mt-1 text-sm font-medium {{ $cheque->isLate() ? 'text-error-600 dark:text-error-400' : 'text-gray-800 dark:text-white/90' }}">
-                    {{ JalaliPeriod::fmtDateTime($cheque->due_date) }}
+                    {{ JalaliPeriod::fmtDate($cheque->due_date) }}
                 </p>
             </div>
             <div>

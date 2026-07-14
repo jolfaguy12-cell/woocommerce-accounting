@@ -12,6 +12,14 @@
         'bank-accounts' => 'حساب‌های بانکی طرف حساب',
         'duplicates' => 'بررسی موارد تکراری',
     ];
+
+    // «حساب کارمند» only exists for someone who actually holds the role — an
+    // empty employee tab on a customer is a question the page cannot answer.
+    if ($party->hasRole(PartyRoleType::Employee)) {
+        $tabs = array_slice($tabs, 0, 2, true)
+            + ['employee' => 'حساب کارمند']
+            + array_slice($tabs, 2, null, true);
+    }
 @endphp
 
 @section('content')
@@ -89,6 +97,26 @@
         </div>
     </x-common.component-card>
 
+    {{--
+        If anything was merged into this party, say so. Its balances include the
+        history of the absorbed ids — a figure the reader cannot reconcile against
+        one party alone — so the page must not present that silently.
+    --}}
+    @if ($party->aliases->isNotEmpty())
+        <x-common.component-card title="پرونده‌های ادغام‌شده"
+            desc="سوابق این پرونده‌ها در همین پرونده تجمیع شده است. اسناد حسابداری آن‌ها دست‌نخورده و با شناسه اصلی خودشان در دفتر باقی مانده‌اند.">
+            <div class="flex flex-wrap gap-2">
+                @foreach ($party->aliases as $alias)
+                    <span class="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-theme-sm dark:border-gray-700">
+                        <span class="font-medium text-gray-800 dark:text-white/90">{{ $alias->mergedParty?->name ?? '—' }}</span>
+                        <span class="text-gray-400">#{{ $alias->merged_party_id }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">{{ $alias->reason }}</span>
+                    </span>
+                @endforeach
+            </div>
+        </x-common.component-card>
+    @endif
+
     <x-nav.tabs :tabs="$tabs" param="tab" :active="$tab" />
 
     @if ($tab === 'overview')
@@ -99,6 +127,8 @@
         @include('pages.parties.partials.loans')
     @elseif ($tab === 'cheques')
         @include('pages.parties.partials.cheques')
+    @elseif ($tab === 'employee')
+        @include('pages.parties.partials.employee')
     @elseif ($tab === 'roles')
         @include('pages.parties.partials.roles')
     @elseif ($tab === 'bank-accounts')

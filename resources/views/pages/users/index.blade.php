@@ -33,7 +33,7 @@
     @error('user')<x-ui.alert variant="error" title="خطا" :message="$message" />@enderror
     @error('role')<x-ui.alert variant="error" title="خطا" :message="$message" />@enderror
 
-    <x-tables.data-table :headers="['نام', 'ایمیل', 'نقش', 'عملیات']">
+    <x-tables.data-table :headers="['نام', 'ایمیل', 'سطح دسترسی سیستم', 'طرف حساب', 'نقش‌های تجاری', 'عملیات']">
         @foreach ($users as $user)
             <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                 <td class="px-5 py-3 sm:px-6">
@@ -51,6 +51,21 @@
                             {{ $roleLabels[$role] ?? $role }}
                         </x-ui.badge>
                     @endforeach
+                </td>
+                {{-- The business identity behind the login, if there is one. --}}
+                <td class="px-5 py-3">
+                    @if ($user['party_url'])
+                        <a href="{{ $user['party_url'] }}" class="text-theme-sm font-medium text-brand-500 hover:underline">{{ $user['party_name'] }}</a>
+                    @else
+                        <span class="text-theme-sm text-gray-400">—</span>
+                    @endif
+                </td>
+                <td class="px-5 py-3">
+                    @forelse ($user['business_roles'] as $businessRole)
+                        <x-ui.badge color="light" size="sm">{{ $businessRole }}</x-ui.badge>
+                    @empty
+                        <span class="text-theme-sm text-gray-400">—</span>
+                    @endforelse
                 </td>
                 <td class="px-5 py-3">
                     <div class="flex items-center gap-1">
@@ -103,13 +118,14 @@
         </div>
 
         <div>
-            <label class="{{ $labelClass }}">نقش</label>
+            <label class="{{ $labelClass }}">سطح دسترسی سیستم</label>
             <select name="role" required class="{{ $inputClass }}">
                 <option value="">انتخاب نقش</option>
                 @foreach ($roles as $role)
                     <option value="{{ $role }}" @selected(old('_form') === 'create' && old('role') === $role)>{{ $roleLabels[$role] ?? $role }}</option>
                 @endforeach
             </select>
+            <p class="mt-1 text-xs text-gray-400">این فقط تعیین می‌کند کاربر در نرم‌افزار چه کاری می‌تواند انجام دهد.</p>
         </div>
 
         <div>
@@ -122,6 +138,8 @@
             <label class="{{ $labelClass }}">تکرار رمز عبور</label>
             <input type="password" name="password_confirmation" required dir="ltr" autocomplete="new-password" class="{{ $inputClass }} text-left">
         </div>
+
+        @include('pages.users.partials.party-link', ['formKey' => 'create', 'user' => null])
 
         <div class="flex justify-end gap-2 pt-2">
             <button type="button" @click="open = false"
@@ -157,7 +175,7 @@
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">نقش</label>
+                <label class="{{ $labelClass }}">سطح دسترسی سیستم</label>
                 @php $currentRole = old('_form') === $formKey ? old('role') : ($user['roles'][0] ?? ''); @endphp
                 <select name="role" required class="{{ $inputClass }}">
                     @foreach ($roles as $role)
@@ -184,6 +202,8 @@
                 <label class="{{ $labelClass }}">تکرار رمز عبور</label>
                 <input type="password" name="password_confirmation" dir="ltr" autocomplete="new-password" class="{{ $inputClass }} text-left">
             </div>
+
+            @include('pages.users.partials.party-link', ['formKey' => $formKey, 'user' => $user])
 
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" @click="open = false"

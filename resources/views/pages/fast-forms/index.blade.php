@@ -21,9 +21,16 @@
 
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 
-        {{-- ---------- Expense ---------- --}}
+        {{-- ---------- Expense ----------
+             «منبع پرداخت» decides the credit side of the entry. A bank-funded
+             expense moves company cash; every other kind creates a DEBT instead —
+             to the supplier we have not paid, or to the employee/partner who paid
+             it for us. The bank field and the party field are therefore mutually
+             exclusive, and Alpine only swaps which one is visible: the server
+             validates the pairing on its own (see FastFormController). --}}
         <x-common.component-card title="ثبت هزینه">
-            <form method="POST" action="{{ route('fast-forms.expense') }}" class="space-y-3">
+            <form method="POST" action="{{ route('fast-forms.expense') }}" class="space-y-3"
+                  x-data="{ funding: '{{ old('funding_source', 'bank') }}' }">
                 @csrf
                 <select name="expense_category_id" required class="{{ $selectClass }}">
                     <option value="">دسته هزینه…</option>
@@ -39,15 +46,32 @@
                     @endforeach
                 </select>
 
-                <select name="bank_account_id" required class="{{ $selectClass }}">
-                    <option value="">پرداخت از…</option>
-                    @foreach ($banks as $b)
-                        <option value="{{ $b->id }}" @selected(old('bank_account_id') == $b->id)>{{ $b->name }}</option>
+                <select name="funding_source" x-model="funding" required class="{{ $selectClass }}">
+                    @foreach ($fundingSources as $value => $label)
+                        <option value="{{ $value }}" @selected(old('funding_source', 'bank') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
 
-                <input type="number" name="amount" min="1" required dir="ltr" placeholder="مبلغ (تومان)"
-                    value="{{ old('amount') }}" class="{{ $inputClass }}">
+                <div x-show="funding === 'bank'">
+                    <select name="bank_account_id" class="{{ $selectClass }}">
+                        <option value="">پرداخت از…</option>
+                        @foreach ($banks as $b)
+                            <option value="{{ $b->id }}" @selected(old('bank_account_id') == $b->id)>{{ $b->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div x-show="funding !== 'bank'" x-cloak>
+                    <x-form.party-select
+                        name="funded_by_party_id"
+                        label="بدهی به طرف حساب"
+                        :value="old('funded_by_party_id')"
+                        help="موجودی بانک تغییر نمی‌کند؛ این مبلغ به‌عنوان بدهی شرکت به این طرف حساب ثبت می‌شود." />
+                </div>
+
+                <x-form.money-input name="amount" label="مبلغ" :value="old('amount')" required />
+
+                <x-form.jalali-date name="expense_date" label="تاریخ هزینه" :value="old('expense_date', $today)" required />
 
                 <input type="text" name="description" required maxlength="255" placeholder="شرح"
                     value="{{ old('description') }}" class="{{ $inputClass }}">
@@ -100,21 +124,21 @@
         {{-- ---------- Customer payment ---------- --}}
         <x-common.component-card title="دریافت از مشتری">
             {{-- Alpine only narrows the credit-order list to the picked customer (cosmetic);
-                 the server still validates party_id/credit_order_id independently. --}}
+                 the server still validates party_id/credit_order_id independently. The
+                 customer itself comes from <x-form.party-select>, which searches every
+                 customer on the server — the old dropdown stopped at the first 200. --}}
             <form method="POST" action="{{ route('fast-forms.payment') }}" class="space-y-3"
-                x-data="{ partyId: '', credits: @js($open_credits) }">
+                x-data="{ partyId: null, credits: @js($open_credits),
+                          get openCredits() { return this.credits.filter(c => c.party_id === this.partyId); } }"
+                x-on:party-selected="partyId = $event.detail.id">
                 @csrf
-                <select name="party_id" required x-model="partyId" class="{{ $selectClass }}">
-                    <option value="">مشتری…</option>
-                    @foreach ($customers as $cu)
-                        <option value="{{ $cu->id }}">{{ $cu->name }}</option>
-                    @endforeach
-                </select>
+                <x-form.party-select name="party_id" label="مشتری" role="customer"
+                    :value="old('party_id')" required />
 
-                <template x-if="credits.filter(c => String(c.party_id) === partyId).length > 0">
+                <template x-if="openCredits.length > 0">
                     <select name="credit_order_id" class="{{ $selectClass }}">
                         <option value="">بدون اتصال به فروش اعتباری</option>
-                        <template x-for="c in credits.filter(c => String(c.party_id) === partyId)" :key="c.id">
+                        <template x-for="c in openCredits" :key="c.id">
                             <option :value="c.id" x-text="(c.description ?? 'اعتباری') + ' — مانده ' + Number(c.remaining).toLocaleString('fa-IR')"></option>
                         </template>
                     </select>
@@ -127,9 +151,9 @@
                     @endforeach
                 </select>
 
-                <input type="number" name="amount" min="1" required dir="ltr" placeholder="مبلغ (تومان)" class="{{ $inputClass }}">
+                <x-form.money-input name="amount" label="مبلغ" :value="old('amount')" required />
 
-                <button type="submit" class="{{ $submitClass }}" @disabled($customers->isEmpty())>ثبت دریافت</button>
+                <button type="submit" class="{{ $submitClass }}">ثبت دریافت</button>
             </form>
         </x-common.component-card>
 

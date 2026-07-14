@@ -27,6 +27,7 @@ class ChartOfAccountsSeeder extends Seeder
             ['2100', 'اسناد پرداختنی (چک)', 'liability'],
             ['2200', 'تسهیلات و وام‌ها', 'liability'],
             ['2300', 'حقوق پرداختنی', 'liability'],
+            ['2350', 'حساب جاری کارمند', 'liability'],
             ['2400', 'پیش‌دریافت و اعتبار مشتریان', 'liability'],
             ['2500', 'سود سهم شرکا پرداختنی', 'liability'],
             ['2600', 'حساب جاری شرکا', 'liability'],

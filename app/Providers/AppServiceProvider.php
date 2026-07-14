@@ -9,6 +9,7 @@ use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\PartnerOperation;
 use App\Domain\Accounting\Models\PartnerProfile;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Models\PartyAlias;
 use App\Domain\Accounting\Models\PartyBankAccount;
 use App\Domain\Accounting\Models\PartyExternalId;
 use App\Domain\Accounting\Models\PartyOffset;
@@ -86,6 +87,7 @@ class AppServiceProvider extends ServiceProvider
             // whose class is resolved to a morph alias (LogsActivity does exactly
             // that for its subject) must be registered here or it throws.
             'party_role' => PartyRole::class,
+            'party_alias' => PartyAlias::class,
             'party_bank_account' => PartyBankAccount::class,
             'party_external_id' => PartyExternalId::class,
             'customer_profile' => CustomerProfile::class,

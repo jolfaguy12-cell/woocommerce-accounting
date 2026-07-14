@@ -128,7 +128,7 @@ class PayablesService
         };
 
         return [
-            'date' => JalaliPeriod::fmtDateTime($line->entry->entry_date),
+            'date' => JalaliPeriod::fmtDate($line->entry->entry_date),
             'description' => $line->entry->description,
             'type' => $type,
             'payment' => $isPayment ? $source : null,

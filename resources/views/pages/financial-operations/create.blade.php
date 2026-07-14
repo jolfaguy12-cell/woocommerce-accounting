@@ -44,7 +44,9 @@
                 ? `مبلغ ${this.money(this.amount)} تومان به حساب «${this.name(this.bank)}» واریز و طرف مقابل آن در حساب انتخاب‌شده ثبت می‌شود.`
                 : `مبلغ ${this.money(this.amount)} تومان از حساب «${this.name(this.bank)}» برداشت و طرف مقابل آن در حساب انتخاب‌شده ثبت می‌شود.`;
         },
-     }">
+     }"
+     x-on:money-input="if ($event.detail.name === 'amount') amount = $event.detail.value;
+                      if ($event.detail.name === 'bank_fee') fee = $event.detail.value">
 
     @if ($errors->any())
         <x-ui.alert variant="error" title="خطا در ثبت" :message="$errors->first()" />
@@ -98,16 +100,16 @@
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">مبلغ (تومان)</label>
-                        <input type="number" name="amount" min="1" x-model="amount" dir="ltr" class="{{ $inputClass }}">
+                        <x-form.money-input name="amount" :label="null" :value="old('amount')" required />
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">کارمزد بانکی (تومان)</label>
-                        <input type="number" name="bank_fee" min="0" x-model="fee" dir="ltr" class="{{ $inputClass }}">
+                        <x-form.money-input name="bank_fee" :label="null" :value="old('bank_fee')" />
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">از حساب مبدأ کسر و در «کارمزد بانکی» ثبت می‌شود.</p>
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">تاریخ</label>
-                        <input type="date" name="transfer_date" value="{{ old('transfer_date', $today) }}" dir="ltr" class="{{ $inputClass }}">
+                        <x-form.jalali-date name="transfer_date" :label="null" :value="old('transfer_date', $today)" required />
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">روش</label>
@@ -163,22 +165,15 @@
                             @endforeach
                         </select>
                     </div>
-                    <div>
-                        <label class="{{ $labelClass }}">طرف حساب (اختیاری)</label>
-                        <select name="party_id" class="{{ $selectClass }}">
-                            <option value="">—</option>
-                            @foreach ($parties as $p)
-                                <option value="{{ $p->id }}" @selected(old('party_id') == $p->id)>{{ $p->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <x-form.party-select name="party_id" label="طرف حساب (اختیاری)"
+                        :value="old('party_id')" :selected-name="$selectedPartyName" />
                     <div>
                         <label class="{{ $labelClass }}">مبلغ (تومان)</label>
-                        <input type="number" name="amount" min="1" x-model="amount" dir="ltr" class="{{ $inputClass }}">
+                        <x-form.money-input name="amount" :label="null" :value="old('amount')" required />
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">تاریخ</label>
-                        <input type="date" name="transaction_date" value="{{ old('transaction_date', $today) }}" dir="ltr" class="{{ $inputClass }}">
+                        <x-form.jalali-date name="transaction_date" :label="null" :value="old('transaction_date', $today)" required />
                     </div>
                     <div class="sm:col-span-2">
                         <label class="{{ $labelClass }}">شرح</label>

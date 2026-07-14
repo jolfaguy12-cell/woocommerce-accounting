@@ -44,10 +44,23 @@ class JalaliPeriod
         ];
     }
 
-    /** Short Jalali date+time for display, e.g. "1405/04/14 22:21" (Tehran time). */
+    /**
+     * Short Jalali date+time, e.g. "1405/04/14 22:21" (Tehran time).
+     *
+     * For REAL timestamps only — when something actually happened, to the minute:
+     * a created_at, an approval, a role activation. If the value came out of a
+     * `date` column it has no time, and printing "00:00" next to it is not a
+     * precise answer, it is a made-up one. Use fmtDate() there.
+     */
     public static function fmtDateTime(Carbon $date): string
     {
         return Jalalian::fromCarbon($date->copy()->setTimezone(self::TIMEZONE))->format('Y/m/d H:i');
+    }
+
+    /** Jalali date only, e.g. "1405/04/14" — for date columns (due dates, invoice dates). */
+    public static function fmtDate(Carbon $date): string
+    {
+        return Jalalian::fromCarbon($date->copy()->setTimezone(self::TIMEZONE))->format('Y/m/d');
     }
 
     /** Persian relative time, e.g. "۳ ساعت پیش" / "۲ روز پیش", for recency-style display columns. */

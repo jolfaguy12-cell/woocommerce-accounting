@@ -37,7 +37,7 @@
             <div>
                 <p class="text-xs text-gray-500 dark:text-gray-400">تاریخ</p>
                 <p class="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">
-                    {{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($offset->offset_date) }}
+                    {{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDate($offset->offset_date) }}
                 </p>
             </div>
             <div class="sm:col-span-2">

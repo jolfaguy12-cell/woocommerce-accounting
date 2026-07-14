@@ -132,7 +132,7 @@
                     <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
                         <x-tables.num class="px-5 py-3 sm:px-6" :value="$installment->sequence" type="int" />
                         <td class="whitespace-nowrap px-5 py-3 text-sm text-gray-600 sm:px-6 dark:text-gray-400">
-                            {{ $installment->due_date ? JalaliPeriod::fmtDateTime($installment->due_date) : '—' }}
+                            {{ $installment->due_date ? JalaliPeriod::fmtDate($installment->due_date) : '—' }}
                         </td>
                         <x-tables.num class="px-5 py-3 sm:px-6" :value="$installment->principal_part" type="toman" zero />
                         <x-tables.num class="px-5 py-3 sm:px-6" :value="$installment->interest_part" type="toman" zero tone="muted" />

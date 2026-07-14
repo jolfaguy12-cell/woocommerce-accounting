@@ -43,7 +43,7 @@
             @forelse ($offsets as $offset)
                 <tr class="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5">
                     <td class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">
-                        {{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($offset->offset_date) }}
+                        {{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDate($offset->offset_date) }}
                     </td>
                     <td class="px-5 py-3 sm:px-6">
                         <a href="{{ route('mutual-accounts.show', $offset) }}" class="font-medium text-brand-500 hover:underline">

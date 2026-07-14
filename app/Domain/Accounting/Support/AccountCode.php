@@ -32,6 +32,7 @@ enum AccountCode: string
     case ChequesPayable = '2100';
     case LoansPayable = '2200';
     case PayrollPayable = '2300';
+    case EmployeeCurrentAccount = '2350';
     case CustomerCredit = '2400';
     case PartnerProfitPayable = '2500';
     case PartnerCurrentAccount = '2600';

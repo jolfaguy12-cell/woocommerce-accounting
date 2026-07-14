@@ -49,8 +49,12 @@ class PartyLedgerService
     {
         $account = $code->account();
 
+        // Every id this identity has ever been posted under — itself, plus any
+        // duplicate merged into it. A merge does not (and must not) rewrite the
+        // journal lines of the absorbed party, so the only way its history reaches
+        // the survivor's balance is by summing over both ids here.
         $sums = JournalLine::where('account_id', $account->id)
-            ->where('party_id', $party->id)
+            ->whereIn('party_id', $party->identityIds())
             ->selectRaw('COALESCE(SUM(debit), 0) as debit, COALESCE(SUM(credit), 0) as credit')
             ->first();
 
@@ -61,6 +65,20 @@ class PartyLedgerService
             || in_array($account->code, self::DEBIT_NATURAL_CONTRA, true);
 
         return $debitNatural ? $debit - $credit : $credit - $debit;
+    }
+
+    /**
+     * One side of one account, unnetted — «حقوق تحقق‌یافته» is the salary that has
+     * been *earned* (every credit to 2300), not the salary still owed, and the two
+     * are only the same number until the first payment is made.
+     */
+    public function totalOn(Party $party, AccountCode $code, string $side): int
+    {
+        $column = $side === 'debit' ? 'debit' : 'credit';
+
+        return (int) JournalLine::where('account_id', $code->account()->id)
+            ->whereIn('party_id', $party->identityIds())
+            ->sum($column);
     }
 
     /** >0: the customer owes us. */
@@ -103,10 +121,34 @@ class PartyLedgerService
         return $this->balanceOn($party, AccountCode::EmployeeAdvance);
     }
 
-    /** >0: we owe the employee salary. */
+    /** >0: we owe the employee salary. «مانده حقوق» */
     public function payrollPayable(Party $party): int
     {
         return $this->balanceOn($party, AccountCode::PayrollPayable);
+    }
+
+    /** «حقوق تحقق‌یافته» — salary earned to date, whether or not it has been paid. */
+    public function accruedSalary(Party $party): int
+    {
+        return $this->totalOn($party, AccountCode::PayrollPayable, 'credit');
+    }
+
+    /** «حقوق پرداخت‌شده» — salary actually handed over. */
+    public function paidSalary(Party $party): int
+    {
+        return $this->totalOn($party, AccountCode::PayrollPayable, 'debit');
+    }
+
+    /**
+     * >0: the employee spent their own money on the company and we have not paid
+     * them back. «هزینه پرداخت‌شده توسط کارمند»
+     *
+     * Deliberately NOT netted into the payroll payable: a reimbursement is not
+     * salary, and mixing them would make «مانده حقوق» a number that means neither.
+     */
+    public function employeePaidExpenses(Party $party): int
+    {
+        return $this->balanceOn($party, AccountCode::EmployeeCurrentAccount);
     }
 
     /** >0: they owe us the loan we gave them. */
@@ -158,8 +200,9 @@ class PartyLedgerService
             'customer_credit' => ['اعتبار مشتری نزد ما', $this->customerCredit($party), 'due_to_them'],
             'supplier_payable' => ['مانده پرداختنی تأمین‌کننده', $this->supplierPayable($party), 'due_to_them'],
             'supplier_advance' => ['پیش‌پرداخت به تأمین‌کننده', $this->supplierAdvance($party), 'due_to_us'],
-            'employee_advance' => ['مساعده کارمند', $this->employeeAdvance($party), 'due_to_us'],
-            'payroll_payable' => ['حقوق پرداختنی', $this->payrollPayable($party), 'due_to_them'],
+            'employee_advance' => ['مساعده', $this->employeeAdvance($party), 'due_to_us'],
+            'payroll_payable' => ['مانده حقوق', $this->payrollPayable($party), 'due_to_them'],
+            'employee_paid_expenses' => ['هزینه پرداخت‌شده توسط کارمند', $this->employeePaidExpenses($party), 'due_to_them'],
             'loan_receivable' => ['وام پرداختی', $this->loanReceivable($party), 'due_to_us'],
             'loan_payable' => ['وام دریافتی', $this->loanPayable($party), 'due_to_them'],
             'partner_current_account' => ['حساب جاری شریک', $this->partnerCurrentAccount($party), 'due_to_them'],
@@ -232,7 +275,7 @@ class PartyLedgerService
     {
         $search = $query->search() ?? '';
 
-        $lines = JournalLine::where('journal_lines.party_id', $party->id)
+        $lines = JournalLine::whereIn('journal_lines.party_id', $party->identityIds())
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
             ->join('accounts', 'accounts.id', '=', 'journal_lines.account_id')
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
@@ -255,7 +298,7 @@ class PartyLedgerService
                 ? $l->debit - $l->credit
                 : $l->credit - $l->debit;
 
-            $l->jalali_date = JalaliPeriod::fmtDateTime($l->entry->entry_date);
+            $l->jalali_date = JalaliPeriod::fmtDate($l->entry->entry_date);
         }));
 
         return $lines;

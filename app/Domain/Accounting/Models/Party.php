@@ -9,6 +9,7 @@ use App\Domain\Orders\Models\Order;
 use App\Domain\Receivables\Models\Employee;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\QueryException;
@@ -177,6 +178,76 @@ class Party extends Model
     public function externalIds(): HasMany
     {
         return $this->hasMany(PartyExternalId::class);
+    }
+
+    /*
+     |--------------------------------------------------------------------------
+     | Merged identity
+     |--------------------------------------------------------------------------
+     | A merge NEVER rewrites journal_lines — they are immutable, and repointing
+     | a posted line's party_id would be editing history to fix a data-entry
+     | mistake. The absorbed party keeps its id and keeps its lines; it is simply
+     | recorded as being the same person as the survivor.
+     |
+     | Everything else follows from that: `identityIds()` is the set of ids this
+     | identity has ever been posted under, and every balance and statement sums
+     | over it. So the survivor's profile shows the whole history of both parties
+     | while every historical entry still points where it was posted.
+     */
+
+    /** The parties absorbed INTO this one. */
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(PartyAlias::class, 'party_id');
+    }
+
+    /** Set on an absorbed party: the identity it now belongs to. */
+    public function mergedInto(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'merged_into_id');
+    }
+
+    public function isMerged(): bool
+    {
+        return $this->merged_into_id !== null;
+    }
+
+    /** Follow the chain to the identity that is actually live. */
+    public function canonical(): self
+    {
+        $party = $this;
+        $seen = [];
+
+        while ($party->merged_into_id !== null && ! in_array($party->id, $seen, true)) {
+            $seen[] = $party->id;
+            $party = $party->mergedInto ?? $party;
+
+            if (in_array($party->id, $seen, true)) {
+                break; // defensive: a cycle can only exist if something went wrong
+            }
+        }
+
+        return $party;
+    }
+
+    /**
+     * Every party id this identity's history is posted under — itself plus every
+     * party ever merged into it. The one thing every balance query must use.
+     *
+     * @return list<int>
+     */
+    public function identityIds(): array
+    {
+        return [
+            (int) $this->id,
+            ...PartyAlias::where('party_id', $this->id)->pluck('merged_party_id')->map(fn ($id) => (int) $id),
+        ];
+    }
+
+    /** Live identities only — a merged party is not a separate party any more. */
+    public function scopeNotMerged(Builder $query): void
+    {
+        $query->whereNull('merged_into_id');
     }
 
     /** @return Collection<int, PartyRole> */

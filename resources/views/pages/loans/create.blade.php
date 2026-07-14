@@ -47,7 +47,9 @@
                 ? `مبلغ ${amount} تومان به حساب انتخاب‌شده وارد می‌شود و به همان اندازه به این طرف حساب بدهکار می‌شویم.${schedule}`
                 : `مبلغ ${amount} تومان از حساب انتخاب‌شده خارج می‌شود و به همان اندازه از این طرف حساب طلبکار می‌شویم.${schedule}`;
         },
-     }">
+     }"
+     x-on:party-selected="party = $event.detail.id ?? ''"
+     x-on:money-input="if ($event.detail.name === 'principal') principal = $event.detail.value">
 
     @if ($errors->any())
         <x-ui.alert variant="error" title="خطا در ثبت" :message="$errors->first()" />
@@ -63,15 +65,11 @@
 
         <x-common.component-card title="مشخصات وام">
             <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="{{ $labelClass }}">طرف حساب</label>
-                    <select name="party_id" x-model="party" class="{{ $selectClass }}">
-                        <option value="">انتخاب کنید…</option>
-                        @foreach ($parties as $p)
-                            <option value="{{ $p->id }}" @selected(old('party_id') == $p->id)>{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                {{-- Server-side search over every party. The old dropdown listed the
+                     first 500 by name — with more parties than that, the one you needed
+                     was simply absent, and nothing said so. --}}
+                <x-form.party-select name="party_id" label="طرف حساب"
+                    :value="old('party_id')" :selected-name="$selectedPartyName" required />
 
                 <div>
                     <label class="{{ $labelClass }}">نوع وام</label>
@@ -85,7 +83,7 @@
 
                 <div>
                     <label class="{{ $labelClass }}">مبلغ اصل وام (تومان)</label>
-                    <input type="number" name="principal" min="1" x-model="principal" dir="ltr" class="{{ $inputClass }}">
+                    <x-form.money-input name="principal" :label="null" :value="old('principal')" required />
                 </div>
 
                 <div>
@@ -100,12 +98,12 @@
 
                 <div>
                     <label class="{{ $labelClass }}">تاریخ دریافت یا پرداخت</label>
-                    <input type="date" name="received_at" value="{{ old('received_at', $today) }}" dir="ltr" class="{{ $inputClass }}">
+                    <x-form.jalali-date name="received_at" :label="null" :value="old('received_at', $today)" required />
                 </div>
 
                 <div>
                     <label class="{{ $labelClass }}">تاریخ سررسید</label>
-                    <input type="date" name="maturity_date" value="{{ old('maturity_date') }}" dir="ltr" class="{{ $inputClass }}">
+                    <x-form.jalali-date name="maturity_date" :label="null" :value="old('maturity_date')" />
                 </div>
 
                 <div class="sm:col-span-2">

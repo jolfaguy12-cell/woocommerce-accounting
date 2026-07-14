@@ -29,7 +29,9 @@
                 ? `چک ${amount} تومانی به‌عنوان «اسناد دریافتنی» ثبت می‌شود و به همان اندازه از طلب ما از این مشتری کم می‌شود. توجه: این پرداخت نیست؛ وجه چک تنها در زمان وصول به حساب می‌نشیند.`
                 : `چک ${amount} تومانی به‌عنوان «اسناد پرداختنی» ثبت می‌شود و به همان اندازه از بدهی ما به این طرف حساب کم می‌شود. توجه: وجه آن تنها در زمان پاس شدن چک از حساب خارج می‌شود.`;
         },
-     }">
+     }"
+     x-on:party-selected="party = $event.detail.id ?? ''"
+     x-on:money-input="if ($event.detail.name === 'amount') amount = $event.detail.value">
 
     @if ($errors->any())
         <x-ui.alert variant="error" title="خطا در ثبت" :message="$errors->first()" />
@@ -40,15 +42,8 @@
 
         <x-common.component-card title="مشخصات چک">
             <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="{{ $labelClass }}">طرف حساب</label>
-                    <select name="party_id" x-model="party" class="{{ $selectClass }}">
-                        <option value="">انتخاب کنید…</option>
-                        @foreach ($parties as $p)
-                            <option value="{{ $p->id }}" @selected(old('party_id') == $p->id)>{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <x-form.party-select name="party_id" label="طرف حساب"
+                    :value="old('party_id')" :selected-name="$selectedPartyName" required />
 
                 <div>
                     <label class="{{ $labelClass }}">نوع چک</label>
@@ -62,12 +57,12 @@
 
                 <div>
                     <label class="{{ $labelClass }}">مبلغ (تومان)</label>
-                    <input type="number" name="amount" min="1" x-model="amount" dir="ltr" class="{{ $inputClass }}">
+                    <x-form.money-input name="amount" :label="null" :value="old('amount')" required />
                 </div>
 
                 <div>
                     <label class="{{ $labelClass }}">تاریخ سررسید</label>
-                    <input type="date" name="due_date" value="{{ old('due_date', $today) }}" dir="ltr" class="{{ $inputClass }}">
+                    <x-form.jalali-date name="due_date" :label="null" :value="old('due_date', $today)" required />
                 </div>
 
                 <div>

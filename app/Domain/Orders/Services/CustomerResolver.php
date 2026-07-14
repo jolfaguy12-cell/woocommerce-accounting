@@ -41,7 +41,11 @@ class CustomerResolver
         $hubCustomerId = (int) ($payload['customer_id'] ?? 0);
 
         if ($hubCustomerId > 0) {
-            $party = Party::firstOrNew(['hub_customer_id' => $hubCustomerId]);
+            // notMerged(): a party that has been merged into another is not a party
+            // any more. Resolving an order onto it would keep feeding history to a
+            // dead identity that no screen lists — the duplicate would quietly come
+            // back to life, one order at a time.
+            $party = Party::notMerged()->firstOrNew(['hub_customer_id' => $hubCustomerId]);
             $party->name = $name ?: ($party->name ?: "مشتری #{$hubCustomerId}");
             $party->phone = $phone ?: $party->phone;
             $party->email = $email ?: $party->email;
@@ -60,10 +64,12 @@ class CustomerResolver
         $isNewParty = false;
 
         if ($phone) {
-            $party = Party::withRole(PartyRoleType::Customer)->where('phone', $phone)->first();
+            $party = Party::notMerged()->withRole(PartyRoleType::Customer)->where('phone', $phone)->first();
 
             if (! $party && $existingPartyId) {
-                $linked = Party::find($existingPartyId);
+                // Follow the merge chain: an order linked to a party that has since
+                // been absorbed belongs to the survivor now.
+                $linked = Party::find($existingPartyId)?->canonical();
                 if ($linked && $linked->hasRole(PartyRoleType::Customer) && $linked->phone === null) {
                     $party = $linked; // same order, same person — it just gave us a phone number this time
                 }
@@ -74,7 +80,7 @@ class CustomerResolver
                 $isNewParty = true;
             }
         } else {
-            $party = Party::withRole(PartyRoleType::Customer)->whereNull('phone')->where('name', $name)->first()
+            $party = Party::notMerged()->withRole(PartyRoleType::Customer)->whereNull('phone')->where('name', $name)->first()
                 ?? new Party(['phone' => null, 'name' => $name]);
         }
 
@@ -115,7 +121,7 @@ class CustomerResolver
 
     private function flagPossibleDuplicate(Party $newParty, string $name, string $phone): void
     {
-        $existing = Party::withRole(PartyRoleType::Customer)
+        $existing = Party::notMerged()->withRole(PartyRoleType::Customer)
             ->where('name', $name)
             ->where('id', '!=', $newParty->id)
             ->whereNotNull('phone')

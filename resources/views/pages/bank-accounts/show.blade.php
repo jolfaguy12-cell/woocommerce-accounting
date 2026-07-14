@@ -64,7 +64,7 @@
         >
             @foreach ($transactions as $line)
                 <tr class="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                    <td x-show="visible.date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDateTime($line->entry->entry_date) }}</td>
+                    <td x-show="visible.date" class="whitespace-nowrap px-5 py-3 text-xs text-gray-500 sm:px-6 dark:text-gray-400">{{ \App\Domain\Accounting\Support\JalaliPeriod::fmtDate($line->entry->entry_date) }}</td>
                     <td x-show="visible.description" class="px-5 py-3 text-gray-800 sm:px-6 dark:text-white/90">
                         {{-- A transfer posts ONE entry that lands in both accounts' ledgers, so
                              this row exists on both sides. Linking it back to the operation is

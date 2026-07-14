@@ -36,7 +36,7 @@
                     <x-tables.num class="px-5 py-3 sm:px-6" :value="$cheque->amount" type="toman" />
                     <td class="whitespace-nowrap px-5 py-3 text-sm sm:px-6">
                         <span class="{{ $cheque->isLate() ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-600 dark:text-gray-400' }}">
-                            {{ JalaliPeriod::fmtDateTime($cheque->due_date) }}
+                            {{ JalaliPeriod::fmtDate($cheque->due_date) }}
                         </span>
                     </td>
                     <td class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-400">

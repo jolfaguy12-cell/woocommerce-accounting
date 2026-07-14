@@ -62,7 +62,13 @@ it('lists per-party matches without merging anything', function () {
         ->and($b->fresh()->hasRole('customer'))->toBeFalse();
 });
 
-it('renders the duplicate review page and offers no merge action', function () {
+/**
+ * The review page is now ACTIONABLE — but the thing that made merging safe to
+ * offer has not changed: detection still merges nothing on its own. An admin
+ * gets a merge button and must give a reason; everyone else gets the same
+ * read-only suggestions they always had.
+ */
+it('renders the duplicate review page with a merge action for an admin', function () {
     Party::createWithRole('customer', ['name' => 'شرکت ج', 'tax_id' => '99887766']);
     Party::createWithRole('supplier', ['name' => 'شرکت ج پخش', 'tax_id' => '99887766']);
 
@@ -70,5 +76,21 @@ it('renders the duplicate review page and offers no merge action', function () {
         ->assertOk()
         ->assertSee('شناسه مالیاتی یکسان')
         ->assertSee('هیچ ادغام خودکاری انجام نمی‌شود', false)
-        ->assertDontSee('ادغام طرف حساب‌ها');
+        ->assertSee('ادغام طرف حساب‌ها')
+        ->assertSee('دلیل ادغام');
+
+    // Still detection only: looking at the page merges nothing.
+    expect(Party::whereNotNull('merged_into_id')->count())->toBe(0);
+});
+
+it('offers no merge action to a non-admin', function () {
+    $accountant = User::factory()->create()->assignRole('accountant');
+
+    Party::createWithRole('customer', ['name' => 'شرکت ج', 'tax_id' => '99887766']);
+    Party::createWithRole('supplier', ['name' => 'شرکت ج پخش', 'tax_id' => '99887766']);
+
+    $this->actingAs($accountant)->get(route('parties.duplicates'))
+        ->assertOk()
+        ->assertSee('شناسه مالیاتی یکسان')
+        ->assertDontSee('دلیل ادغام');
 });

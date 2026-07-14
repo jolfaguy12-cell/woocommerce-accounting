@@ -67,7 +67,10 @@ class ChequeController extends Controller
     {
         return view('pages.cheques.create', [
             'title' => 'ثبت چک جدید',
-            'parties' => Party::orderBy('name')->limit(500)->get(['id', 'name']),
+            // The picker searches the server (parties.search); the form only needs to
+            // know the name of an already-chosen party so a validation bounce does not
+            // render an empty field with a hidden id in it.
+            'selectedPartyName' => Party::whereKey(old('party_id'))->value('name'),
             'directions' => ['receivable' => 'چک دریافتی', 'payable' => 'چک پرداختی'],
             'today' => Carbon::now(JalaliPeriod::TIMEZONE)->toDateString(),
         ]);
