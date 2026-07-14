@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function () {
     $this->seed([ChartOfAccountsSeeder::class, ChannelSeeder::class]);
-    $this->customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $this->customer = Party::createWithRole('customer', ['name' => 'مشتری']);
 });
 
 function makeCreditOrder(array $attributes): CreditOrder

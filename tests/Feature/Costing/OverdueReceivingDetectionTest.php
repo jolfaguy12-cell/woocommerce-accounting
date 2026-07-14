@@ -19,7 +19,7 @@ beforeEach(function () {
     $this->seed([RoleSeeder::class, ChartOfAccountsSeeder::class, AlertTypeSeeder::class]);
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->warehouse = User::factory()->create(['telegram_id' => '123456'])->assignRole('warehouse');
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->spray = CostItem::create(['name' => 'اسپری']);
 });
 

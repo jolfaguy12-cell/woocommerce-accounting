@@ -18,8 +18,8 @@ beforeEach(function () {
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->accountant = User::factory()->create()->assignRole('accountant');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
-    $this->customer = Party::create(['type' => 'customer', 'name' => 'مشتری چک‌دهنده']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'تأمین‌کننده']);
+    $this->customer = Party::createWithRole('customer', ['name' => 'مشتری چک‌دهنده']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'تأمین‌کننده']);
     $this->cheques = app(ChequeService::class);
     $this->due = Carbon::now('Asia/Tehran')->addDays(30);
 });

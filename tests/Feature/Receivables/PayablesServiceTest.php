@@ -17,7 +17,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->item = CostItem::create(['name' => 'اسپری']);
 });
 

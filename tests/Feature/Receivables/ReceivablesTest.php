@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->customer = Party::create(['type' => 'customer', 'name' => 'مشتری اعتباری']);
+    $this->customer = Party::createWithRole('customer', ['name' => 'مشتری اعتباری']);
 });
 
 it('opens a manual credit order posting AR against sales', function () {

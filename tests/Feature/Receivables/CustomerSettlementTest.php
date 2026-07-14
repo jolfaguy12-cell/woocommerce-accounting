@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 beforeEach(function () {
     $this->seed([ChartOfAccountsSeeder::class, ChannelSeeder::class]);
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $this->customer = Party::createWithRole('customer', ['name' => 'مشتری']);
 });
 
 function settlementTestOrder(int $id, string $date): array

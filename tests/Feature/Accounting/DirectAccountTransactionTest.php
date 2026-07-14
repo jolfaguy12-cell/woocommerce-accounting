@@ -97,7 +97,7 @@ it('sends an account-to-account movement to the transfer operation instead', fun
 });
 
 it('puts the party on the counter line, so the money is traceable to whoever it came from', function () {
-    $party = Party::create(['type' => 'customer', 'name' => 'مستأجر ویترین']);
+    $party = Party::createWithRole('customer', ['name' => 'مستأجر ویترین']);
 
     $transaction = ($this->record)(['party_id' => $party->id]);
     $lines = $transaction->journalEntry->lines;

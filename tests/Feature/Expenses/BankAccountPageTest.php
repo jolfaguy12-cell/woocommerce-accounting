@@ -132,7 +132,7 @@ it('filters bank account transactions by search and shows a running balance', fu
 
 it('links a transaction\'s party to their customer profile when the party is a customer', function () {
     $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت اصلی']);
-    $party = Party::create(['type' => 'customer', 'name' => 'مشتری تست']);
+    $party = Party::createWithRole('customer', ['name' => 'مشتری تست']);
 
     app(PaymentRecorder::class)->receiveForCustomer($party, 100_000, $bank->id);
 

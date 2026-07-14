@@ -6,6 +6,7 @@ use App\Domain\Accounting\Models\Setting;
 use App\Domain\Accounting\Services\AccountTransactionService;
 use App\Domain\Accounting\Support\AccountCode;
 use App\Domain\Accounting\Support\CounterAccountPolicy;
+use App\Domain\Accounting\Support\OperationPolicy;
 use App\Domain\Expenses\Services\BankAccountManager;
 use App\Models\User;
 use Database\Seeders\ChartOfAccountsSeeder;
@@ -18,8 +19,8 @@ use Database\Seeders\RoleSeeder;
  * make an unexplained difference disappear, and every difference it absorbs is a
  * reconciliation that will now never happen.
  *
- * So: admins only, a written reason, an external reference, and a second person's
- * approval — at any amount, whatever the approval threshold happens to be set to.
+ * So it is fenced: admins only, and never without a written reason and an external
+ * reference. It is NOT fenced with a mandatory second approver — see canApprove.
  */
 beforeEach(function () {
     $this->seed([RoleSeeder::class, ChartOfAccountsSeeder::class]);
@@ -92,36 +93,37 @@ it('demands a written reason and an external reference', function () {
     expect(AccountTransaction::count())->toBe(0);
 });
 
-it('always waits for a second person — even at 12,000 Toman with no threshold set', function () {
-    // The amount is the wrong question. A 12,000 adjustment and a 12,000,000 one are the
-    // same act: asserting the books were wrong. `ops.approval_threshold` is not even set
-    // in this test, and it still cannot self-post.
+it('posts straight away for an admin — no second signature required', function () {
+    // There is no mandatory four-eyes rule here, on an adjustment or on anything else:
+    // this is frequently a one-bookkeeper business, and a control that needs a second
+    // human being to exist does not protect the books when there is no second human —
+    // it just pushes the work outside the system. What fences 9999 is that only an
+    // admin can reach it, and only with a reason and a reference.
     $transaction = ($this->attempt)($this->admin);
 
-    expect($transaction->isPendingApproval())->toBeTrue()
-        ->and($transaction->journal_entry_id)->toBeNull()
-        ->and($this->adjustment->balance())->toBe(0);
-
-    // The creator can never be their own approver.
-    expect(fn () => $this->service->approve($transaction, $this->admin))
-        ->toThrow(OperationStateException::class);
-
-    $posted = $this->service->approve($transaction->fresh(), $this->secondAdmin);
-
-    expect($posted->isPosted())->toBeTrue()
+    expect($transaction->isPosted())->toBeTrue()
+        ->and($transaction->created_by)->toBe($this->admin->id)   // still attributable
         ->and($this->adjustment->fresh()->balance())->toBe(-12_000); // credited: it offsets the deposit
 });
 
-it('will not let a non-admin approve an adjustment even if the approve role is widened', function () {
+it('still parks an adjustment when a threshold is set, and only an admin may approve it', function () {
+    Setting::set(OperationPolicy::APPROVAL_THRESHOLD, 10_000);
     Setting::set('ops.roles.approve', ['admin', 'accountant']);
 
     $transaction = ($this->attempt)($this->admin);
 
-    // The accountant now holds the approve role — and still may not approve THIS.
+    expect($transaction->isPendingApproval())->toBeTrue()
+        ->and($transaction->journal_entry_id)->toBeNull();
+
+    // The accountant now holds the approve role — and still may not approve THIS one.
     expect(fn () => $this->service->approve($transaction->fresh(), $this->accountant))
         ->toThrow(OperationStateException::class);
 
-    expect($transaction->fresh()->journal_entry_id)->toBeNull();
+    // The admin who created it may approve it themselves. The threshold is a
+    // "look again" prompt, not a two-person rule.
+    $posted = $this->service->approve($transaction->fresh(), $this->admin);
+
+    expect($posted->isPosted())->toBeTrue();
 });
 
 it('leaves an ordinary income account alone: it posts immediately, no approval, no reference', function () {

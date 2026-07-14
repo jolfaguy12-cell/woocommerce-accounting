@@ -69,15 +69,15 @@ npm ci && npm run build          # new Blade needs a CSS rebuild, or dark mode b
 php artisan migrate --force
 ```
 
-### 4. Backfill (the whole reason for the pause)
+### 4. Backfill
 
-```bash
-php artisan parties:backfill-roles --json
-php artisan parties:sync-profiles --json
-```
-
-Re-run both until every counter is `0`. They only insert what is missing and
-never overwrite a profile the UI has since edited, so re-running is free.
+Nothing to run by hand. The backfill is part of `migrate` now: the legacy columns
+are dropped by `2026_07_14_100000_drop_legacy_party_columns`, which runs the same
+idempotent backfill one final time immediately before the drop, in the same
+migration. The `parties:backfill-roles` and `parties:sync-profiles` commands are
+GONE — they read columns that no longer exist, and leaving them lying around would
+mean an operator running one after deploy and getting an unknown-column error with
+no idea whether the data was safe.
 
 ### 5. Verify before resuming
 
@@ -119,13 +119,18 @@ Then watch the webhook backlog drain and confirm it created nothing stale:
 
 ```bash
 journalctl -u accounting-queue.service -f --since "5 min ago"
-php artisan parties:backfill-roles --json     # expect {"roles_created":0,...}
 ```
 
-New parties created after this point get their role and profile from the model
-itself (`Party::created` → `activateRole` → `profileFor`, in one transaction), so
-this last run should always report zeros. If it does not, sync resumed before the
-backfill finished — investigate before trusting any customer list.
+New parties created after this point get their role explicitly at the call site
+(`Party::createWithRole`, or `CustomerResolver::ensureCustomerRole` for order sync),
+which then creates the role's profile. There is no `type` column and no create-time
+bridge inferring a role from one. Confirm with:
+
+```sql
+SELECT COUNT(*) FROM parties p
+ WHERE NOT EXISTS (SELECT 1 FROM party_roles r WHERE r.party_id = p.id AND r.is_active = 1);
+-- expect 0: a party with no active role means sync resumed before the migration finished
+```
 
 ## Rollback
 

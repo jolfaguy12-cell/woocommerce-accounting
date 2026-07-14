@@ -13,7 +13,7 @@ beforeEach(function () {
     $this->seed([RoleSeeder::class, AlertTypeSeeder::class]);
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->partner = User::factory()->create()->assignRole('partner_viewer');
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
 });
 
 function raiseOverdueAlert(): AlertDelivery

@@ -19,7 +19,7 @@ beforeEach(function () {
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
 });
 
 it('records a manual retained-balance credit, debiting AP and crediting other income', function () {

@@ -21,7 +21,7 @@ beforeEach(function () {
     $this->service = app(PartnerOperationService::class);
     $this->ledger = app(PartyLedgerService::class);
 
-    $this->partner = Party::create(['type' => 'partner', 'name' => 'شریک اول']);
+    $this->partner = Party::createWithRole('partner', ['name' => 'شریک اول']);
 
     $this->run = fn (PartnerOperationType $type, int $amount, array $extra = []) => $this->service->create(array_merge([
         'party' => $this->partner,
@@ -136,7 +136,7 @@ it('refuses a reimbursement against a control account', function () {
 });
 
 it('refuses a partner operation for a party who is not a partner', function () {
-    $customer = Party::create(['type' => 'customer', 'name' => 'مشتری معمولی']);
+    $customer = Party::createWithRole('customer', ['name' => 'مشتری معمولی']);
 
     expect(fn () => $this->service->create([
         'party' => $customer,

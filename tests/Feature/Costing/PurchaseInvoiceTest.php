@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 
 beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->spray = CostItem::create(['name' => 'اسپری رکسونا']);
     $this->lipstick = CostItem::create(['name' => 'رژ لب Von Gee']);
 });

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function () {
     $this->seed([RoleSeeder::class, AlertTypeSeeder::class]);
     $this->admin = User::factory()->create(['telegram_id' => '999888'])->assignRole('admin');
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     Setting::setEncrypted('telegram_bot_token', '123456:FAKE-TOKEN-FOR-TESTS');
 });
 

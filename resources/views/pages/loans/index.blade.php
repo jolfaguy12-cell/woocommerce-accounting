@@ -4,10 +4,11 @@
     $headers = [
         ['label' => 'طرف حساب'],
         ['label' => 'نوع'],
-        ['label' => 'اصل وام', 'align' => 'end'],
+        ['label' => 'مبلغ اصل وام', 'align' => 'end'],
+        ['label' => 'مبلغ پرداخت‌شده', 'align' => 'end'],
         ['label' => 'مانده اصل وام', 'align' => 'end'],
-        ['label' => 'سررسید بعدی'],
-        ['label' => 'حساب'],
+        ['label' => 'تاریخ سررسید'],
+        ['label' => 'حساب بانکی یا صندوق'],
         ['label' => 'وضعیت'],
     ];
 
@@ -54,10 +55,13 @@
                     </td>
                     <td class="whitespace-nowrap px-5 py-3 text-gray-700 sm:px-6 dark:text-gray-300">{{ $row['direction'] }}</td>
                     <x-tables.num class="px-5 py-3 sm:px-6" :value="$row['principal']" type="toman" />
+                    <x-tables.num class="px-5 py-3 sm:px-6" :value="$row['paid_total']" type="toman" zero tone="muted" />
                     <x-tables.num class="px-5 py-3 sm:px-6" :value="$row['remaining_principal']" type="toman" zero
                         :tone="$row['remaining_principal'] > 0 ? 'default' : 'positive'" />
-                    <td class="whitespace-nowrap px-5 py-3 text-sm text-gray-600 sm:px-6 dark:text-gray-400">
-                        {{ $row['next_due_fa'] ?? '—' }}
+                    <td class="whitespace-nowrap px-5 py-3 text-sm sm:px-6">
+                        <span class="{{ $row['is_overdue'] ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-600 dark:text-gray-400' }}">
+                            {{ $row['next_due_fa'] ?? $row['maturity_fa'] ?? '—' }}
+                        </span>
                     </td>
                     <td class="px-5 py-3 text-gray-600 sm:px-6 dark:text-gray-400">{{ $row['bank'] ?? '—' }}</td>
                     <td class="px-5 py-3 sm:px-6">

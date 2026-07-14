@@ -25,7 +25,7 @@ beforeEach(function () {
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->other = User::factory()->create()->assignRole('admin');
-    $this->borrower = Party::create(['type' => 'other', 'name' => 'وام‌گیرنده']);
+    $this->borrower = Party::createWithRole('other', ['name' => 'وام‌گیرنده']);
     $this->loans = app(LoanService::class);
     $this->now = Carbon::now('Asia/Tehran');
 });
@@ -208,7 +208,7 @@ it('will not post a loan twice, however many times it is activated', function ()
 
 /* ── Approval, cancellation and reversal ─────────────────────────────────── */
 
-it('parks a loan above the approval threshold and posts nothing until a second person approves', function () {
+it('parks a loan above the approval threshold and posts nothing until it is approved', function () {
     Setting::set(OperationPolicy::APPROVAL_THRESHOLD, 10_000_000);
 
     $loan = $this->loans->create([
@@ -224,10 +224,9 @@ it('parks a loan above the approval threshold and posts nothing until a second p
         ->and($loan->journal_entry_id)->toBeNull()
         ->and(bal('2200'))->toBe(0);
 
-    // The creator can never be the approver, however senior — that is the whole control.
-    expect(fn () => $this->loans->approve($loan, $this->admin))->toThrow(OperationStateException::class);
-
-    $this->loans->approve($loan->fresh(), $this->other);
+    // The creator may approve it themselves: the threshold is a "stop and look again"
+    // prompt, not a two-person rule (this is often a one-bookkeeper business).
+    $this->loans->approve($loan->fresh(), $this->admin);
 
     expect($loan->fresh()->status)->toBe(LoanStatus::Active)
         ->and(bal('2200'))->toBe(-20_000_000);

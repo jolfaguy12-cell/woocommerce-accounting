@@ -13,7 +13,7 @@ beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
 
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->ledger = app(PartyLedgerService::class);
 
     /**
@@ -118,7 +118,7 @@ it('changes nothing on a dry run', function () {
 });
 
 it('keeps the whole ledger balanced', function () {
-    $other = Party::create(['type' => 'supplier', 'name' => 'پخش شیراز']);
+    $other = Party::createWithRole('supplier', ['name' => 'پخش شیراز']);
     ($this->legacyOverpayment)($this->supplier, 500_000);
     ($this->legacyOverpayment)($other, 250_000);
 

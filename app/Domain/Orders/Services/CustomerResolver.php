@@ -42,7 +42,6 @@ class CustomerResolver
 
         if ($hubCustomerId > 0) {
             $party = Party::firstOrNew(['hub_customer_id' => $hubCustomerId]);
-            $party->type ??= PartyRoleType::Customer->value;
             $party->name = $name ?: ($party->name ?: "مشتری #{$hubCustomerId}");
             $party->phone = $phone ?: $party->phone;
             $party->email = $email ?: $party->email;
@@ -71,15 +70,14 @@ class CustomerResolver
             }
 
             if (! $party) {
-                $party = new Party(['type' => PartyRoleType::Customer->value]);
+                $party = new Party;
                 $isNewParty = true;
             }
         } else {
             $party = Party::withRole(PartyRoleType::Customer)->whereNull('phone')->where('name', $name)->first()
-                ?? new Party(['type' => PartyRoleType::Customer->value, 'phone' => null, 'name' => $name]);
+                ?? new Party(['phone' => null, 'name' => $name]);
         }
 
-        $party->type ??= PartyRoleType::Customer->value;
         $party->name = $name ?: ($party->name ?: 'مهمان');
         $party->phone = $phone ?: $party->phone;
         $party->email = $email ?: $party->email;

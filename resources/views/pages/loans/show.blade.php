@@ -46,7 +46,7 @@
                 </a>
             </div>
             <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">اصل وام</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">مبلغ اصل وام</p>
                 <x-tables.num :value="$summary['principal']" type="toman" :cell="false" class="mt-1 block text-sm font-medium" />
             </div>
             <div>
@@ -57,38 +57,56 @@
             </div>
 
             <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">سود</p>
-                <x-tables.num :value="$summary['interest']" type="toman" zero :cell="false" class="mt-1 block text-sm font-medium" />
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">کارمزد</p>
-                <x-tables.num :value="$summary['paid_fee']" type="toman" zero :cell="false" class="mt-1 block text-sm font-medium" />
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">جریمه دیرکرد</p>
-                <x-tables.num :value="$summary['paid_penalty']" type="toman" zero :cell="false"
-                    :tone="$summary['paid_penalty'] > 0 ? 'negative' : 'muted'" class="mt-1 block text-sm font-medium" />
-            </div>
-            <div>
                 <p class="text-xs text-gray-500 dark:text-gray-400">مبلغ پرداخت‌شده</p>
                 <x-tables.num :value="$summary['paid_total']" type="toman" zero :cell="false" class="mt-1 block text-sm font-medium" />
             </div>
-
             <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">سررسید بعدی</p>
-                <p class="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">{{ $summary['next_due_fa'] ?? '—' }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">تاریخ دریافت یا پرداخت</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $summary['received_at_fa'] }}</p>
             </div>
             <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">سررسید نهایی</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">تاریخ سررسید</p>
                 <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $summary['maturity_fa'] ?? '—' }}</p>
             </div>
             <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">حساب بانکی</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">حساب بانکی یا صندوق</p>
                 <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $loan->bankAccount?->name ?? '—' }}</p>
             </div>
-            <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">روش سود</p>
-                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $loan->interest_method->label() }}</p>
+
+            @if ($summary['next_due_fa'])
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">سررسید بعدی</p>
+                    <p class="mt-1 text-sm font-medium {{ $summary['is_overdue'] ? 'text-error-600 dark:text-error-400' : 'text-gray-800 dark:text-white/90' }}">
+                        {{ $summary['next_due_fa'] }}
+                    </p>
+                </div>
+            @endif
+
+            {{-- Interest, fees and penalties are optional and default to zero. A row of
+                 four «۰» tells the reader nothing except that this form has more fields
+                 than their loan needed, so they only appear once they are real. --}}
+            @if ($summary['interest'] > 0)
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">سود</p>
+                    <x-tables.num :value="$summary['interest']" type="toman" :cell="false" class="mt-1 block text-sm font-medium" />
+                </div>
+            @endif
+            @if ($summary['paid_fee'] > 0)
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">کارمزد</p>
+                    <x-tables.num :value="$summary['paid_fee']" type="toman" :cell="false" class="mt-1 block text-sm font-medium" />
+                </div>
+            @endif
+            @if ($summary['paid_penalty'] > 0)
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">جریمه دیرکرد</p>
+                    <x-tables.num :value="$summary['paid_penalty']" type="toman" tone="negative" :cell="false" class="mt-1 block text-sm font-medium" />
+                </div>
+            @endif
+
+            <div class="sm:col-span-2">
+                <p class="text-xs text-gray-500 dark:text-gray-400">توضیحات</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $loan->notes ?? '—' }}</p>
             </div>
         </div>
 

@@ -64,6 +64,9 @@ class MenuHelper
                 'name' => 'عملیات مالی جدید',
                 'subItems' => [
                     ['name' => 'ثبت عملیات مالی', 'path' => '/financial-operations/create', 'pro' => false],
+                    // The transfer form, pre-selected. It is the most common of the three
+                    // operations and it had no direct link of its own.
+                    ['name' => 'انتقال بین حساب‌ها', 'path' => '/financial-operations/create?type=transfer', 'pro' => false],
                     ['name' => 'مشاهده عملیات مالی', 'path' => '/financial-operations', 'pro' => false],
                 ],
             ],
@@ -92,11 +95,11 @@ class MenuHelper
                 ],
             ],
             [
-                'name' => 'حساب های دوطرفه',
+                'name' => 'حساب‌های دوطرفه',
                 'icon' => 'exchange-arrows',
                 'subItems' => [
-                    ['name' => 'ثبت حساب دو طرفه', 'path' => '/mutual-accounts/create', 'pro' => false],
-                    ['name' => 'مشاهده حساب های دو طرفه', 'path' => '/mutual-accounts', 'pro' => false],
+                    ['name' => 'ثبت تهاتر جدید', 'path' => '/mutual-accounts/create', 'pro' => false],
+                    ['name' => 'مشاهده تهاترها', 'path' => '/mutual-accounts', 'pro' => false],
                 ],
             ],
             [
@@ -105,6 +108,9 @@ class MenuHelper
                 'subItems' => [
                     ['name' => 'ثبت عملیات شریک', 'path' => '/partner-operations/create', 'pro' => false],
                     ['name' => 'مشاهده عملیات شرکا', 'path' => '/partner-operations', 'pro' => false],
+                    // The partner current account (2600) is settled through its own
+                    // operation type; this is the list of those settlements.
+                    ['name' => 'حساب جاری شرکا', 'path' => '/partner-operations?type=current_account_settlement', 'pro' => false],
                 ],
             ],
             [
@@ -136,14 +142,21 @@ class MenuHelper
             [
                 'name' => 'تنضیمات',
                 'icon' => 'exchange-arrows',
-                'subItems' => [
+                'subItems' => array_values(array_filter([
                     ['name' => 'تنضیمات کلی', 'path' => '/setting', 'pro' => false],
                     ['name' => 'گزارشات', 'path' => '/setting/report-settings', 'pro' => false],
                     ['name' => 'مدیریت نقش ها', 'path' => '/setting/role-managment', 'pro' => false],
                     ['name' => 'مدیریت وبهوک ها و Api ها', 'path' => '/setting/api-webhook-managment', 'pro' => false],
-                ],
+                    // Mirrors the role:admin gate on the /users routes — never show a link the user would get a 403 from.
+                    self::isAdmin() ? ['name' => 'کاربران سیستم', 'path' => '/users', 'pro' => false] : null,
+                ])),
             ],
         ];
+    }
+
+    private static function isAdmin(): bool
+    {
+        return auth()->check() && auth()->user()->hasRole('admin');
     }
 
     /** Count of the current user's note assignments they haven't viewed yet — clears when they open یادداشت‌ها. */
@@ -180,7 +193,7 @@ class MenuHelper
         // Component showcase group — admin only, matching the /components
         // route gating. Built from config/showcase.php so it never drifts
         // from the registered categories.
-        if (auth()->check() && auth()->user()->hasRole('admin')) {
+        if (self::isAdmin()) {
             $groups[] = [
                 'title' => 'کامپوننت‌ها',
                 'items' => [self::componentShowcaseItem()],

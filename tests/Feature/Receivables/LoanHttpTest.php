@@ -20,7 +20,7 @@ beforeEach(function () {
     $this->accountant = User::factory()->create()->assignRole('accountant');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->party = Party::create(['type' => 'other', 'name' => 'بانک وام‌دهنده']);
+    $this->party = Party::createWithRole('other', ['name' => 'بانک وام‌دهنده']);
 });
 
 it('gates the loan pages by role', function () {

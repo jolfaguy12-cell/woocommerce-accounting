@@ -18,7 +18,7 @@ beforeEach(function () {
     $this->seed([RoleSeeder::class, ChartOfAccountsSeeder::class]);
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->spray = CostItem::create(['name' => 'اسپری']);
     $this->lipstick = CostItem::create(['name' => 'رژ لب']);
 });
@@ -88,7 +88,7 @@ it('quick-creates a supplier from the purchase form when new_supplier_name is gi
         'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 2, 'unit_price' => 100_000]],
     ])->assertRedirect()->assertSessionHasNoErrors();
 
-    $supplier = Party::where('type', 'supplier')->firstWhere('name', 'تامین‌کننده جدید');
+    $supplier = Party::withRole('supplier')->firstWhere('name', 'تامین‌کننده جدید');
 
     expect($supplier)->not->toBeNull()
         ->and(PurchaseInvoice::where('supplier_party_id', $supplier->id)->count())->toBe(1);

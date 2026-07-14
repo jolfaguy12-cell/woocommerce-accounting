@@ -6,17 +6,22 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Backfills derived from data that already exists on `parties`:
+ * Backfills derived from data that used to live on `parties`:
  *   - one party_roles row per legacy parties.type value
+ *   - the role columns (credit_limit, is_wholesale, shop_name, …) into role profiles
  *   - parties.normalized_phone from parties.phone
  *
- * Both are idempotent and re-runnable, and both are deliberately written with
- * the query builder (no models, no events) so they behave identically whether
- * they are called from a migration or from `php artisan parties:backfill-roles`.
+ * ⚠ MIGRATION-ONLY. `roles()` and `profiles()` read columns that no longer exist:
+ * they are called by the migrations that ran BEFORE
+ * 2026_07_14_100000_drop_legacy_party_columns, and one final time by the drop
+ * migration itself. Calling either from application code now would fail on an
+ * unknown column — which is why the two artisan commands that used to wrap them
+ * are gone. Nothing outside `database/migrations` may call them.
  *
- * Re-runnability is not a nicety: production keeps minting customer parties from
- * order sync, so whatever a migration backfilled during development is already
- * stale by the time the code deploys — the command is run again at that point.
+ * (`normalizedPhones()` reads `phone`, which is still there, and remains safe.)
+ *
+ * All three are idempotent and written with the query builder (no models, no
+ * events) so they behave identically wherever they run.
  */
 class PartyIdentityBackfill
 {

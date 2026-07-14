@@ -23,7 +23,7 @@ function accountBalance(string $code): int
 }
 
 it('posts a payroll run with advance deductions', function () {
-    $party = Party::create(['type' => 'employee', 'name' => 'کارمند انبار']);
+    $party = Party::createWithRole('employee', ['name' => 'کارمند انبار']);
     // Activating the employee role already creates the party's employee profile,
     // so this fills it in rather than inserting a second row.
     $employee = Employee::updateOrCreate(['party_id' => $party->id], ['base_salary' => 30_000_000]);
@@ -41,7 +41,7 @@ it('posts a payroll run with advance deductions', function () {
 });
 
 it('registers a loan and pays an installment splitting principal and interest', function () {
-    $lender = Party::create(['type' => 'other', 'name' => 'بانک وام‌دهنده']);
+    $lender = Party::createWithRole('other', ['name' => 'بانک وام‌دهنده']);
     $service = app(LoanService::class);
 
     $loan = $service->receive($lender, 100_000_000, $this->bank->id, Carbon::now('Asia/Tehran'));
@@ -54,7 +54,7 @@ it('registers a loan and pays an installment splitting principal and interest', 
 });
 
 it('clears a receivable cheque into the bank', function () {
-    $customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $customer = Party::createWithRole('customer', ['name' => 'مشتری']);
     $service = app(ChequeService::class);
 
     $cheque = $service->registerReceivable($customer, 5_000_000, Carbon::now('Asia/Tehran')->addDays(30));
@@ -67,7 +67,7 @@ it('clears a receivable cheque into the bank', function () {
 });
 
 it('returns a bounced cheque to accounts receivable', function () {
-    $customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $customer = Party::createWithRole('customer', ['name' => 'مشتری']);
     $service = app(ChequeService::class);
 
     $cheque = $service->registerReceivable($customer, 5_000_000, Carbon::now('Asia/Tehran')->addDays(30));
@@ -79,7 +79,7 @@ it('returns a bounced cheque to accounts receivable', function () {
 });
 
 it('cheque lifecycle transitions are guarded', function () {
-    $customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $customer = Party::createWithRole('customer', ['name' => 'مشتری']);
     $service = app(ChequeService::class);
 
     $cheque = $service->registerReceivable($customer, 1_000_000, Carbon::now('Asia/Tehran'));

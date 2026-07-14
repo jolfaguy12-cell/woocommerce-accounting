@@ -15,53 +15,48 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use LogicException;
 
 /**
  * One real person or company = one Party, holding any number of simultaneous
  * roles (customer, supplier, employee, partner, other) via `party_roles`.
  *
- * `type` is the legacy single-role column. It is still written on creation
- * because it is NOT NULL, but nothing reads it for authorization or filtering
- * any more — roles come from party_roles. It is dropped in its own, final
- * migration once no runtime dependency on it remains.
+ * There is no longer a `type` column, and no single-role concept anywhere: a
+ * party's roles come from `party_roles` and its role-specific data from the
+ * role profiles. Creating a party with a role is `createWithRole()` — explicit,
+ * at the call site, instead of the create-time bridge that used to infer it.
  */
 class Party extends Model
 {
-    /**
-     * Columns whose data now lives on a role profile (or party_bank_accounts).
-     * They still exist on `parties` until their final drop migration, and the
-     * accessors below READ from the profile — so a write here would land in a
-     * column nobody reads and be silently lost. Rejected outright instead: a
-     * loud failure now beats a wholesale flag that quietly stops working.
-     */
-    public const LEGACY_ROLE_COLUMNS = [
-        'credit_limit',
-        'is_wholesale',
-        'wholesale_labeled_at',
-        'wholesale_labeled_by',
-        'shop_name',
-        'bank_account_number',
-    ];
-
     protected $guarded = [];
 
     protected $casts = [];
 
+    /**
+     * Create a party and give it its first role, in one step.
+     *
+     * This replaces the create-time bridge that used to read a `type` column and
+     * infer a role from it. A role is now something a caller states, not something
+     * the model guesses — and a party with no role is a legitimate thing to have
+     * (a duplicate under review, an identity awaiting classification), which the
+     * old bridge could not express at all.
+     */
+    public static function createWithRole(PartyRoleType|string $role, array $attributes = []): self
+    {
+        return tap(static::create($attributes), fn (self $party) => $party->activateRole($role));
+    }
+
     /*
      |--------------------------------------------------------------------------
-     | Role data that used to live on `parties`
+     | Role data, read through the role profile
      |--------------------------------------------------------------------------
      | credit_limit / is_wholesale / wholesale_labeled_* are customer data,
      | shop_name is supplier data, bank_account_number was one supplier bank
-     | account. They now live on the role profile / party_bank_accounts, and the
-     | accessors below read them from there so that views, Alpine payloads and
-     | `$party->only([...])` keep working while a role's data has exactly one home.
+     | account. Each now has exactly one home — the role profile, or
+     | party_bank_accounts — and the accessors below read it from there, so views,
+     | Alpine payloads and `$party->only([...])` keep working.
      |
-     | These are READ shims only — writes go through the profile explicitly (see
-     | CustomerController::setWholesale, SupplierController::update). The legacy
-     | columns still exist on `parties` but are no longer read or written; they
-     | are dropped in their own, final migration.
+     | READ shims only. Writes go through the profile explicitly (see
+     | CustomerController::setWholesale, SupplierController::saveSupplierProfile).
      */
 
     public function getIsWholesaleAttribute(): bool
@@ -103,20 +98,6 @@ class Party extends Model
         static::saving(function (Party $party) {
             if ($party->isDirty('phone')) {
                 $party->normalized_phone = PhoneNormalizer::normalize($party->phone);
-            }
-
-            $party->assertNoLegacyRoleWrite();
-        });
-
-        // Transitional bridge: seed the party's first role from the legacy
-        // `type` it was created with, so every creation path (order sync,
-        // supplier form, tests) produces a party_roles row without each of them
-        // having to know about roles yet. This is a one-way bootstrap at insert
-        // time — it never claims `type` can represent a second role, and it is
-        // removed together with the column.
-        static::created(function (Party $party) {
-            if ($party->type) {
-                $party->activateRole($party->type);
             }
         });
     }
@@ -185,37 +166,6 @@ class Party extends Model
             // Lost the race on party_id's unique index — adopt the row the other
             // process just inserted rather than failing.
             return $relation->first() ?? throw $e;
-        }
-    }
-
-    /**
-     * Refuse a write to a column whose data has moved to a role profile. Such a
-     * write would succeed silently against a column no reader looks at, so the
-     * value would simply disappear — the failure mode this guard exists to make
-     * impossible. Write through profileFor() instead.
-     *
-     * `type` is exempt on INSERT only: it is still NOT NULL, and the created
-     * hook bootstraps the party's first role from it. Changing it afterwards is
-     * meaningless — roles live in party_roles — so that is rejected too.
-     */
-    private function assertNoLegacyRoleWrite(): void
-    {
-        $dirty = array_keys($this->getDirty());
-
-        if ($offending = array_intersect($dirty, self::LEGACY_ROLE_COLUMNS)) {
-            $columns = implode(', ', $offending);
-
-            throw new LogicException(
-                "Party [{$columns}] moved to a role profile and is no longer read from `parties`. "
-                .'Write it through $party->profileFor($role) (or party_bank_accounts) instead.'
-            );
-        }
-
-        if ($this->exists && in_array('type', $dirty, true)) {
-            throw new LogicException(
-                'Party.type is the legacy single-role column and cannot be changed. '
-                .'Use activateRole()/deactivateRole() — a party can hold several roles at once.'
-            );
         }
     }
 

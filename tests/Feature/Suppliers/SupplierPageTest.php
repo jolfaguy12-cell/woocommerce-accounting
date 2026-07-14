@@ -25,7 +25,10 @@ it('creates a supplier with profile fields', function () {
     $supplier = Party::firstWhere('name', 'علی رضایی');
 
     expect($supplier)->not->toBeNull()
-        ->and($supplier->type)->toBe('supplier')
+        // A role, not a `type` column — and the shop name and account number are read
+        // back from the supplier profile and party_bank_accounts, which is where the
+        // form put them.
+        ->and($supplier->hasRole('supplier'))->toBeTrue()
         ->and($supplier->shop_name)->toBe('پخش رضایی')
         ->and($supplier->bank_account_number)->toBe('1234567890');
 
@@ -34,8 +37,8 @@ it('creates a supplier with profile fields', function () {
 });
 
 it('lists suppliers and shows a searchable index', function () {
-    Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
-    Party::create(['type' => 'customer', 'name' => 'مشتری معمولی']);
+    Party::createWithRole('supplier', ['name' => 'پخش تهران']);
+    Party::createWithRole('customer', ['name' => 'مشتری معمولی']);
 
     $this->actingAs($this->admin)->get('/suppliers')
         ->assertOk()
@@ -43,7 +46,7 @@ it('lists suppliers and shows a searchable index', function () {
 });
 
 it("shows a supplier's purchase history on its dedicated tab", function () {
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $item = CostItem::create(['name' => 'اسپری']);
 
     $invoice = app(PurchaseInvoiceService::class)->create([
@@ -60,7 +63,7 @@ it("shows a supplier's purchase history on its dedicated tab", function () {
 });
 
 it('shows the supplier accounting dashboard with KPIs and payable balance', function () {
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $item = CostItem::create(['name' => 'اسپری']);
 
     $invoice = app(PurchaseInvoiceService::class)->create([
@@ -77,7 +80,7 @@ it('shows the supplier accounting dashboard with KPIs and payable balance', func
 });
 
 it('404s when viewing a non-supplier party as a supplier', function () {
-    $customer = Party::create(['type' => 'customer', 'name' => 'مشتری']);
+    $customer = Party::createWithRole('customer', ['name' => 'مشتری']);
 
     $this->actingAs($this->admin)->get("/suppliers/{$customer->id}")->assertNotFound();
     $this->actingAs($this->admin)->get("/suppliers/{$customer->id}/purchase-history")->assertNotFound();
@@ -87,7 +90,7 @@ it('404s when viewing a non-supplier party as a supplier', function () {
 it('renders the balance as a plain color-coded signed number, with no unit or debtor/creditor label text', function () {
     $service = app(PurchaseInvoiceService::class);
     $item = CostItem::create(['name' => 'اسپری']);
-    $debtor = Party::create(['type' => 'supplier', 'name' => 'تامین‌کننده بدهکار']);
+    $debtor = Party::createWithRole('supplier', ['name' => 'تامین‌کننده بدهکار']);
     $invoice = $service->create([
         'supplier_party_id' => $debtor->id,
         'invoice_date' => Carbon::parse('2026-07-01', 'Asia/Tehran'),

@@ -20,7 +20,7 @@ beforeEach(function () {
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
 
-    $this->party = Party::create(['type' => 'customer', 'name' => 'شرکت دوسویه']);
+    $this->party = Party::createWithRole('customer', ['name' => 'شرکت دوسویه']);
     $this->party->activateRole('supplier');
 
     $seed = function (AccountCode $code, string $side, int $amount) {
@@ -79,7 +79,7 @@ it('rejects an over-cap offset on the form rather than exploding', function () {
 });
 
 it('only offers parties that actually have something to offset', function () {
-    Party::create(['type' => 'customer', 'name' => 'مشتری بدون مانده']);
+    Party::createWithRole('customer', ['name' => 'مشتری بدون مانده']);
 
     $candidates = $this->actingAs($this->admin)->get('/mutual-accounts/create')
         ->assertOk()->viewData('candidates');
@@ -115,7 +115,7 @@ it('reverses an offset over HTTP, restoring both balances', function () {
 });
 
 it('gates partner operations and records one over HTTP', function () {
-    $partner = Party::create(['type' => 'partner', 'name' => 'شریک اول']);
+    $partner = Party::createWithRole('partner', ['name' => 'شریک اول']);
 
     $this->actingAs($this->warehouse)->get('/partner-operations')->assertForbidden();
     $this->actingAs($this->admin)->get('/partner-operations/create')->assertOk();

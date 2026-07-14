@@ -17,8 +17,8 @@ beforeEach(function () {
 it('suggests a duplicate across roles when a strong identifier matches', function () {
     // The exact case the single-role model could never see: the same company,
     // once as a customer and once as a supplier.
-    Party::create(['type' => 'customer', 'name' => 'شرکت الف', 'company_national_id' => '10101010101']);
-    Party::create(['type' => 'supplier', 'name' => 'شرکت الف (پخش)', 'company_national_id' => '10101010101']);
+    Party::createWithRole('customer', ['name' => 'شرکت الف', 'company_national_id' => '10101010101']);
+    Party::createWithRole('supplier', ['name' => 'شرکت الف (پخش)', 'company_national_id' => '10101010101']);
 
     $groups = $this->service->candidates();
 
@@ -28,8 +28,8 @@ it('suggests a duplicate across roles when a strong identifier matches', functio
 });
 
 it('ranks a shared phone as a weak signal, not a strong one', function () {
-    Party::create(['type' => 'customer', 'name' => 'رضا', 'phone' => '09121234567']);
-    Party::create(['type' => 'customer', 'name' => 'مریم', 'phone' => '09121234567']);
+    Party::createWithRole('customer', ['name' => 'رضا', 'phone' => '09121234567']);
+    Party::createWithRole('customer', ['name' => 'مریم', 'phone' => '09121234567']);
 
     PartyIdentityBackfill::normalizedPhones();
 
@@ -41,15 +41,15 @@ it('ranks a shared phone as a weak signal, not a strong one', function () {
 });
 
 it('never suggests a duplicate on name alone', function () {
-    Party::create(['type' => 'customer', 'name' => 'علی محمدی']);
-    Party::create(['type' => 'customer', 'name' => 'علی محمدی']);
+    Party::createWithRole('customer', ['name' => 'علی محمدی']);
+    Party::createWithRole('customer', ['name' => 'علی محمدی']);
 
     expect($this->service->candidates())->toBeEmpty();
 });
 
 it('lists per-party matches without merging anything', function () {
-    $a = Party::create(['type' => 'customer', 'name' => 'شرکت ب', 'national_id' => '1234567890']);
-    $b = Party::create(['type' => 'supplier', 'name' => 'شرکت ب دوم', 'national_id' => '1234567890']);
+    $a = Party::createWithRole('customer', ['name' => 'شرکت ب', 'national_id' => '1234567890']);
+    $b = Party::createWithRole('supplier', ['name' => 'شرکت ب دوم', 'national_id' => '1234567890']);
 
     $matches = $this->service->matchesFor($a);
 
@@ -63,8 +63,8 @@ it('lists per-party matches without merging anything', function () {
 });
 
 it('renders the duplicate review page and offers no merge action', function () {
-    Party::create(['type' => 'customer', 'name' => 'شرکت ج', 'tax_id' => '99887766']);
-    Party::create(['type' => 'supplier', 'name' => 'شرکت ج پخش', 'tax_id' => '99887766']);
+    Party::createWithRole('customer', ['name' => 'شرکت ج', 'tax_id' => '99887766']);
+    Party::createWithRole('supplier', ['name' => 'شرکت ج پخش', 'tax_id' => '99887766']);
 
     $this->actingAs($this->admin)->get(route('parties.duplicates'))
         ->assertOk()

@@ -13,16 +13,17 @@ use Illuminate\Database\Eloquent\Model;
  *
  * Keys and their defaults:
  *
- *   ops.approval_threshold   (int Toman, default NULL = approval disabled)
- *       An operation whose amount is >= the threshold cannot be posted by the
- *       person who created it; a second, authorised user must approve it. Below
- *       the threshold — and always, while the setting is unset — an authorised
- *       creator posts directly.
+ *   ops.approval_threshold   (int Toman, default NULL = approval DISABLED)
+ *       Off unless an admin turns it on. While it is unset — the default, and the
+ *       normal state of this system — an authorised user posts directly and no
+ *       approval step exists at all.
  *
- *       ⚠ Setting a threshold on a system with only ONE approver deadlocks every
- *       operation at or above it: the creator is barred from approving their own
- *       work and nobody else can. Add a second approver (or widen
- *       ops.roles.approve) before setting this.
+ *       Set it, and an operation at or above the threshold is parked as
+ *       `pending_approval` until someone with the approve role approves it. That
+ *       someone may be its own creator (see canApprove): the threshold is a
+ *       "stop and look again" prompt, not a two-person rule. A business that
+ *       genuinely wants four eyes gets them by giving the approve role only to
+ *       people who are not the ones entering operations.
  *
  *   ops.negative_balance_mode ('block'|'warn'|'allow', default 'warn')
  *       What to do when an operation would drive a bank/cash account below zero.
@@ -79,15 +80,23 @@ class OperationPolicy
     }
 
     /**
-     * Approval is a control, not a formality: the creator can never be the
-     * approver, however senior they are. That is the whole point of a threshold.
+     * May this user approve this operation?
+     *
+     * Role only. The creator MAY approve their own operation — this is a small
+     * business, frequently a single bookkeeper, and a rule that requires a second
+     * human being to exist does not make the books safer when there is no second
+     * human being: it makes the operation impossible to post, and the work moves
+     * somewhere outside the system where nothing is recorded at all.
+     *
+     * What actually protects the ledger is unchanged and does not depend on there
+     * being two people: every action is attributed and activity-logged, posted
+     * entries are immutable, and a correction is a reversal that leaves both
+     * entries standing. A shop that DOES have two people can still get four-eyes
+     * by setting `ops.approval_threshold` and giving the approve role to someone
+     * else — but nothing forces it by default.
      */
     public function canApprove(User $user, Model $operation): bool
     {
-        if ((int) $operation->created_by === (int) $user->id) {
-            return false;
-        }
-
         return $user->hasAnyRole($this->roles(self::ROLES_APPROVE, ['admin']));
     }
 

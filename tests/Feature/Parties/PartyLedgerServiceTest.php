@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     $this->seed(ChartOfAccountsSeeder::class);
     $this->ledger = app(PartyLedgerService::class);
-    $this->party = Party::create(['type' => 'customer', 'name' => 'شرکت چندنقشه']);
+    $this->party = Party::createWithRole('customer', ['name' => 'شرکت چندنقشه']);
     $this->party->activateRole('supplier');
     $this->party->activateRole('partner');
 });
@@ -92,7 +92,7 @@ it('returns every line across every account in the complete statement', function
     post($this->party, AccountCode::AccountsReceivable, AccountCode::SalesRevenue, 500_000, 'ar', '2026-07-01');
     post($this->party, AccountCode::Inventory, AccountCode::AccountsPayable, 300_000, 'ap', '2026-07-02');
 
-    $other = Party::create(['type' => 'customer', 'name' => 'دیگری']);
+    $other = Party::createWithRole('customer', ['name' => 'دیگری']);
     post($other, AccountCode::AccountsReceivable, AccountCode::SalesRevenue, 900_000, 'other-ar');
 
     $statement = $this->ledger->statement($this->party, new TableQuery(request: Request::create('/')));
@@ -111,7 +111,7 @@ it('returns every line across every account in the complete statement', function
 });
 
 it('excludes a party with no journal activity from every balance card', function () {
-    $fresh = Party::create(['type' => 'customer', 'name' => 'بدون گردش']);
+    $fresh = Party::createWithRole('customer', ['name' => 'بدون گردش']);
 
     expect($this->ledger->balances($fresh))->toBe([])
         ->and($this->ledger->consolidatedPosition($fresh))->toBe(0);

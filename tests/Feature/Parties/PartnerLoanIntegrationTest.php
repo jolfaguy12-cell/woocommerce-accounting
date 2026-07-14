@@ -25,7 +25,7 @@ beforeEach(function () {
     $this->accountant = User::factory()->create()->assignRole('accountant');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
 
-    $this->partner = Party::create(['type' => 'partner', 'name' => 'شریک اول']);
+    $this->partner = Party::createWithRole('partner', ['name' => 'شریک اول']);
     $this->operations = app(PartnerOperationService::class);
     $this->ledger = app(PartyLedgerService::class);
 });

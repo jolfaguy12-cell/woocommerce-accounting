@@ -98,27 +98,24 @@ it('holds an operation at or above the approval threshold, and posts nothing unt
         ->and($this->source->account->balance())->toBe(8_000_000);
 });
 
-it('will not let the creator approve their own operation', function () {
+it('lets the creator approve their own operation — the threshold is a prompt, not a two-person rule', function () {
     Setting::set(OperationPolicy::APPROVAL_THRESHOLD, 1_000_000);
 
-    // The creator is an admin — the most senior role there is — and it still does
-    // not matter. A second signature that the first person can supply is not a control.
+    // This is often a one-bookkeeper business. Requiring a second human to exist does
+    // not make the books safer when there is no second human; it makes the operation
+    // impossible to post, and the work moves somewhere nothing is recorded at all.
+    // The real protections do not need two people: attribution, the activity log,
+    // immutable entries, and correction by reversal.
     $this->actingAs($this->admin)->post('/financial-operations', $this->payload);
     $transfer = AccountTransfer::sole();
 
     $this->actingAs($this->admin)
         ->post("/financial-operations/transfers/{$transfer->id}/approve")
-        ->assertSessionHasErrors('operation');
-
-    expect($transfer->fresh()->isPendingApproval())->toBeTrue()
-        ->and($transfer->fresh()->journal_entry_id)->toBeNull();
-
-    // A different admin can.
-    $this->actingAs($this->secondAdmin)
-        ->post("/financial-operations/transfers/{$transfer->id}/approve")
         ->assertSessionHasNoErrors();
 
-    expect($transfer->fresh()->isPosted())->toBeTrue();
+    expect($transfer->fresh()->isPosted())->toBeTrue()
+        ->and($transfer->fresh()->approved_by)->toBe($this->admin->id);
+
 });
 
 it('lets only the approve-role approve, by default admin and not accountant', function () {

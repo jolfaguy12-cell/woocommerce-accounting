@@ -10,10 +10,17 @@
 <x-common.page-breadcrumb pageTitle="ثبت وام جدید" parentLabel="وام و اقساط" :parentUrl="route('loans.index')" />
 
 {{--
-    The direction is the whole decision on this page, and its two names point the
-    opposite way from their accounts: «وام دریافتی» means the money ARRIVED (and we
-    now owe it), «وام پرداختی» means the money LEFT (and it is owed to us). The
-    sentence at the bottom spells that out in plain Persian before anything is saved.
+    Everything a loan actually needs is in the first card, and nothing else is.
+
+    Interest, fees, penalties and an installment schedule are all optional and all
+    default to zero, so the common case — «فلانی ۵۰ میلیون قرض داد» — is six fields
+    and done. They live behind «تنظیمات پیشرفته» because a form that asks for an
+    interest method before it will accept a simple loan teaches people that the
+    system is not worth the trouble, and the loan gets written on paper instead.
+
+    The two direction names point the opposite way from their accounts: «وام دریافتی»
+    means the money ARRIVED (we owe it), «وام پرداختی» means it LEFT (it is owed to
+    us). The sentence at the bottom says so in plain Persian before anything is saved.
 --}}
 <div class="mx-auto max-w-2xl space-y-4"
      x-data="{
@@ -23,6 +30,7 @@
         principal: '{{ old('principal') }}',
         party: '{{ old('party_id') }}',
         count: '{{ old('installment_count') }}',
+        advanced: {{ old('installment_count') || old('interest_method', 'none') !== 'none' ? 'true' : 'false' }},
         confirmed: false,
         get selectedMethod() { return this.methods.find(m => m.value === this.method); },
         get needsRate() { return this.selectedMethod ? this.selectedMethod.needs_rate : false; },
@@ -31,13 +39,13 @@
         get sentence() {
             if (!this.direction || !this.principal || !this.party) return null;
             const amount = this.money(this.principal);
-            const parts = this.count && parseInt(this.count, 10) > 0
+            const schedule = this.count && parseInt(this.count, 10) > 0
                 ? ` بازپرداخت در ${this.money(this.count)} قسط برنامه‌ریزی می‌شود.`
-                : ' برنامهٔ اقساط ثبت نمی‌شود و وام یکجا تسویه خواهد شد.';
+                : '';
 
             return this.direction === 'payable'
-                ? `مبلغ ${amount} تومان به حساب بانکی انتخاب‌شده وارد می‌شود و به همان اندازه به این طرف حساب بدهکار می‌شویم.${parts}`
-                : `مبلغ ${amount} تومان از حساب بانکی انتخاب‌شده خارج می‌شود و به همان اندازه از این طرف حساب طلبکار می‌شویم.${parts}`;
+                ? `مبلغ ${amount} تومان به حساب انتخاب‌شده وارد می‌شود و به همان اندازه به این طرف حساب بدهکار می‌شویم.${schedule}`
+                : `مبلغ ${amount} تومان از حساب انتخاب‌شده خارج می‌شود و به همان اندازه از این طرف حساب طلبکار می‌شویم.${schedule}`;
         },
      }">
 
@@ -46,8 +54,8 @@
     @endif
 
     @if ($approvalThreshold !== null)
-        <x-ui.alert variant="info" title="تأیید دو‌مرحله‌ای فعال است"
-            message="وام با مبلغ {{ number_format($approvalThreshold) }} تومان و بیشتر، تا تأیید کاربر دیگری در دفتر ثبت نمی‌شود." />
+        <x-ui.alert variant="info" title="تأیید مرحله‌ای فعال است"
+            message="وام با مبلغ {{ number_format($approvalThreshold) }} تومان و بیشتر، تا تأیید در دفتر ثبت نمی‌شود." />
     @endif
 
     <form method="POST" action="{{ route('loans.store') }}" class="space-y-4">
@@ -76,12 +84,12 @@
                 </div>
 
                 <div>
-                    <label class="{{ $labelClass }}">اصل وام (تومان)</label>
+                    <label class="{{ $labelClass }}">مبلغ اصل وام (تومان)</label>
                     <input type="number" name="principal" min="1" x-model="principal" dir="ltr" class="{{ $inputClass }}">
                 </div>
 
                 <div>
-                    <label class="{{ $labelClass }}">حساب بانکی</label>
+                    <label class="{{ $labelClass }}">حساب بانکی یا صندوق</label>
                     <select name="bank_account_id" class="{{ $selectClass }}">
                         <option value="">انتخاب کنید…</option>
                         @foreach ($bankAccounts as $b)
@@ -91,19 +99,38 @@
                 </div>
 
                 <div>
-                    <label class="{{ $labelClass }}">تاریخ دریافت / پرداخت</label>
+                    <label class="{{ $labelClass }}">تاریخ دریافت یا پرداخت</label>
                     <input type="date" name="received_at" value="{{ old('received_at', $today) }}" dir="ltr" class="{{ $inputClass }}">
                 </div>
 
                 <div>
-                    <label class="{{ $labelClass }}">تاریخ سررسید نهایی (اختیاری)</label>
+                    <label class="{{ $labelClass }}">تاریخ سررسید</label>
                     <input type="date" name="maturity_date" value="{{ old('maturity_date') }}" dir="ltr" class="{{ $inputClass }}">
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="{{ $labelClass }}">توضیحات</label>
+                    <input type="text" name="notes" value="{{ old('notes') }}" maxlength="1000" class="{{ $inputClass }}">
                 </div>
             </div>
         </x-common.component-card>
 
-        <x-common.component-card title="سود و برنامه اقساط">
-            <div class="grid gap-4 sm:grid-cols-2">
+        {{-- Optional, and genuinely optional: everything in here defaults to zero. --}}
+        <x-common.component-card title="تنظیمات پیشرفته (اختیاری)">
+            <button type="button" @click="advanced = !advanced"
+                class="flex w-full items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                <span>سود، اقساط و شماره قرارداد</span>
+                <span x-text="advanced ? 'بستن −' : 'باز کردن +'" class="text-brand-500"></span>
+            </button>
+
+            <div x-show="advanced" x-cloak class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                    <p class="rounded-lg bg-gray-50 p-3 text-xs leading-6 text-gray-600 dark:bg-white/5 dark:text-gray-400">
+                        اگر وام بدون سود است، این بخش را دست نزنید. سود، کارمزد و جریمه دیرکرد همگی پیش‌فرض صفر هستند
+                        و برای ثبت وام لازم نیستند.
+                    </p>
+                </div>
+
                 <div>
                     <label class="{{ $labelClass }}">روش محاسبه سود</label>
                     <select name="interest_method" x-model="method" class="{{ $selectClass }}">
@@ -116,7 +143,7 @@
                 <div>
                     <label class="{{ $labelClass }}">تعداد اقساط</label>
                     <input type="number" name="installment_count" min="0" max="600" x-model="count" dir="ltr" class="{{ $inputClass }}">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">اگر خالی یا صفر باشد، برنامهٔ اقساط ساخته نمی‌شود.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">خالی یا صفر: بدون برنامهٔ اقساط، تسویه یکجا.</p>
                 </div>
 
                 <div x-show="needsRate" x-cloak>
@@ -129,13 +156,9 @@
                     <input type="number" name="interest_amount" min="0" value="{{ old('interest_amount') }}" dir="ltr" class="{{ $inputClass }}">
                 </div>
 
-                <div>
-                    <label class="{{ $labelClass }}">کد پیگیری / شماره قرارداد (اختیاری)</label>
+                <div class="sm:col-span-2">
+                    <label class="{{ $labelClass }}">شماره قرارداد / کد پیگیری</label>
                     <input type="text" name="reference" value="{{ old('reference') }}" dir="ltr" class="{{ $inputClass }}">
-                </div>
-                <div>
-                    <label class="{{ $labelClass }}">یادداشت (اختیاری)</label>
-                    <input type="text" name="notes" value="{{ old('notes') }}" class="{{ $inputClass }}">
                 </div>
             </div>
         </x-common.component-card>
@@ -152,7 +175,7 @@
                 </div>
             </template>
             <template x-if="!sentence">
-                <p class="text-sm text-gray-500 dark:text-gray-400">برای دیدن خلاصهٔ وام، طرف حساب، نوع و مبلغ را کامل کنید.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">برای دیدن خلاصهٔ وام، طرف حساب، نوع و مبلغ اصل وام را کامل کنید.</p>
             </template>
 
             <button type="submit" :disabled="!confirmed || !sentence"

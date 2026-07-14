@@ -16,7 +16,7 @@ use Spatie\Activitylog\Models\Activity;
 beforeEach(function () {
     $this->seed([RoleSeeder::class, ChartOfAccountsSeeder::class]);
     $this->admin = User::factory()->create()->assignRole('admin');
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->spray = CostItem::create(['name' => 'اسپری']);
 });
 

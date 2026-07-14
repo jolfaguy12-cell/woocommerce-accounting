@@ -17,7 +17,7 @@ beforeEach(function () {
     $this->admin = User::factory()->create();
     $this->admin->assignRole('admin');
 
-    $this->party = Party::create(['type' => 'customer', 'name' => 'شرکت الف', 'phone' => '09121234567']);
+    $this->party = Party::createWithRole('customer', ['name' => 'شرکت الف', 'phone' => '09121234567']);
 });
 
 it('renders the party list and profile for an admin', function () {
@@ -31,7 +31,7 @@ it('renders the party list and profile for an admin', function () {
 });
 
 it('filters the party list by role', function () {
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
 
     $this->actingAs($this->admin)->get(route('parties.index', ['role' => 'supplier']))
         ->assertOk()

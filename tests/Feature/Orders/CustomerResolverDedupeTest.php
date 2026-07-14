@@ -31,7 +31,7 @@ it('groups every phone-less guest order under one party by exact name instead of
     app(OrderIngestPipeline::class)->ingest(7002, guestOrder(7002), 'manual');
     app(OrderIngestPipeline::class)->ingest(7003, guestOrder(7003), 'manual');
 
-    $parties = Party::where('type', 'customer')->where('name', 'ملیکا خلیلی')->get();
+    $parties = Party::withRole('customer')->where('name', 'ملیکا خلیلی')->get();
 
     expect($parties)->toHaveCount(1)
         ->and($parties->first()->orders()->count())->toBe(3);
@@ -43,13 +43,13 @@ it('keeps different phone-less guests with different names as separate parties',
         'billing' => array_merge(guestOrder(7102)['billing'], ['first_name' => 'سارا', 'last_name' => 'رضایی']),
     ]), 'manual');
 
-    expect(Party::where('type', 'customer')->count())->toBe(2);
+    expect(Party::withRole('customer')->count())->toBe(2);
 });
 
 it('captures email and address from billing, never the raw numeric state code', function () {
     app(OrderIngestPipeline::class)->ingest(7301, guestOrder(7301), 'manual');
 
-    $party = Party::where('type', 'customer')->where('name', 'ملیکا خلیلی')->firstOrFail();
+    $party = Party::withRole('customer')->where('name', 'ملیکا خلیلی')->firstOrFail();
 
     expect($party->email)->toBe('melika@example.com')
         ->and($party->address)->toContain('خیابان ولیعصر پلاک ۱')
@@ -63,7 +63,7 @@ it('collapses stray whitespace in a guest name so the same customer is not split
     ]), 'manual');
     app(OrderIngestPipeline::class)->ingest(7402, guestOrder(7402), 'manual');
 
-    expect(Party::where('type', 'customer')->count())->toBe(1);
+    expect(Party::withRole('customer')->count())->toBe(1);
 });
 
 it('never grants a role automatically on a phone match alone', function () {
@@ -71,7 +71,7 @@ it('never grants a role automatically on a phone match alone', function () {
     // role here would be an automatic merge on phone alone, which the spec
     // forbids — a shared phone is a hint for review, not proof of identity.
     // Granting a second role stays a deliberate, human action in the UI.
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران', 'phone' => '09121112233']);
+    $supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران', 'phone' => '09121112233']);
 
     app(OrderIngestPipeline::class)->ingest(7101, guestOrder(7101, [
         'billing' => ['first_name' => 'پخش', 'last_name' => 'تهران', 'phone' => '09121112233', 'email' => null],
@@ -88,7 +88,7 @@ it('never grants a role automatically on a phone match alone', function () {
 it('reuses the same party across roles when the hub itself says it is the same customer', function () {
     // hub_customer_id is a real identifier, not a guess — so a party the hub
     // already knows gains the customer role rather than being duplicated.
-    $party = Party::create(['type' => 'other', 'name' => 'شرکت الف', 'hub_customer_id' => 55]);
+    $party = Party::createWithRole('other', ['name' => 'شرکت الف', 'hub_customer_id' => 55]);
 
     app(OrderIngestPipeline::class)->ingest(7301, guestOrder(7301, ['customer_id' => 55]), 'manual');
 
@@ -101,7 +101,7 @@ it('reuses the same party across roles when the hub itself says it is the same c
 });
 
 it('does not resolve a phone-less guest to a party that has no customer role', function () {
-    Party::create(['type' => 'supplier', 'name' => 'ملیکا خلیلی']); // same name, but a supplier
+    Party::createWithRole('supplier', ['name' => 'ملیکا خلیلی']); // same name, but a supplier
 
     app(OrderIngestPipeline::class)->ingest(7201, guestOrder(7201), 'manual');
 

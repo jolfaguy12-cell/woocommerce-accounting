@@ -15,7 +15,7 @@ beforeEach(function () {
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
 });
 
 it('updates a supplier profile from the shared edit form', function () {
@@ -63,7 +63,7 @@ it('records a bank payment to a supplier, posting a balanced journal and reducin
 it('sorts and searches the suppliers list by payable balance and name', function () {
     $service = app(PurchaseInvoiceService::class);
     $item = CostItem::create(['name' => 'اسپری']);
-    $other = Party::create(['type' => 'supplier', 'name' => 'آریا پخش']);
+    $other = Party::createWithRole('supplier', ['name' => 'آریا پخش']);
 
     $invoice = $service->create([
         'supplier_party_id' => $this->supplier->id,

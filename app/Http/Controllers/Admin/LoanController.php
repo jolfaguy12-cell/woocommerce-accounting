@@ -226,7 +226,15 @@ class LoanController extends Controller
         $paid = $this->loans->paidTotals($loan);
         $next = $loan->nextInstallment();
 
+        // Overdue is DERIVED, here, on read. It is purely a label — being late does not
+        // change a single balance — so it does not need a scheduler to keep it true, and
+        // a page that told you a loan was current because a nightly job had not run yet
+        // would be worse than no label at all. (`loans:refresh-overdue` persists the same
+        // fact for anything querying the column directly; neither writes to the ledger.)
+        $isOverdue = $loan->status->isRepaying() && $next?->isLate();
+
         return [
+            'is_overdue' => (bool) $isOverdue,
             'id' => $loan->id,
             'party' => $loan->party->name,
             'party_id' => $loan->party_id,
@@ -242,8 +250,10 @@ class LoanController extends Controller
             'next_due' => $next?->due_date,                                    // سررسید بعدی
             'next_due_fa' => $next?->due_date ? JalaliPeriod::fmtDateTime($next->due_date) : null,
             'next_amount' => $next?->total(),
-            'status' => $loan->status->badgeStatus(),
-            'status_label' => $loan->status->label(),
+            // The derived answer wins over the stored one: the column is only as fresh as
+            // the last time the command ran, and the due date is true right now.
+            'status' => $isOverdue ? LoanStatus::Overdue->badgeStatus() : $loan->status->badgeStatus(),
+            'status_label' => $isOverdue ? LoanStatus::Overdue->label() : $loan->status->label(),
             'received_at_fa' => JalaliPeriod::fmtDateTime($loan->received_at),
             'maturity_fa' => $loan->maturity_date ? JalaliPeriod::fmtDateTime($loan->maturity_date) : null,
             'bank' => $loan->bankAccount?->name,

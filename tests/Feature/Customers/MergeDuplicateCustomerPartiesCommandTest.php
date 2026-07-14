@@ -48,7 +48,7 @@ function makeHistoricalDuplicate(int $hubOrderId, string $canonicalName, int $pr
 }
 
 it('refuses to merge a duplicate that carries financial history, and touches nothing', function () {
-    $canonical = Party::create(['type' => 'customer', 'name' => 'علی خلیلی', 'phone' => null]);
+    $canonical = Party::createWithRole('customer', ['name' => 'علی خلیلی', 'phone' => null]);
     $order = makeHistoricalDuplicate(9602, 'علی خلیلی');
 
     $duplicatePartyId = $order->customer_party_id;
@@ -73,7 +73,7 @@ it('refuses to merge a duplicate that carries financial history, and touches not
 });
 
 it('names the financial record that blocked the merge', function () {
-    Party::create(['type' => 'customer', 'name' => 'علی خلیلی', 'phone' => null]);
+    Party::createWithRole('customer', ['name' => 'علی خلیلی', 'phone' => null]);
     makeHistoricalDuplicate(9605, 'علی خلیلی');
 
     $this->artisan('acc:customers:merge-duplicates', ['--dry-run' => true])
@@ -82,7 +82,7 @@ it('names the financial record that blocked the merge', function () {
 });
 
 it('still merges a duplicate with no financial history by reassigning its orders', function () {
-    $canonical = Party::create(['type' => 'customer', 'name' => 'رضا بی‌سابقه', 'phone' => null]);
+    $canonical = Party::createWithRole('customer', ['name' => 'رضا بی‌سابقه', 'phone' => null]);
 
     // Unmapped product → the order is queued for review and posts no journal
     // entry, so this party has no ledger footprint and is safe to merge.
@@ -98,7 +98,7 @@ it('still merges a duplicate with no financial history by reassigning its orders
 });
 
 it('dry-run changes nothing', function () {
-    $canonical = Party::create(['type' => 'customer', 'name' => 'رضا بی‌سابقه', 'phone' => null]);
+    $canonical = Party::createWithRole('customer', ['name' => 'رضا بی‌سابقه', 'phone' => null]);
     $order = makeHistoricalDuplicate(9601, 'رضا بی‌سابقه', productId: 9502);
     $originalPartyId = $order->customer_party_id;
 
@@ -109,7 +109,7 @@ it('dry-run changes nothing', function () {
 });
 
 it('leaves distinctly-named phone-less parties alone', function () {
-    Party::create(['type' => 'customer', 'name' => 'یک نفر دیگر', 'phone' => null]);
+    Party::createWithRole('customer', ['name' => 'یک نفر دیگر', 'phone' => null]);
     app(OrderIngestPipeline::class)->ingest(9603, array_merge(duplicateGuestOrder(9603), [
         'billing' => ['first_name' => 'دیگری', 'last_name' => 'کاملا متفاوت', 'phone' => ''],
     ]), 'manual');

@@ -23,7 +23,7 @@ beforeEach(function () {
 
     // One real person who is BOTH our customer and our supplier — the whole reason
     // offsets exist, and something the old single-role Party could not even express.
-    $this->party = Party::create(['type' => 'customer', 'name' => 'شرکت دوسویه']);
+    $this->party = Party::createWithRole('customer', ['name' => 'شرکت دوسویه']);
     $this->party->activateRole('supplier');
 
     // Give them a balance on each account without going through four workflows.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Helpers\MenuHelper;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 
@@ -69,4 +70,23 @@ it('lets an admin delete another user', function () {
         ->assertRedirect()->assertSessionHasNoErrors();
 
     expect($this->accountant->fresh())->toBeNull();
+});
+
+it('renders the user management page for an admin', function () {
+    $this->actingAs($this->admin)->get('/users')
+        ->assertOk()
+        ->assertSee('مدیریت کاربران')
+        ->assertSee($this->accountant->email);
+});
+
+it('shows the کاربران سیستم settings link to admins only', function () {
+    $settingsSubItems = function (User $user) {
+        $this->actingAs($user);
+        $settings = collect(MenuHelper::getMainNavItems())->firstWhere('name', 'تنضیمات');
+
+        return collect($settings['subItems'])->pluck('path');
+    };
+
+    expect($settingsSubItems($this->admin))->toContain('/users')
+        ->and($settingsSubItems($this->accountant))->not->toContain('/users');
 });

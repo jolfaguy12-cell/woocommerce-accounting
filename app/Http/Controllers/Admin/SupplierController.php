@@ -74,8 +74,10 @@ class SupplierController extends Controller
     {
         $data = $this->validateProfile($request);
 
-        $supplier = Party::create(Arr::except($data, ['shop_name', 'bank_account_number'])
-            + ['type' => PartyRoleType::Supplier->value]);
+        $supplier = Party::createWithRole(
+            PartyRoleType::Supplier,
+            Arr::except($data, ['shop_name', 'bank_account_number']),
+        );
 
         $this->saveSupplierProfile($supplier, $data, $request->user()->id);
 

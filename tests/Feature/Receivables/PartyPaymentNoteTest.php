@@ -13,7 +13,7 @@ beforeEach(function () {
     $this->admin = User::factory()->create()->assignRole('admin');
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
-    $this->supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $this->supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $this->payment = app(PaymentRecorder::class)->pay($this->supplier, 100_000, $this->bank->id, $this->admin->id);
 });
 

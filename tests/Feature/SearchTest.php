@@ -49,8 +49,8 @@ it('finds a product by name', function () {
 });
 
 it('finds a customer by name and ranks the exact match first', function () {
-    Party::create(['type' => 'customer', 'name' => 'زهرا کریمی', 'phone' => '09120000002']);
-    Party::create(['type' => 'customer', 'name' => 'زهرا کریمی نژاد', 'phone' => '09120000003']);
+    Party::createWithRole('customer', ['name' => 'زهرا کریمی', 'phone' => '09120000002']);
+    Party::createWithRole('customer', ['name' => 'زهرا کریمی نژاد', 'phone' => '09120000003']);
 
     $this->actingAs($this->admin)->get('/search?q='.urlencode('زهرا کریمی'))
         ->assertOk()
@@ -62,7 +62,7 @@ it('finds a customer by name and ranks the exact match first', function () {
 });
 
 it('hides customer results from roles without customer access', function () {
-    Party::create(['type' => 'customer', 'name' => 'زهرا کریمی', 'phone' => '09120000002']);
+    Party::createWithRole('customer', ['name' => 'زهرا کریمی', 'phone' => '09120000002']);
 
     $this->actingAs($this->warehouse)->get('/search?q='.urlencode('زهرا کریمی'))
         ->assertOk()

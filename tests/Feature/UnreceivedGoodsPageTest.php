@@ -15,7 +15,7 @@ beforeEach(function () {
     $this->warehouse = User::factory()->create()->assignRole('warehouse');
     $this->partner = User::factory()->create()->assignRole('partner_viewer');
 
-    $supplier = Party::create(['type' => 'supplier', 'name' => 'پخش تهران']);
+    $supplier = Party::createWithRole('supplier', ['name' => 'پخش تهران']);
     $item = CostItem::create(['name' => 'اسپری']);
     $this->invoice = app(PurchaseInvoiceService::class)->create([
         'supplier_party_id' => $supplier->id,

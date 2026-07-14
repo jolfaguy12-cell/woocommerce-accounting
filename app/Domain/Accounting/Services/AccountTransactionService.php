@@ -82,21 +82,14 @@ class AccountTransactionService extends FinancialOperationService
     }
 
     /**
-     * An adjustment is never routine, whatever it is worth.
+     * Only an admin may approve an adjustment — not merely anyone holding the
+     * approve role, if that role has been widened.
      *
-     * The amount threshold is the wrong question here: a 5,000-Toman adjustment and
-     * a 5,000,000-Toman one are the same act — asserting that the books were wrong.
-     * The risk is not the size, it is that an unexplained difference gets absorbed
-     * instead of reconciled. So every adjustment waits for a second person,
-     * regardless of `ops.approval_threshold` (which may not even be set).
+     * (An adjustment no longer FORCES an approval step: an admin posts it directly.
+     * What still fences it is that only an admin can reach account 9999 at all, and
+     * that they must give a reason and a reference to do so — see assertRecordable.
+     * This only bites when `ops.approval_threshold` is set and the amount clears it.)
      */
-    protected function requiresApproval(Model $operation): bool
-    {
-        /** @var AccountTransaction $operation */
-        return $this->isAdjustment($operation) || parent::requiresApproval($operation);
-    }
-
-    /** Only an admin may approve an adjustment — not merely anyone with the approve role. */
     protected function assertApprovable(Model $operation, User $approver): void
     {
         /** @var AccountTransaction $operation */

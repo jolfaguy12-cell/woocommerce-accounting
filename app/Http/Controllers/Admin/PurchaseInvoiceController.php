@@ -103,7 +103,7 @@ class PurchaseInvoiceController extends Controller
         $data = $this->validateInvoice($request);
 
         $supplierId = $data['supplier_party_id']
-            ?? Party::create(['type' => PartyRoleType::Supplier->value, 'name' => $data['new_supplier_name']])->id;
+            ?? Party::createWithRole(PartyRoleType::Supplier, ['name' => $data['new_supplier_name']])->id;
 
         $lines = $this->resolveLines($data['lines'], $resolver);
 
