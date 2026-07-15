@@ -46,6 +46,9 @@ class PurchaseInvoiceService
                 'shipping_allocation' => $data['shipping_allocation'] ?? 'by_qty',
                 'status' => 'draft',
                 'notes' => $data['notes'] ?? null,
+                // Rows the operator typed on a draft: kept unposted here so the
+                // edit form can restore them; finalize() posts and clears them.
+                'pending_payments' => ! empty($data['pending_payments']) ? $data['pending_payments'] : null,
                 'created_by' => $data['created_by'] ?? null,
             ]);
 
@@ -105,7 +108,15 @@ class PurchaseInvoiceService
                     ? JalaliPeriod::fromDate(Carbon::parse($data['invoice_date'], JalaliPeriod::TIMEZONE))
                     : $invoice->jalali_period,
                 'shipping_cost' => isset($data['shipping_cost']) ? (int) $data['shipping_cost'] : $invoice->shipping_cost,
+                'notes' => $data['notes'] ?? $invoice->notes,
             ]));
+
+            // Kept out of the array_filter() above on purpose — an empty array
+            // (every payment row removed) is a real, meaningful value here, and
+            // array_filter() would silently drop it back to the old rows.
+            if (array_key_exists('pending_payments', $data)) {
+                $invoice->update(['pending_payments' => $data['pending_payments'] ?: null]);
+            }
 
             $remaining = $invoice->lines->count();
 

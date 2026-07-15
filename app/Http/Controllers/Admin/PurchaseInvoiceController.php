@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Accounting\Exceptions\PeriodLockedException;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Accounting\Support\PartyRoleType;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
@@ -13,7 +14,10 @@ use App\Domain\Costing\Services\ProductMappingResolver;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
 use App\Domain\Costing\Services\PurchaseReturnService;
 use App\Domain\Expenses\Models\Attachment;
+use App\Domain\Expenses\Models\BankAccount;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Receivables\Models\PartyPayment;
+use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Http\Controllers\Controller;
 use App\Rules\PartyHasRole;
 use App\Support\Design\TableQuery;
@@ -84,6 +88,8 @@ class PurchaseInvoiceController extends Controller
             'suppliers' => Party::withRole(PartyRoleType::Supplier)->with('supplierProfile')->orderBy('name')->get(['id', 'name']),
             // Prefilled from the supplier page's "خرید جدید از این تامین‌کننده" button.
             'preselectedSupplierId' => $request->integer('supplier_party_id') ?: null,
+            // For the optional initial-payment rows — same query SupplierController::pay() uses.
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -94,7 +100,7 @@ class PurchaseInvoiceController extends Controller
      * which is the only place real purchase/accounting documents get created
      * (see CLAUDE.md's Non-Negotiable Rules).
      */
-    public function store(Request $request, PurchaseInvoiceService $purchaseInvoices, ProductMappingResolver $resolver): RedirectResponse
+    public function store(Request $request, PurchaseInvoiceService $purchaseInvoices, ProductMappingResolver $resolver, PaymentRecorder $recorder): RedirectResponse
     {
         if ($request->input('supplier_party_id') === '__new__') {
             $request->merge(['supplier_party_id' => null]);
@@ -107,18 +113,35 @@ class PurchaseInvoiceController extends Controller
 
         $lines = $this->resolveLines($data['lines'], $resolver);
 
-        try {
-            $invoice = $purchaseInvoices->create([
-                'supplier_party_id' => $supplierId,
-                'invoice_no' => $data['invoice_no'] ?? null,
-                'invoice_date' => $data['invoice_date'] ?? now()->toDateString(),
-                'shipping_cost' => $data['shipping_cost'] ?? 0,
-                'lines' => $lines,
-                'created_by' => $request->user()->id,
-            ]);
+        $invoiceData = [
+            'supplier_party_id' => $supplierId,
+            'invoice_no' => $data['invoice_no'] ?? null,
+            'invoice_date' => $data['invoice_date'] ?? now()->toDateString(),
+            'shipping_cost' => $data['shipping_cost'] ?? 0,
+            'notes' => $data['notes'] ?? null,
+            'lines' => $lines,
+            'created_by' => $request->user()->id,
+        ];
 
+        try {
             if ($request->input('action') === 'finalize') {
-                $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
+                // Create, receive in full, and post any initial payments as one
+                // atomic unit — a failure at any step rolls back the invoice
+                // itself too, rather than leaving a half-finalized draft behind.
+                // A plain draft save (below) stays its own single transaction,
+                // exactly as before.
+                $invoice = DB::transaction(function () use ($purchaseInvoices, $invoiceData, $data, $request, $recorder) {
+                    $invoice = $purchaseInvoices->create($invoiceData);
+                    $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
+                    $this->postInitialPayments($invoice, $data['payments'] ?? [], $recorder, $request->user()->id);
+
+                    return $invoice;
+                });
+            } else {
+                // A draft is not an accounting document: initial-payment rows are
+                // kept unposted (pending_payments) so the edit form can restore
+                // them; they only become real postings at finalize().
+                $invoice = $purchaseInvoices->create([...$invoiceData, 'pending_payments' => $data['payments'] ?? null]);
             }
         } catch (PeriodLockedException) {
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
@@ -133,7 +156,7 @@ class PurchaseInvoiceController extends Controller
         return redirect()->route('purchases.show', $invoice)->with('success', $message);
     }
 
-    public function show(PurchaseInvoice $invoice): View
+    public function show(PurchaseInvoice $invoice, PartyLedgerService $ledger): View
     {
         $invoice->load([
             'supplier', 'lines.costItem', 'lines.product', 'lines.receiptLines', 'attachments', 'journalEntry',
@@ -149,6 +172,14 @@ class PurchaseInvoiceController extends Controller
             'title' => 'فاکتور خرید #'.$invoice->id,
             'invoice' => $invoice,
             'statusLabels' => self::STATUS_LABELS,
+            // Payments have no invoice_id — they're generic party payments — so
+            // "made at creation of THIS invoice" is found via the correlation_id
+            // postInitialPayments() tagged their JOURNAL ENTRY with (the
+            // invoice's own uuid) — correlation_id lives on journal_entries,
+            // not party_payments (see JournalPoster::post()).
+            'paidAtCreation' => PartyPayment::whereHas('journalEntry', fn ($q) => $q->where('correlation_id', $invoice->uuid))
+                ->whereNull('reversed_at')->get(),
+            'supplierPayable' => $ledger->supplierPayable($invoice->supplier),
         ]);
     }
 
@@ -160,6 +191,9 @@ class PurchaseInvoiceController extends Controller
             'title' => 'ویرایش فاکتور خرید #'.$invoice->id,
             'invoice' => $invoice,
             'suppliers' => Party::withRole(PartyRoleType::Supplier)->with('supplierProfile')->orderBy('name')->get(['id', 'name']),
+            // Payment rows only make sense while the invoice is still a draft —
+            // once finalized, pending_payments has already been posted/cleared.
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -180,6 +214,7 @@ class PurchaseInvoiceController extends Controller
             'invoice_no' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'shipping_cost' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string|max:2000',
             'images' => 'nullable|array',
             'images.*' => 'image|max:10240',
             'lines' => 'nullable|array',
@@ -190,6 +225,7 @@ class PurchaseInvoiceController extends Controller
             'lines.*.unit_price' => 'nullable|integer|min:1',
             'lines.*.note' => 'nullable|string|max:255',
             'lines.*._remove' => 'nullable|boolean',
+            ...$this->paymentRules(),
         ]);
 
         $lines = isset($data['lines']) ? $this->resolveLines($data['lines'], $resolver) : [];
@@ -199,7 +235,15 @@ class PurchaseInvoiceController extends Controller
                 'invoice_no' => $data['invoice_no'] ?? null,
                 'invoice_date' => $data['invoice_date'] ?? null,
                 'shipping_cost' => $data['shipping_cost'] ?? null,
+                'notes' => $data['notes'] ?? null,
                 'lines' => $lines,
+                // The edit form only renders payment rows (and this marker
+                // field) while the invoice is still a draft — see
+                // edit.blade.php. Checking the marker rather than
+                // has('payments') matters: removing every row submits no
+                // `payments[]` inputs at all, and that "now empty" state must
+                // still clear pending_payments, not leave it untouched.
+                ...($request->boolean('payments_form') ? ['pending_payments' => $data['payments'] ?? null] : []),
             ], $request->user()->id);
         } catch (PeriodLockedException) {
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.'])->withInput();
@@ -233,11 +277,25 @@ class PurchaseInvoiceController extends Controller
         return back()->with('success', 'تصویر فاکتور حذف شد.');
     }
 
-    /** Receives a draft/partial invoice in full, posting its journal entry for the first time. */
-    public function finalize(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices): RedirectResponse
+    /**
+     * Receives a draft/partial invoice in full, posting its journal entry for
+     * the first time — and, atomically with that, posts any initial-payment
+     * rows the operator saved on the draft (pending_payments), then clears
+     * them. Re-running this after they're already cleared is a no-op, same
+     * guarantee as store()'s finalize branch.
+     */
+    public function finalize(Request $request, PurchaseInvoice $invoice, PurchaseInvoiceService $purchaseInvoices, PaymentRecorder $recorder): RedirectResponse
     {
         try {
-            $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
+            DB::transaction(function () use ($request, $invoice, $purchaseInvoices, $recorder) {
+                $purchaseInvoices->receive($invoice, $invoice->lines->pluck('qty', 'id')->all(), $request->user()->id);
+
+                $pending = $invoice->pending_payments ?? [];
+                if ($pending !== []) {
+                    $this->postInitialPayments($invoice, $pending, $recorder, $request->user()->id);
+                    $invoice->update(['pending_payments' => null]);
+                }
+            });
         } catch (PeriodLockedException) {
             return back()->withErrors(['invoice_date' => 'دوره حسابداری این تاریخ قفل است؛ تاریخ دیگری انتخاب کنید.']);
         }
@@ -353,9 +411,17 @@ class PurchaseInvoiceController extends Controller
         $products = ProductMirror::whereIn('type', ['simple', 'variable', 'variation'])
             ->where(fn ($w) => $w->where('name', 'like', "%{$q}%")->orWhere('sku', 'like', "%{$q}%"))
             ->orderBy('name')->limit(20)
-            ->get(['id', 'name', 'sku', 'type']);
+            ->get(['id', 'name', 'sku', 'type', 'stock_quantity', 'stock_status', 'payload']);
 
-        return response()->json($products);
+        return response()->json($products->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'sku' => $p->sku,
+            'type' => $p->type,
+            'stock_quantity' => $p->stock_quantity,
+            'stock_status' => $p->stock_status,
+            'thumbnail_url' => $p->thumbnailUrl(),
+        ]));
     }
 
     private function validateInvoice(Request $request): array
@@ -366,6 +432,7 @@ class PurchaseInvoiceController extends Controller
             'invoice_no' => 'nullable|string|max:100',
             'invoice_date' => 'nullable|date',
             'shipping_cost' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string|max:2000',
             'images' => 'nullable|array',
             'images.*' => 'image|max:10240',
             'lines' => 'required|array|min:1',
@@ -375,7 +442,57 @@ class PurchaseInvoiceController extends Controller
             'lines.*.qty' => 'required|integer|min:1',
             'lines.*.unit_price' => 'required|integer|min:1',
             'lines.*.note' => 'nullable|string|max:255',
+            ...$this->paymentRules(),
         ]);
+    }
+
+    /**
+     * A draft stores these rows unposted (PurchaseInvoice::pending_payments)
+     * so the edit form can restore them; only action=finalize ever reads them
+     * through postInitialPayments() to actually post money.
+     */
+    private function paymentRules(): array
+    {
+        return [
+            'payments' => 'nullable|array',
+            'payments.*.bank_account_id' => 'nullable|exists:bank_accounts,id|required_with:payments.*.amount',
+            'payments.*.amount' => 'nullable|integer|min:1',
+            'payments.*.method' => 'nullable|string|max:50',
+            'payments.*.reference' => 'nullable|string|max:100',
+            'payments.*.note' => 'nullable|string|max:255',
+        ];
+    }
+
+    /**
+     * Post each initial-payment row entered on the create form through the
+     * existing supplier-pay flow (PaymentRecorder::pay() — same one
+     * SupplierController::pay() uses), dated to the invoice and tagged with
+     * the invoice's uuid as correlation_id so the invoice page can list them
+     * later without a new column. Rows with no amount/bank account are
+     * skipped — the form allows blank rows.
+     */
+    private function postInitialPayments(PurchaseInvoice $invoice, array $payments, PaymentRecorder $recorder, int $by): void
+    {
+        foreach ($payments as $payment) {
+            $amount = (int) ($payment['amount'] ?? 0);
+            $bankAccountId = $payment['bank_account_id'] ?? null;
+
+            if ($amount < 1 || ! $bankAccountId) {
+                continue;
+            }
+
+            $recorder->pay(
+                $invoice->supplier,
+                $amount,
+                (int) $bankAccountId,
+                $by,
+                $payment['method'] ?? null,
+                $payment['reference'] ?? null,
+                $invoice->invoice_date->toDateString(),
+                $payment['note'] ?? null,
+                $invoice->uuid,
+            );
+        }
     }
 
     /**

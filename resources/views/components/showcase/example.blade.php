@@ -718,6 +718,35 @@
         </div>
         @break
 
+    {{-- ============ Media ============ --}}
+    @case('media-01')
+        <div class="flex flex-wrap items-end gap-4">
+            <div class="text-center">
+                <x-media.product-image src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="نمونه" size="lg" />
+                <p class="mt-2 text-theme-xs text-gray-400">با تصویر</p>
+            </div>
+            <div class="text-center">
+                <x-media.product-image :src="null" alt="بدون تصویر" size="md" />
+                <p class="mt-2 text-theme-xs text-gray-400">بدون تصویر (src خالی — بدون درخواست شبکه)</p>
+            </div>
+            <div class="text-center">
+                <x-media.product-image src="/showcase-nonexistent-image.png" alt="خراب" size="md" />
+                <p class="mt-2 text-theme-xs text-gray-400">تصویر خراب (خطای بارگذاری)</p>
+            </div>
+        </div>
+        @break
+
+    @case('form-09')
+        <div class="max-w-md" x-data="{ searchEndpoint: @js(route('purchases.items.search')), lines: [window.makePurchaseLine()] }">
+            <template x-for="(line, idx) in lines" :key="idx">
+                <x-form.product-line-picker name-prefix="`lines[${idx}]`" />
+            </template>
+            <p class="mt-2 text-theme-xs text-gray-400">
+                نام یا SKU یک کالای واقعی را تایپ کنید — نتایج از همان مسیر purchases.items.search می‌آیند.
+            </p>
+        </div>
+        @break
+
     @default
         <p class="text-sm text-error-500">پیش‌نمایشی برای «{{ $id }}» تعریف نشده است.</p>
 @endswitch

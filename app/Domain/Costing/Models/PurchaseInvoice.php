@@ -18,6 +18,7 @@ class PurchaseInvoice extends Model
         'invoice_date' => 'date',
         'expected_delivery_date' => 'date',
         'shipping_cost' => 'integer',
+        'pending_payments' => 'array',
     ];
 
     public function supplier(): BelongsTo

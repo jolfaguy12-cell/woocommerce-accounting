@@ -54,4 +54,23 @@ class ProductMirror extends Model
     {
         return $this->hasMany(ProductNote::class);
     }
+
+    /**
+     * The Hub's own image URL — read straight from the mirrored payload, never
+     * downloaded or stored separately (see CLAUDE.md's product-image rule).
+     * Prefers the image WooCommerce marked as the thumbnail; falls back to the
+     * first image if none is flagged, then null if the product has none.
+     */
+    public function thumbnailUrl(): ?string
+    {
+        $images = $this->payload['images'] ?? [];
+
+        if (! is_array($images) || $images === []) {
+            return null;
+        }
+
+        $thumbnail = collect($images)->firstWhere('is_thumbnail', true);
+
+        return $thumbnail['url'] ?? $images[0]['url'] ?? null;
+    }
 }

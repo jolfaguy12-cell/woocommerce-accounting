@@ -47,6 +47,44 @@
             </div>
         </div>
 
+        @if ($invoice->notes)
+            <div class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+                <p class="text-xs text-gray-500 dark:text-gray-400">توضیحات کلی</p>
+                <p class="mt-1 whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{{ $invoice->notes }}</p>
+            </div>
+        @endif
+    </x-common.component-card>
+
+    <x-common.component-card title="پرداخت‌ها">
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">پرداخت‌شده هنگام ثبت این فاکتور</p>
+                <x-tables.num :cell="false" class="mt-1 text-base font-medium" :value="$paidAtCreation->sum('amount')" type="toman" tone="positive" />
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">بدهی باقی‌مانده تامین‌کننده (کل)</p>
+                <x-tables.num :cell="false" class="mt-1 text-base font-medium" :value="max(0, $supplierPayable)" type="toman" tone="negative" />
+                <a href="{{ route('suppliers.show', $invoice->supplier_party_id) }}" class="mt-1 block text-theme-xs text-brand-500 hover:underline">مشاهده تاریخچه کامل پرداخت‌های تامین‌کننده</a>
+            </div>
+        </div>
+
+        @if ($paidAtCreation->isNotEmpty())
+            <div class="mt-4 space-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+                @foreach ($paidAtCreation as $payment)
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span class="text-gray-700 dark:text-gray-300">
+                            {{ \Morilog\Jalali\Jalalian::fromCarbon($payment->paid_at)->format('Y/m/d') }}
+                            @if ($payment->method)
+                                — {{ ['bank_transfer' => 'انتقال بانکی', 'cash' => 'نقدی', 'card' => 'کارت به کارت', 'other' => 'سایر'][$payment->method] ?? $payment->method }}
+                            @endif
+                        </span>
+                        <x-tables.num :cell="false" :value="$payment->amount" type="toman" />
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <p class="mt-3 text-xs text-gray-400">بدهی تامین‌کننده مجموع همه فاکتورهاست، نه فقط این یکی — تسویه‌های بعدی از صفحه تامین‌کننده ثبت می‌شوند و همان‌جا و اینجا نمایش داده می‌شوند.</p>
     </x-common.component-card>
 
     @php

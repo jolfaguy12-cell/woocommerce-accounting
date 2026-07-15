@@ -245,3 +245,29 @@ it('refreshes the mirror from the hub on demand', function () {
     $this->actingAs($this->admin)->post("/products/{$this->mirror->id}/sync")
         ->assertRedirect()->assertSessionHasNoErrors();
 });
+
+it('shows the hub thumbnail on the product page when the payload has one, never storing it separately', function () {
+    $withImage = ProductMirror::create([
+        'hub_product_id' => 5733, 'type' => 'simple', 'name' => 'کرم آفتاب',
+        'payload' => ['images' => [
+            ['url' => 'https://hub.example.com/a.webp', 'is_thumbnail' => false],
+            ['url' => 'https://hub.example.com/b.webp', 'is_thumbnail' => true],
+        ]],
+    ]);
+
+    expect($withImage->thumbnailUrl())->toBe('https://hub.example.com/b.webp');
+
+    $this->actingAs($this->admin)->get("/products/{$withImage->id}")
+        ->assertOk()
+        ->assertViewHas('product', fn ($product) => $product['image_url'] === 'https://hub.example.com/b.webp')
+        ->assertSee('https://hub.example.com/b.webp', false);
+});
+
+it('renders the no-image fallback instead of erroring when the product has no images', function () {
+    // $this->mirror's payload is [] — no images key at all.
+    expect($this->mirror->thumbnailUrl())->toBeNull();
+
+    $this->actingAs($this->admin)->get("/products/{$this->mirror->id}")
+        ->assertOk()
+        ->assertViewHas('product', fn ($product) => $product['image_url'] === null);
+});

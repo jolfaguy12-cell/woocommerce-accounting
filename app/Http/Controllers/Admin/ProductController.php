@@ -84,6 +84,8 @@ class ProductController extends Controller
                 'regular_price' => $product->regular_price,
                 'stock_quantity' => $product->stock_quantity,
                 'stock_status' => $product->stock_status,
+                'image_url' => $product->thumbnailUrl(),
+                'images' => collect($product->payload['images'] ?? [])->pluck('url')->values(),
                 'pricing' => $resolver->pricingSummary($product),
                 'mapping' => $product->costMapping ? [
                     'cost_item' => $product->costMapping->costItem?->name,

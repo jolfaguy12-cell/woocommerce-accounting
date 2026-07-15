@@ -33,7 +33,21 @@
 
 <div class="space-y-4">
     <x-common.component-card :title="$product['name']">
-        <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex flex-wrap items-start gap-4">
+            <x-media.product-image :src="$product['image_url']" :alt="$product['name']" size="lg" />
+
+            @if ($product['images']->count() > 1)
+                <div class="flex flex-wrap content-start gap-2">
+                    @foreach ($product['images'] as $img)
+                        <a href="{{ $img }}" target="_blank" rel="noopener noreferrer">
+                            <x-media.product-image :src="$img" :alt="$product['name']" size="sm" />
+                        </a>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <x-ui.badge color="light" size="sm">{{ $typeLabels[$product['type']] ?? $product['type'] }}</x-ui.badge>
                 <span>شناسه محصول: <span dir="ltr">#{{ $product['hub_product_id'] }}</span></span>

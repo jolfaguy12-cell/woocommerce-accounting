@@ -1,12 +1,17 @@
 <?php
 
 use App\Domain\Accounting\Models\AccountingPeriod;
+use App\Domain\Accounting\Models\JournalEntry;
 use App\Domain\Accounting\Models\Party;
+use App\Domain\Accounting\Services\PartyLedgerService;
 use App\Domain\Costing\Models\CostHistory;
 use App\Domain\Costing\Models\CostItem;
 use App\Domain\Costing\Models\PurchaseInvoice;
 use App\Domain\Costing\Services\PurchaseInvoiceService;
+use App\Domain\Expenses\Services\BankAccountManager;
 use App\Domain\Products\Models\ProductMirror;
+use App\Domain\Receivables\Models\PartyPayment;
+use App\Domain\Receivables\Services\PaymentRecorder;
 use App\Models\User;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\RoleSeeder;
@@ -401,4 +406,181 @@ it('links a purchase line to its product page when the line has a product', func
         ->assertOk()
         ->assertSee(route('products.show', $product))
         ->assertSee('target="_blank"', false);
+});
+
+it('saves invoice-level notes on a draft and lets them be edited afterwards', function () {
+    $this->actingAs($this->admin)->post('/new-buy-order', [
+        'supplier_party_id' => $this->supplier->id,
+        'notes' => 'تحویل فقط صبح‌ها',
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 1, 'unit_price' => 100_000]],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $invoice = PurchaseInvoice::latest('id')->first();
+    expect($invoice->notes)->toBe('تحویل فقط صبح‌ها');
+
+    $this->actingAs($this->admin)->put("/new-buy-order/{$invoice->id}", [
+        'notes' => 'به‌روزرسانی: تحویل عصرها',
+    ])->assertRedirect(route('purchases.show', $invoice));
+
+    expect($invoice->refresh()->notes)->toBe('به‌روزرسانی: تحویل عصرها');
+});
+
+it('includes a thumbnail url and stock fields in the item-picker search response', function () {
+    ProductMirror::create([
+        'hub_product_id' => 6003, 'type' => 'simple', 'name' => 'کرم آفتاب', 'sku' => 'SUN-1',
+        'stock_quantity' => 12, 'stock_status' => 'instock',
+        'payload' => ['images' => [['url' => 'https://example.com/sun.webp', 'is_thumbnail' => true]]],
+    ]);
+
+    $response = $this->actingAs($this->admin)->get('/new-buy-order/items/search?q='.urlencode('کرم آفتاب'))
+        ->assertOk()->json();
+
+    expect($response)->toHaveCount(1)
+        ->and($response[0]['thumbnail_url'])->toBe('https://example.com/sun.webp')
+        ->and($response[0]['stock_quantity'])->toBe(12)
+        ->and($response[0]['stock_status'])->toBe('instock');
+});
+
+it('posts one or more initial payments atomically when finalizing a new invoice', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
+
+    $this->actingAs($this->admin)->post('/new-buy-order', [
+        'supplier_party_id' => $this->supplier->id,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 100_000]],
+        'action' => 'finalize',
+        'payments' => [
+            ['bank_account_id' => $bank->id, 'amount' => 400_000, 'method' => 'cash', 'reference' => 'REF-1'],
+            ['bank_account_id' => $bank->id, 'amount' => 200_000, 'method' => 'bank_transfer'],
+        ],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $invoice = PurchaseInvoice::latest('id')->first();
+    expect($invoice->status)->toBe('received')
+        ->and($invoice->journal_entry_id)->not->toBeNull();
+
+    $payments = PartyPayment::whereHas('journalEntry', fn ($q) => $q->where('correlation_id', $invoice->uuid))->get();
+    expect($payments)->toHaveCount(2)
+        ->and($payments->sum('amount'))->toBe(600_000)
+        ->and($payments->every(fn ($p) => $p->journal_entry_id !== null))->toBeTrue();
+
+    $remaining = app(PartyLedgerService::class)->supplierPayable($this->supplier);
+    expect($remaining)->toBe(1_000_000 - 600_000);
+});
+
+it('keeps initial-payment rows unposted (pending) when the invoice is only saved as a draft', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
+
+    $this->actingAs($this->admin)->post('/new-buy-order', [
+        'supplier_party_id' => $this->supplier->id,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 1, 'unit_price' => 100_000]],
+        'action' => 'draft',
+        'payments' => [
+            ['bank_account_id' => $bank->id, 'amount' => 50_000],
+        ],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $invoice = PurchaseInvoice::latest('id')->first();
+    expect($invoice->status)->toBe('draft')
+        ->and($invoice->journal_entry_id)->toBeNull()
+        ->and(PartyPayment::count())->toBe(0)
+        ->and($invoice->pending_payments)->toHaveCount(1)
+        ->and($invoice->pending_payments[0]['amount'])->toBe(50_000);
+});
+
+it('restores a draft\'s pending-payment rows on the edit page and lets them be updated', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
+
+    $this->actingAs($this->admin)->post('/new-buy-order', [
+        'supplier_party_id' => $this->supplier->id,
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 1, 'unit_price' => 100_000]],
+        'action' => 'draft',
+        'payments' => [
+            ['bank_account_id' => $bank->id, 'amount' => 50_000, 'method' => 'cash'],
+        ],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $invoice = PurchaseInvoice::latest('id')->first();
+
+    $this->actingAs($this->admin)->get("/new-buy-order/{$invoice->id}/edit")
+        ->assertOk()
+        ->assertSee($bank->name)
+        // The pending row itself (amount + bank id) must be embedded in the
+        // Alpine seed data (via @js(), which unicode-escapes quotes), not
+        // just a blank form — this is the "restored on edit" part, not just
+        // "the bank exists as an option".
+        ->assertSee('amount\u0022:50000', false)
+        ->assertSee('bank_account_id\u0022:'.$bank->id, false);
+
+    // Editing the draft again with a different payment row replaces the
+    // pending set — still unposted, still not a PartyPayment.
+    $this->actingAs($this->admin)->put("/new-buy-order/{$invoice->id}", [
+        'payments_form' => '1',
+        'payments' => [
+            ['bank_account_id' => $bank->id, 'amount' => 75_000, 'method' => 'bank_transfer'],
+        ],
+    ])->assertRedirect(route('purchases.show', $invoice));
+
+    expect($invoice->refresh()->pending_payments)->toHaveCount(1)
+        ->and($invoice->pending_payments[0]['amount'])->toBe(75_000)
+        ->and(PartyPayment::count())->toBe(0);
+
+    // Removing every row (the form still marks itself as the payments form)
+    // must clear pending_payments back to null, not leave the old rows stuck.
+    $this->actingAs($this->admin)->put("/new-buy-order/{$invoice->id}", [
+        'payments_form' => '1',
+    ])->assertRedirect(route('purchases.show', $invoice));
+
+    expect($invoice->refresh()->pending_payments)->toBeNull();
+});
+
+it('posts pending payments atomically when finalizing an already-saved draft', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
+
+    $invoice = app(PurchaseInvoiceService::class)->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => now(),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 10, 'unit_price' => 100_000]],
+        'pending_payments' => [
+            ['bank_account_id' => $bank->id, 'amount' => 400_000, 'method' => 'cash'],
+        ],
+    ]);
+
+    $this->actingAs($this->admin)->post("/new-buy-order/{$invoice->id}/finalize")->assertRedirect();
+
+    $invoice->refresh();
+    expect($invoice->status)->toBe('received')
+        ->and($invoice->journal_entry_id)->not->toBeNull()
+        ->and($invoice->pending_payments)->toBeNull();
+
+    $payments = PartyPayment::whereHas('journalEntry', fn ($q) => $q->where('correlation_id', $invoice->uuid))->get();
+    expect($payments)->toHaveCount(1)
+        ->and($payments->first()->amount)->toBe(400_000);
+
+    // Re-finalizing must not re-post the same rows a second time.
+    $this->actingAs($this->admin)->post("/new-buy-order/{$invoice->id}/finalize")->assertRedirect();
+    expect(PartyPayment::count())->toBe(1);
+});
+
+it('does not duplicate the journal or any payment when finalize is called twice', function () {
+    $bank = app(BankAccountManager::class)->create(['name' => 'بانک ملت']);
+
+    $invoice = app(PurchaseInvoiceService::class)->create([
+        'supplier_party_id' => $this->supplier->id,
+        'invoice_date' => now(),
+        'lines' => [['cost_item_id' => $this->spray->id, 'qty' => 1, 'unit_price' => 100_000]],
+    ]);
+
+    $this->actingAs($this->admin)->post("/new-buy-order/{$invoice->id}/finalize")->assertRedirect();
+    $firstJournalId = $invoice->refresh()->journal_entry_id;
+
+    // A second, standalone payment posted after finalize (the normal "later
+    // settlement" path) must never be confused with the first — each pay()
+    // call is its own real event, not something finalize() replays.
+    app(PaymentRecorder::class)->pay($this->supplier, 50_000, $bank->id);
+
+    $this->actingAs($this->admin)->post("/new-buy-order/{$invoice->id}/finalize")->assertRedirect();
+
+    expect($invoice->refresh()->journal_entry_id)->toBe($firstJournalId)
+        ->and(JournalEntry::where('source_type', $invoice->getMorphClass())->where('source_id', $invoice->id)->count())->toBe(1)
+        ->and(PartyPayment::count())->toBe(1);
 });
